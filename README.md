@@ -191,13 +191,15 @@ app without signing in → load a real satellite with its epoch/characteristics
 passes for a typed location → export CSV → budget-guard rejection → watchlist
 save → comparison page → WebGL-forced 2D fallback → methodology content.
 
-Five of the eleven journeys depend on the live provider. When CelesTrak
-throttled this workspace's IP during final verification (HTTP 403 → the app's
-typed 502), those journeys could not re-run; receipts are recorded in
-`docs/engineering-audit.md` §G. The suite contains a provider-state-agnostic
-journey asserting the honest contract: the detail page shows **real data or a
-specific, named failure — never fabricated data** — and it passed during the
-actual outage.
+Six of the eleven journeys depend on the live provider. During this
+workspace's final verification the provider was unavailable two ways —
+first HTTP 403 (throttled), later connection-unreachable — and the app
+answered each time with a typed 502 and honest UI instead of fake data;
+those six journeys could not re-run until the provider answers again.
+Receipts are recorded in `docs/engineering-audit.md` §G1. The suite
+contains a provider-state-agnostic journey asserting the honest contract:
+the detail page shows **real data or a specific, named failure — never
+fabricated data** — and it passed during the actual outage.
 
 ## Deployment
 
