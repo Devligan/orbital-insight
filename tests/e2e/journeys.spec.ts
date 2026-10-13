@@ -136,6 +136,24 @@ test.describe("2D fallback journey", () => {
   });
 });
 
+test.describe("provider failure handling", () => {
+  test("shows real data or an honest failure — never fabricated data", async ({ page }) => {
+    // The provider (CelesTrak) may be up or down when this runs; both states
+    // are honest outcomes. What must NEVER happen is fake/simulated data.
+    await page.goto("/satellites/25544");
+    const loaded = page.getByText(/Element epoch:/i);
+    const honestFailure = page.getByText(/Satellite data unavailable/i);
+    await expect(loaded.or(honestFailure).first()).toBeVisible({ timeout: 60_000 });
+    // When data loaded, provenance is present; when it failed, the outage is
+    // named specifically, not hidden behind a spinner or a generic error.
+    if (await loaded.count()) {
+      await expect(page.getByText(/Retrieved:/i)).toBeVisible();
+    } else {
+      await expect(page.getByText(/upstream provider \(CelesTrak\) may be unreachable/i)).toBeVisible();
+    }
+  });
+});
+
 test.describe("methodology page", () => {
   test("documents limitations and data sources", async ({ page }) => {
     await page.goto("/methodology");

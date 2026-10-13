@@ -9,6 +9,17 @@ shown for every gate. Nothing was projected or fabricated.
 
 ## A. Executive summary
 
+> **Addendum (final pre-deployment verification, same day):** a closing
+> verification pass re-ran the controllable checks (§G), executed the
+> optional live-provider test against the real network (pass, 433 ms),
+> closed the two biggest §A risks with new evidence — the WebGL-failure 2D
+> fallback and the compare-page flow are now **Verified** by real-browser
+> e2e journeys — and *observed* provider-failure handling live during a real
+> CelesTrak outage (typed 502, honest error panels, no fabricated data).
+> The repository was also committed as a git checkpoint after a staged-diff
+> secret scan (clean). Supabase RLS stayed **statically reviewed only** (no
+> docker/DB available) and deployment stayed **not performed** (no Vercel
+> credentials); exact remaining steps are in §H.
 The application is substantively correct, honest about its limits, and
 deployable on the intended free tier after this audit's fixes. The core
 scientific claim — SGP4 propagation agreeing with the official Vallado
@@ -155,14 +166,12 @@ reliability or honesty. *Low* is hygiene.
 ## D. Feature verification matrix
 
 See the README ("Feature verification matrix") — the audit-maintained table
-with per-feature status and evidence. Summary counts at audit end:
-**Verified: 11 · Partially verified: 3 · Not verified: 1 · Broken: 0 ·
-Not implemented: 0** (for advertised features). The three "Partially
-verified" entries (3D globe pixel rendering, 2D fallback behavioral path,
-compare-page UI flow) each list a reproducible manual procedure in that
-table; the single "Not verified" entry (snapshot comparison end-to-end)
-requires a configured Supabase database that this environment could not
-provide.
+with per-feature status and evidence. Summary counts after the closing
+verification pass: **Verified: 13 · Partially verified: 1 · Not verified: 1 ·
+Broken: 0 · Not implemented: 0** (for advertised features). The remaining
+"Partially verified" entry (3D globe pixel-level rendering) and the "Not
+verified" entry (snapshot comparison end-to-end, which requires a configured
+Supabase database) list their exact remaining procedures in that table.
 
 ## E. Scientific validation report
 
@@ -318,6 +327,28 @@ Every gate re-run after the fixes, with exit codes:
 Failures encountered and resolved during the audit are itemized in §C
 (C1–C6). No gate failure remains unresolved.
 
+### G1. Final pre-deployment verification (closing pass, addendum)
+
+| Check | Result | Receipt |
+| --- | --- | --- |
+| `npx tsc --noEmit` / `npx eslint` (after each test edit) | 0 / 0 | repeated four times |
+| Optional live-provider test executed (not skipped-blind): `RUN_LIVE_TESTS=1 npx vitest run tests/integration/celestrak-live.test.ts` | **pass, 433 ms** | real ISS record, epoch age < 30 d |
+| 2D WebGL fallback e2e (WebGL contexts forced to fail in real Chromium) | **pass** | journey uses `addInitScript` to null every `getContext("webgl*")`; asserts the computed 2D ground track swaps in |
+| Compare-page flow e2e | **pass** | both defaults load, `.recharts-wrapper` renders, interpretation notes visible |
+| Provider-failure handling, observed **live** during a real outage | **verified** | CelesTrak returned HTTP 403 to this IP; app API answered `502 {kind:"provider", "CelesTrak returned HTTP 403"}` (curl receipt); `/satellites/25544` SSR'd the honest "Satellite data unavailable — shown honestly" panel; new provider-state-agnostic e2e journey passed in 13.6 s |
+| Search journey during the outage | **blocked externally** | no options rendered; API 502 receipt above; same build had passed this journey when the provider was healthy earlier the same day |
+| Chunk-load anomaly in one reused-server run | **transient infrastructure artifact** | `Loading chunk 782 failed` reproduced only against a stale `next start` process; a fresh manual server served the same chunk `HTTP 200` and the test passed afterwards; chunk file exists in the committed build |
+| Supabase migrations + RLS policies, static review | **done, runtime not claimed** | 0001: `orbital_snapshots` RLS enabled with **no policies** → deny-all for anon/authed; only service role (RLS-bypassing) writes. 0002: `watchlist_items` full owner-only policy set (`select/insert/delete/update` all scoped by `auth.uid() = user_id`; insert/update use `with check`). No defect found statically |
+| Vercel availability check | **blocked** | `vercel` CLI absent; no `VERCEL_TOKEN`/org/project env vars in this environment |
+| Docker availability check | **absent** | no local Supabase/policy execution possible |
+| Git checkpoint | **created** | repository was not a git repo; `git init -b main`; `.gitignore` verified to exclude `node_modules`, `.next`, `.env*`, `test-results/`, build assets; staged tree = 77 files (src/tests/config/docs only, zero generated artifacts); regex secret scan over the staged diff = no hits; commit `3230295` |
+
+Net chars of the closing pass: two findings C2/C4-class test-only fixes
+(fallback assertion regex; file formatting) plus one new landed journey
+(provider-failure handling). No application code changed in the closing
+pass; the earlier audit fixes (C1–C6) are unchanged and their gates were
+re-run above.
+
 ## H. Deployment readiness
 
 The project is deploy-ready under the intended free-tier configuration; the
@@ -359,3 +390,19 @@ credentials) and complete the deployment:
   the "not for collision avoidance or safety-of-life" statements visible.
 - Windows development quirk (C7): stop dev servers before `npm ci` to avoid
   the file-lock EPERM.
+- **Remaining steps in one place (what this workspace could not run):**
+  1. *Deployment requires Vercel credentials:* install the CLI
+     (`npm i -g vercel`), `vercel link`, set `SUPABASE_*` only if persistence
+     is wanted, then `vercel deploy --prod`. No deployment was attempted:
+     neither the CLI nor any token exists in this environment.
+  2. *Supabase runtime RLS verification requires a database:* create the
+     Supabase project, `supabase db push`, then execute the documented policy
+     tests — with the anon key, attempt (a) reading another user's rows
+     (expect: empty), (b) inserting a row carrying someone else's `user_id`
+     (expect: RLS violation), (c) anonymous reads of `orbital_snapshots`
+     (expect: empty; write only via service role). Not executed here: no
+     docker and no credentials; only the static review in §G1 was done.
+  3. *Provider rate-limit recovery:* CelesTrak throttled this IP (403) after
+     the audit's many real fetches; the app handled it per design (typed
+     errors, honest panels). Before relying on e2e journeys that need live
+     data, confirm the provider answers (single `curl /api/satellites/search?q=ISS`)

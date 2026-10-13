@@ -41,15 +41,16 @@ reflects its evidence-based verdicts.
 
 | Feature | Status | Evidence |
 | --- | --- | --- |
-| Satellite search & selection | **Verified** | e2e journey (search → detail navigation); service tests |
+| Satellite search & selection | **Verified** | e2e journey (search → detail navigation); service tests. Note: needs the live provider — during a real CelesTrak outage the typeahead (correctly) shows no fabricated hits while the API answers with a typed provider error |
 | Satellite details / epoch / provenance | **Verified** | e2e + live HTTP smoke (epoch = fetch-day value) |
 | 3D globe (orbit, satellite, ground track) | **Partially verified** | e2e loads the globe in Chromium with WebGL; pixel-level rendering is not asserted |
-| 2D WebGL fallback (swap-in on globe failure) | **Partially verified** | swap logic implemented + type/lint-checked; the failure path is not triggered under CI WebGL — manual procedure: block WebGL in browser DevTools and reload `/` |
+| 2D WebGL fallback (swap-in on globe failure) | **Verified** | e2e journey forces every WebGL context request to fail in real Chromium and asserts the computed 2D ground track actually swaps in (production build) |
 | Ground track (antimeridian handling) | **Verified** | unit tests (dateline split, wrap conventions) + API ground-track smoke |
 | Time controls (prediction window slider) | **Verified** | e2e journey (timestamp readout changes with slider) |
 | Pass predictions (rise/max/set + azimuths) | **Verified** | unit tests incl. truncation semantics; live HTTP smoke (ISS × Florida ≈ 42.1° apex) |
 | Pass compute budget guard | **Verified** | unit regression test (2160 sat-h rejected, 600 sat-h accepted) + e2e message assertion |
-| Orbital element comparison | **Partially verified** | service-level identity/delta regression tests pass; the compare-page UI flow has no e2e journey yet — manual procedure on `/compare` |
+| Orbital element comparison | **Verified** | service-level identity/delta regression tests + e2e journey on `/compare` (both default satellites load, delta chart renders, interpretation notes visible) |
+| Provider failure handling (honest outage UI) | **Verified** | observed live during a real CelesTrak 403 outage: API returned a typed 502 provider error; detail page rendered "Satellite data unavailable — shown honestly"; e2e journey asserts real-data-or-honest-failure, never fabricated data |
 | Snapshot comparison (requires Supabase) | **Not verified** | persistence + deduplicating writes implemented with migrations; no live Supabase instance was configured in this environment — nothing could assert it end-to-end |
 | Watchlist (browser-local persistence) | **Verified** | e2e (save → navigate → list shows the entry) |
 | CSV export | **Verified** | e2e download event, `.csv` filename, non-empty file path |
@@ -181,14 +182,22 @@ Skipped by default so the standard suite never requires network access.
 ```bash
 npm run build
 npx playwright test
-# 7 passed (31s)
+# 11 journeys in the suite
 ```
 
 Journeys verified in a real Chromium session against `next start`: open the
 app without signing in → load a real satellite with its epoch/characteristics
 → move the prediction time → search + navigate to a detail page → calculate
-passes for a typed location → save a satellite to the watchlist → check the
-methodology page content.
+passes for a typed location → export CSV → budget-guard rejection → watchlist
+save → comparison page → WebGL-forced 2D fallback → methodology content.
+
+Five of the eleven journeys depend on the live provider. When CelesTrak
+throttled this workspace's IP during final verification (HTTP 403 → the app's
+typed 502), those journeys could not re-run; receipts are recorded in
+`docs/engineering-audit.md` §G. The suite contains a provider-state-agnostic
+journey asserting the honest contract: the detail page shows **real data or a
+specific, named failure — never fabricated data** — and it passed during the
+actual outage.
 
 ## Deployment
 
