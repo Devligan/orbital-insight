@@ -20,6 +20,7 @@ shown for every gate. Nothing was projected or fabricated.
 > secret scan (clean). Supabase RLS stayed **statically reviewed only** (no
 > docker/DB available) and deployment stayed **not performed** (no Vercel
 > credentials); exact remaining steps are in §H.
+
 The application is substantively correct, honest about its limits, and
 deployable on the intended free tier after this audit's fixes. The core
 scientific claim — SGP4 propagation agreeing with the official Vallado
@@ -167,7 +168,7 @@ reliability or honesty. *Low* is hygiene.
 
 See the README ("Feature verification matrix") — the audit-maintained table
 with per-feature status and evidence. Summary counts after the closing
-verification pass: **Verified: 13 · Partially verified: 1 · Not verified: 1 ·
+verification pass: **Verified: 14 · Partially verified: 1 · Not verified: 1 ·
 Broken: 0 · Not implemented: 0** (for advertised features). The remaining
 "Partially verified" entry (3D globe pixel-level rendering) and the "Not
 verified" entry (snapshot comparison end-to-end, which requires a configured
@@ -343,8 +344,8 @@ Failures encountered and resolved during the audit are itemized in §C
 | Docker availability check | **absent** | no local Supabase/policy execution possible |
 | Git checkpoint | **created** | repository was not a git repo; `git init -b main`; `.gitignore` verified to exclude `node_modules`, `.next`, `.env*`, `test-results/`, build assets; staged tree = 77 files (src/tests/config/docs only, zero generated artifacts); regex secret scan over the staged diff = no hits; commit `3230295` |
 
-Net chars of the closing pass: two findings C2/C4-class test-only fixes
-(fallback assertion regex; file formatting) plus one new landed journey
+Scope of the closing pass: exactly two test-only fixes (a too-loose fallback
+assertion regex; a file-formatting blemish) and one new e2e journey
 (provider-failure handling). No application code changed in the closing
 pass; the earlier audit fixes (C1–C6) are unchanged and their gates were
 re-run above.
@@ -404,5 +405,6 @@ credentials) and complete the deployment:
      docker and no credentials; only the static review in §G1 was done.
   3. *Provider rate-limit recovery:* CelesTrak throttled this IP (403) after
      the audit's many real fetches; the app handled it per design (typed
-     errors, honest panels). Before relying on e2e journeys that need live
-     data, confirm the provider answers (single `curl /api/satellites/search?q=ISS`)
+     errors, honest panels). Before re-running provider-dependent e2e
+     journeys, confirm the provider answers again (e.g.
+     `curl /api/satellites/search?q=ISS`).

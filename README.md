@@ -8,7 +8,7 @@ for the core demo.
 
 **State of this repository:** complete, with automated tests passing
 (see [Testing](#testing) for the exact commands used and their real output
-counts). There is no deployed demo URL yet no deployment credentials were
+counts). There is no deployed demo URL — no deployment credentials were
 configured in this environment; deployment instructions are below and the
 Vercel configuration follows the documented free-tier limits.
 
@@ -149,8 +149,8 @@ projected or fabricated.
 
 ```bash
 npm test
-# Test Files  7 passed (7)
-#      Tests  41 passed (41)
+# Test Files  9 passed | 1 skipped (10)
+#      Tests  50 passed | 1 skipped (51)   ← the skip is the optional live-provider check
 ```
 
 Covers:
