@@ -1,0 +1,197 @@
+@import "tailwindcss";
+
+/*
+ * Orbital Insight design system.
+ *
+ * Dark aerospace-instrument aesthetic: deep charcoal/navy surfaces, a
+ * restrained cyan accent, hairline borders, and dense but legible technical
+ * typography. Tailwind v4 @theme tokens keep every component on the same
+ * palette and spacing scale.
+ */
+@theme {
+  --color-bg-root: #0b1017;
+  --color-bg-panel: #101722;
+  --color-bg-inset: #0d1420;
+  --color-border-hairline: #1e2a3a;
+  --color-border-strong: #2a3a50;
+  --color-text-primary: #dbe4f0;
+  --color-text-secondary: #8fa3bd;
+  --color-text-muted: #5d7291;
+  --color-accent: #38bdf8;
+  --color-accent-dim: #0e7490;
+  --color-status-good: #34d399;
+  --color-status-warn: #fbbf24;
+  --color-status-bad: #f87171;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-bg-root);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Visible, consistent keyboard focus everywhere. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Respect reduced-motion preferences. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer components {
+  .panel {
+    background-color: var(--color-bg-panel);
+    border: 1px solid var(--color-border-hairline);
+    border-radius: 4px;
+  }
+
+  .panel-inset {
+    background-color: var(--color-bg-inset);
+    border: 1px solid var(--color-border-hairline);
+    border-radius: 3px;
+  }
+
+  .label {
+    color: var(--color-text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .data-value {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--color-text-primary);
+  }
+
+  .input {
+    background-color: var(--color-bg-inset);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 3px;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: var(--color-text-primary);
+    width: 100%;
+  }
+
+  .input:hover {
+    border-color: var(--color-accent-dim);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+  }
+
+  .btn-primary {
+    background-color: var(--color-accent-dim);
+    color: #eaf6ff;
+  }
+
+  .btn-primary:hover {
+    background-color: var(--color-accent);
+    color: #06121f;
+  }
+
+  .btn-secondary {
+    background-color: transparent;
+    border-color: var(--color-border-strong);
+    color: var(--color-text-secondary);
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--color-accent-dim);
+    color: var(--color-text-primary);
+  }
+
+  .btn-danger {
+    background-color: transparent;
+    border-color: var(--color-border-strong);
+    color: var(--color-status-bad);
+  }
+
+  .btn-danger:hover {
+    border-color: var(--color-status-bad);
+  }
+
+  .table-technical {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .table-technical th {
+    text-align: left;
+    color: var(--color-text-muted);
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--color-border-hairline);
+    white-space: nowrap;
+  }
+
+  .table-technical td {
+    padding: 6px 10px;
+    font-family: var(--font-mono);
+    border-bottom: 1px solid var(--color-border-hairline);
+    white-space: nowrap;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border-hairline);
+    font-size: 11px;
+  }
+
+  .badge-good {
+    color: var(--color-status-good);
+    border-color: color-mix(in oklab, var(--color-status-good) 40%, transparent);
+  }
+
+  .badge-warn {
+    color: var(--color-status-warn);
+    border-color: color-mix(in oklab, var(--color-status-warn) 40%, transparent);
+  }
+
+  .badge-bad {
+    color: var(--color-status-bad);
+    border-color: color-mix(in oklab, var(--color-status-bad) 40%, transparent);
+  }
+}
