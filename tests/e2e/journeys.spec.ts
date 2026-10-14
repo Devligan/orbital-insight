@@ -17,7 +17,7 @@ test.describe("explorer journey", () => {
     page.on("pageerror", (error) => errors.push(String(error)));
     await page.goto("/");
     await expect(page.getByText(/Element epoch:/i)).toBeVisible({ timeout: 60_000 });
-    for (const name of ["CSS (TIANHE)", "NOAA 19", "STARLINK-30423", "ISS (ZARYA)"]) {
+    for (const name of ["CSS (TIANHE)", "HST (Hubble)", "STARLINK-30423", "ISS (ZARYA)"]) {
       await page.getByRole("button", { name }).first().click();
       await page.waitForTimeout(700);
     }
@@ -40,7 +40,9 @@ test.describe("explorer journey", () => {
     // Real data pipeline ends in the info panel: characteristics + provenance.
     await expect(page.getByText(/Element epoch:/i)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/Retrieved:/i)).toBeVisible();
-    await expect(page.getByText(/Position shown is an SGP4 prediction/i)).toBeVisible();
+    // Plain-language honesty line (rephrased deliberately — same contract:
+    // a prediction, not live telemetry).
+    await expect(page.getByText(/Position shown is calculated/i)).toBeVisible();
   });
 
   test("time slider moves the displayed prediction timestamp", async ({ page }) => {
@@ -63,7 +65,10 @@ test.describe("detail + search journey", () => {
     await page.getByPlaceholder(/Search satellites/i).fill("ISS");
     await expect(page.getByRole("option").first()).toBeVisible({ timeout: 5_000 });
     await page.getByRole("option").first().click();
-    await expect(page).toHaveURL(/\/satellites\/\d+$/);
+    // The detail route is server-rendered with provider-backed data; under
+    // full-suite load the transition can exceed the default 15 s — every
+    // other provider-dependent assertion here already uses longer timeouts.
+    await expect(page).toHaveURL(/\/satellites\/\d+$/, { timeout: 60_000 });
     await expect(page.getByText(/Original GP record on CelesTrak/i)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/Element epoch/i)).toBeVisible();
   });
@@ -79,9 +84,12 @@ test.describe("detail + search journey", () => {
   test("overhead widget computes what's above a manual location", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: /What's above you now/i })).toBeVisible();
-    await page.getByLabel("Manual latitude").fill("28.5");
-    await page.getByLabel("Manual longitude").fill("-80.6");
-    await page.getByRole("button", { name: "Go" }).click();
+    // Scope to the overhead section: the "tonight from your spot" panel has
+    // its own manual-coordinate inputs and Go button.
+    const overhead = page.locator("section[aria-label*='above you']").first();
+    await overhead.getByLabel("Manual latitude").fill("28.5");
+    await overhead.getByLabel("Manual longitude").fill("-80.6");
+    await overhead.getByRole("button", { name: "Go" }).click();
     // Either named objects (stations above 15°) or the honest none-message —
     // never a spinner-forever state.
     await expect(page.getByText(/ISS|CSS|Nothing from the bright/i).first()).toBeVisible({ timeout: 30_000 });
@@ -217,6 +225,67 @@ test.describe("provider failure handling", () => {
     await page.goto("/");
     await page.waitForTimeout(8_000);
     expect(errors.filter((entry) => /exception|Error:/.test(entry))).toEqual([]);
+  });
+});
+
+test.describe("location-first + shareable moments", () => {
+  test("one click on 'my location' yields tonight's passes from that spot", async ({ page }) => {
+    // Grant a fixed device location (equator — the ISS crosses it twice per
+    // orbit, so a 24 h window reliably contains passes above 10°).
+    await page.context().grantPermissions(["geolocation"]);
+    await page.context().setGeolocation({ latitude: 0, longitude: 0 });
+    await page.goto("/");
+    await page.getByRole("button", { name: /Show me tonight's passes/i }).click();
+    // Real predictions arrive (cards), or the honest per-satellite no-pass
+    // message — never a spinner forever and never fabricated times.
+    await expect(
+      page.locator('[data-testid="tonight-pass-cards"]').or(page.getByText(/Doesn't clear your horizon/i)).first(),
+    ).toBeVisible({ timeout: 90_000 });
+  });
+
+  test("the URL names the viewed object and instant, and reopening reproduces it", async ({ page }) => {
+    // Clipboard access is granted so the copy-link affordance can be verified
+    // end-to-end: the copied URL is the shareable artifact users actually pass
+    // around.
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto("/");
+    await expect(page.getByText(/Element epoch:/i)).toBeVisible({ timeout: 60_000 });
+    // Switching satellites rewrites the share param through the router.
+    await page.getByRole("button", { name: "HST (Hubble)" }).first().click();
+    await expect(page).toHaveURL(/\?cat=20580/, { timeout: 60_000 });
+    // The prediction instant joins the share URL via the copy-link action.
+    await page.getByRole("slider").fill("12");
+    await page.getByRole("button", { name: /Copy share link/i }).click();
+    await expect(page.getByRole("button", { name: /Link copied/i })).toBeVisible({ timeout: 10_000 });
+    const shared = await page.evaluate(() => navigator.clipboard.readText());
+    expect(shared).toMatch(/\/?cat=20580&t=12$/);
+    // Deep-linking the shared URL lands on that object at that offset: the
+    // slider starts at step 12, not 0. (ISS 25544 for the deep link — it must
+    // always have loadable elements; curated neighbors may rotate over time.)
+    await page.goto("/?cat=25544&t=12");
+    const slider = page.getByRole("slider");
+    await expect(slider).toBeEnabled({ timeout: 60_000 });
+    await expect(slider).toHaveValue("12");
+  });
+});
+
+test.describe("pass cards on phones", () => {
+  test("a phone-width viewport renders passes as cards, not a 7-column table", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/passes");
+    await page.getByLabel(/Observer latitude/i).fill("0");
+    await page.getByLabel(/Observer longitude/i).fill("0");
+    await page.getByLabel(/Catalog IDs/i).fill("25544");
+    await page.getByRole("button", { name: /Predict passes/i }).click();
+    const cards = page.locator(".md\\:hidden .rounded.border");
+    const table = page.getByRole("table");
+    await expect(cards.or(page.getByText(/No passes above/i)).first()).toBeVisible({ timeout: 90_000 });
+    if (await cards.count()) {
+      // The table stays out of the mobile layout entirely.
+      await expect(table).toBeHidden();
+      // Cards speak plain language: peak height and a compass point.
+      await expect(cards.first().getByText(/peaks \d+°/)).toBeVisible();
+    }
   });
 });
 

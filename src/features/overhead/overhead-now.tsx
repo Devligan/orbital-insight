@@ -3,15 +3,17 @@
 /**
  * What's above you right now.
  *
- * Asks the browser for the observer's location (with a manual coordinate
- * fallback — no permission friction) and computes, on the server, which
- * curated objects — crewed stations and HST — are above 15° elevation at this
+ * Observer location comes from the shared `useObserverLocation` state lifted
+ * to the explorer — the permission prompt happens once, and answering it also
+ * feeds "tonight from your spot". Computes, on the server, which curated
+ * objects — crewed stations and HST — are above 15° elevation at this
  * instant. Auto-refreshes every 60 s while visible. Lineage is displayed
  * honestly: entries served from the build-time catalog snapshot are labelled
  * "cached", never "live".
  */
 
 import { useCallback, useEffect, useState } from "react";
+import type { ObserverLocationState } from "@/features/observer/use-observer-location";
 import { Badge, Loading } from "@/components/ui/primitives";
 import { formatUtc } from "@/lib/units";
 
@@ -33,17 +35,16 @@ interface OverheadData {
 
 type OverheadError =
   | { kind: "permission"; message: string }
-  | { kind: "invalid"; message: string }
-  | { kind: "network"; message: string };
+  | { kind: "invalid"; message: string };
 
-export function OverheadNow() {
-  const [observer, setObserver] = useState<{ lat: number; lon: number } | null>(null);
-  const [manualLat, setManualLat] = useState("");
-  const [manualLon, setManualLon] = useState("");
-  const [locating, setLocating] = useState(false);
+export function OverheadNow({ location }: { location: ObserverLocationState }) {
+  const { observer, locating, error: locationError, manualLat, manualLon, setManualLat, setManualLon, locate, submitManual } = location;
   const [data, setData] = useState<OverheadData | null>(null);
   const [error, setError] = useState<OverheadError | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const observerLat = observer?.lat;
+  const observerLon = observer?.lon;
 
   const fetchOverhead = useCallback(async (lat: number, lon: number) => {
     setBusy(true);
@@ -51,68 +52,36 @@ export function OverheadNow() {
       const res = await fetch(`/api/overhead?latDeg=${lat}&lonDeg=${lon}`);
       const body = (await res.json()) as { ok: boolean; data?: OverheadData; error?: { message: string } };
       if (!res.ok || !body.ok) {
-        setError({ kind: "network", message: body.error?.message ?? "Overhead computation is unavailable" });
+        setError({ kind: "invalid", message: body.error?.message ?? "Overhead computation is unavailable" });
         return;
       }
       setData(body.data ?? null);
       setError(null);
     } catch {
-      setError({ kind: "network", message: "Could not reach the analysis service" });
+      setError({ kind: "invalid", message: "Could not reach the analysis service" });
     } finally {
       setBusy(false);
     }
   }, []);
 
   const refreshNow = useCallback(() => {
-    if (observer) void fetchOverhead(observer.lat, observer.lon);
-  }, [observer, fetchOverhead]);
-
-  function locate() {
-    if (!("geolocation" in navigator)) {
-      setError({ kind: "invalid", message: "This browser cannot share a location — enter coordinates manually." });
-      return;
-    }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocating(false);
-        const lat = position.coords.latitude;
-        const lon = position.coords.longitude;
-        setObserver({ lat, lon });
-        setManualLat(lat.toFixed(3));
-        setManualLon(lon.toFixed(3));
-        void fetchOverhead(lat, lon);
-      },
-      () => {
-        setLocating(false);
-        setError({
-          kind: "permission",
-          message: "Location permission denied — enter coordinates manually below.",
-        });
-      },
-      { timeout: 10_000, maximumAge: 60_000 },
-    );
-  }
-
-  function useManual() {
-    const lat = Number.parseFloat(manualLat);
-    const lon = Number.parseFloat(manualLon);
-    if (!Number.isFinite(lat) || Math.abs(lat) > 90 || !Number.isFinite(lon) || Math.abs(lon) > 180) {
-      setError({ kind: "invalid", message: "Latitude must be within ±90° and longitude within ±180°." });
-      return;
-    }
-    setObserver({ lat, lon });
-    void fetchOverhead(lat, lon);
-  }
+    if (observerLat !== undefined && observerLon !== undefined) void fetchOverhead(observerLat, observerLon);
+  }, [observerLat, observerLon, fetchOverhead]);
 
   useEffect(() => {
-    if (!observer) return;
+    if (observerLat === undefined || observerLon === undefined) return;
+    // Timer-deferred: the fetch's setBusy runs in a callback, not
+    // synchronously within the effect body (cascading-render guard).
+    const t = setTimeout(() => void fetchOverhead(observerLat, observerLon), 0);
     const id = setInterval(() => refreshNow(), 60_000);
-    return () => clearInterval(id);
-  }, [observer, refreshNow]);
+    return () => {
+      clearTimeout(t);
+      clearInterval(id);
+    };
+  }, [observerLat, observerLon, fetchOverhead, refreshNow]);
 
   return (
-    <section aria-label="What&apos;s above you right now" className="flex flex-col gap-2">
+    <section aria-label="What’s above you right now" className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <h2 className="text-[13px] font-semibold text-[var(--color-text-primary)]">What&apos;s above you now</h2>
         {data ? <Badge tone={data.visible.length > 0 ? "good" : "neutral"}>{data.visible.length} above 15°</Badge> : null}
@@ -120,7 +89,7 @@ export function OverheadNow() {
 
       {observer === null ? (
         <div className="flex flex-col gap-2">
-          <button className="btn btn-primary" onClick={locate} disabled={locating}>
+          <button className="btn btn-primary text-[12px]" onClick={locate} disabled={locating}>
             {locating ? "Locating…" : "Use my location"}
           </button>
           <div className="flex gap-1">
@@ -138,11 +107,11 @@ export function OverheadNow() {
               value={manualLon}
               onChange={(e) => setManualLon(e.target.value)}
             />
-            <button className="btn btn-secondary" onClick={useManual}>
+            <button className="btn btn-secondary" onClick={() => submitManual()}>
               Go
             </button>
           </div>
-          {error ? <p className="text-[11px] text-[var(--color-status-warn)]">{humanize(error)}</p> : null}
+          {locationError ? <p className="text-[11px] text-[var(--color-status-warn)]">{locationError.message}</p> : null}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -151,7 +120,7 @@ export function OverheadNow() {
             {data ? <> · computed {formatUtc(new Date(data.asOf))}</> : null}
           </p>
 
-          {error ? <p className="text-[11px] text-[var(--color-status-warn)]">{humanize(error)}</p> : null}
+          {error ? <p className="text-[11px] text-[var(--color-status-warn)]">{error.message}</p> : null}
           {busy && data === null ? <Loading label="Computing overhead objects…" /> : null}
 
           {data ? (
@@ -174,7 +143,8 @@ export function OverheadNow() {
               </ul>
             ) : (
               <p className="text-[12px] text-[var(--color-text-muted)]">
-                Nothing from the bright over 15° right now — the catalog station group is tracked continuously; try again shortly.
+                Nothing from the bright stations is above 15° from your spot right now — the ISS comes back around every
+                90 minutes, so try again soon.
               </p>
             )
           ) : null}
@@ -190,8 +160,4 @@ export function OverheadNow() {
       )}
     </section>
   );
-}
-
-function humanize(error: OverheadError): string {
-  return error.message;
 }

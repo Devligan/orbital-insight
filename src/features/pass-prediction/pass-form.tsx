@@ -11,6 +11,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useWatchlist } from "@/features/watchlist/local-store";
+import { PassCard } from "@/features/pass-prediction/pass-cards";
 import { Badge, EmptyState, ErrorState, Loading, Panel, PanelHeader } from "@/components/ui/primitives";
 import { formatUtc } from "@/lib/units";
 
@@ -198,7 +199,14 @@ export function PassPredictionsForm() {
                     No passes above {results.minElevationDeg}° in this window.
                   </p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <>
+                    {/* Phones read cards; desktop keeps the technical table. */}
+                    <div className="flex flex-col gap-2 md:hidden">
+                    {sat.passes.map((pass, i) => (
+                      <PassCard key={`${sat.satelliteNumber}-${i}`} pass={pass} />
+                    ))}
+                  </div>
+                  <div className="hidden overflow-x-auto md:block">
                     <table className="table-technical">
                       <thead>
                         <tr>
@@ -228,6 +236,7 @@ export function PassPredictionsForm() {
                       </tbody>
                     </table>
                   </div>
+                  </>
                 )}
               </div>
             ))}

@@ -437,6 +437,23 @@ marker exists and its position changes across the slider range; local suite
 **16/16 journeys**; fresh-browser verification against the deployed URL
 **2/2 in 11.8 s** (slider-marker behavior + the §G3 crash-regression path).
 
+## G4. User-first UX pass (same day, receipts as above convention)
+
+Scope: the six user-standpoint gaps found in the live product review — location-first
+discovery, phone-width pass reading, plain-language labels, shareable moments,
+friendlier fallback copy, and an always-visible watchlist affordance.
+
+| Change | Where | Receipt |
+| --- | --- | --- |
+| "Tonight from your spot": one device-location click → 24 h pass predictions for the curated bright objects, pass cards with local times | `src/features/pass-prediction/tonight-passes.tsx`; shared location state `src/features/observer/use-observer-location.ts` (geolocation prompted once across both panels) | e2e journey grants a fixed geolocation (0°, 0°) and asserts real pass cards or the honest no-pass message: **pass, full suite 19/19 in 4.9 min** |
+| Phones read pass *cards* (peak height, compass points, local times); desktop keeps the technical table | `src/features/pass-prediction/pass-cards.tsx` + `/passes` results | phone-viewport e2e (390×844) asserts cards render and the table stays hidden |
+| Shareable moments: object encoded in URL via `router.replace(''/?cat=<id>'')`; the prediction instant joins on "Copy share link" | `src/features/satellites/explorer-view.tsx`; deep links `?cat=&t=` reproduce the exact view | share-URL e2e: switch → URL contains `cat=20580`; copy → clipboard contains `cat=20580&t=12`; deep-link reopen → slider starts at 12 |
+| Plain-language labels and captions ("Orbit tilt", "Lowest altitude", "One lap around Earth"; honesty line rephrased without losing the prediction-vs-telemetry contract) | `explorer-view.tsx`, `overhead-now.tsx` | existing journeys re-pinned to the new copy; all pass |
+| Watchlist star always visible next to the object name (compact ★/☆ toggle) | `explorer-view.tsx` | watchlist journey still green (detail-page save path unchanged) |
+| Curated examples kept honest: NOAA 19 (36511) now answers provider `not-found` — replaced with HST (20580), verified live | `explorer-view.tsx` CURATED | `curl /api/satellites/20580` → 200 `"lineage":"live"` |
+| Build + environment findings: a background `next dev` watcher (user-started) and a stale `next start` on :3000 were overwriting `.next` under production builds — the source of intermittent `Loading chunk … failed` / `MODULE_NOT_FOUND` failures inside e2e. Cleared before the final gate run; build regenerated from a clean `.next`. | environment | final gates: tsc 0 · eslint 0 errors · vitest 57 passed/1 skipped · build 0 · e2e **19/19 (4.9 min)** |
+| Deliberate finding kept in code comments: `window.history.replaceState(null, '', …)` inside the explorer silently broke every later `router.push` (Next Router state wipe) — URL sync now goes through `router.replace` only; the buggy effect was removed after a build-disabled A/B run reproduced the failure and its absence cleared it. | `explorer-view.tsx` comments | search-navigation journey failed with sync on (60 s URL timeout), passed with sync regime changed |
+
 ## H. Deployment readiness
 
 > **Executed 2026-10-14:** authorized by the account owner via a Vercel token
