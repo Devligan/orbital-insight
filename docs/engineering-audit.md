@@ -418,6 +418,25 @@ rebuilds the track.
 | Production verification in a fresh browser | **4/4 in 14.9 s** | crash journey + real-catalog search + overhead widget + forced-WebGL fallback against `orbital-insight-drab.vercel.app` |
 | Deployment | `deploy_exit=0` | production `orbital-insight-8ujt4eydg` |
 
+**G3 addendum — the 2D fallback's prediction-time slider (user report: "sliding the prediction time does nothing").**
+
+Two separate causes, both reconciled with receipts:
+
+1. *Client-side (unchangeable from the application):* the reporter's browser
+could not start WebGL, so every load showed the designed fallback — the
+documented condition (hardware acceleration / VM / driver blocklist). The
+fallback itself is correct behavior.
+2. *Real application defect:* the fallback had
+made the slider genuinely inert — the plot dropped sample timestamps and
+never received the selection, so nothing moved. Fixed (commit `62582a9`,
+deployment `orbital-insight-s6iuq0g65`, `deploy_exit=0`): the track plot
+gained an absolute `markerPosition` (accent ring at the current
+sub-satellite point), the fallback feeds it from the slider selection, and
+the caption names the coupling. Receipts: extended fallback e2e asserts the
+marker exists and its position changes across the slider range; local suite
+**16/16 journeys**; fresh-browser verification against the deployed URL
+**2/2 in 11.8 s** (slider-marker behavior + the §G3 crash-regression path).
+
 ## H. Deployment readiness
 
 > **Executed 2026-10-14:** authorized by the account owner via a Vercel token
