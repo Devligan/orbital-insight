@@ -184,7 +184,7 @@ Skipped by default so the standard suite never requires network access.
 ```bash
 npm run build
 npx playwright test
-# 14 journeys in the suite (launched server included, under 20 s)
+# 16 journeys in the suite (~30 s locally, server lifecycle handled)
 ```
 
 Journeys verified in a real Chromium session against `next start`: open the

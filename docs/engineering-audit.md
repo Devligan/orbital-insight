@@ -394,6 +394,30 @@ Receipts after the upgrade:
 | Honesty details | search index = public CelesTrak data snapshot (attributed), committed and regenerated per build; explicit `gaps` marker when a group fetch fails at build; unit tests pin selection/filtering/compass/skip semantics |
 | Verification notes | two of the new journeys were initially failed by wrong *test-text* probes (the detail page labels lack a trailing colon; a regex collided with sibling texts) — fixed against real page receipts; a stale local server that booted before a rebuild reproduced the user's original chunk-mismatch incident and was replaced (server hygiene item, see C7-pattern) |
 
+### G3. Ground-track entity crash (deployed-site report) — FIXED
+
+A user reported, on production, `DeveloperError: An entity with id
+"ground-track" already exists in this collection.` thrown from the globe's
+track-update effect. Root cause: the ground-track entity was added with a
+fixed id but the track-update effect never removed a stale one, so any data
+refresh arriving while the previous entity still lived crashed the Cesium
+entity collection and took the page down. A second, silent defect sat on the
+same code path: the orbit effect's `removeAll()` (fired on its own
+dependencies, e.g. sample-interval changes) also removed the ground-track
+line, which was then not re-added until the next track update.
+
+Fix (commit `97a29bc`): remove-then-add makes track updates idempotent (no
+exception is possible), and the ground-track effect's dependency set now
+includes `sampleIntervalSeconds`, so anything that wipes the entities also
+rebuilds the track.
+
+| Check | Result | Receipt |
+| --- | --- | --- |
+| New crash-regression e2e (rapid switching CSS → NOAA → STARLINK → ISS with a `pageerror` guard) | **pass, local suite 16/16 in 30.2 s** | `playwright_exit=0` |
+| New outage console-cleanliness e2e (no unexplained console errors during provider outages) | **pass, same run** | local suite run |
+| Production verification in a fresh browser | **4/4 in 14.9 s** | crash journey + real-catalog search + overhead widget + forced-WebGL fallback against `orbital-insight-drab.vercel.app` |
+| Deployment | `deploy_exit=0` | production `orbital-insight-8ujt4eydg` |
+
 ## H. Deployment readiness
 
 > **Executed 2026-10-14:** authorized by the account owner via a Vercel token
