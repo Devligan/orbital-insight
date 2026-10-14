@@ -25,14 +25,20 @@ export interface GroundTrackPlotProps {
   name: string;
   /** Highlight this sample (time-slider selection), if any. */
   selectedTime?: string | null;
+  /**
+   * Draw an absolute marker at this sub-satellite point, independent of the
+   * track samples (used by the explorer fallback, whose slider covers the
+   * 6 h position window at finer granularity than the 24 h track points).
+   */
+  markerPosition?: { latitudeDeg: number; longitudeDeg: number; time: string } | null;
   height?: number;
 }
 
 const WIDTH = 720;
 const LAT_MARGIN = 8;
 
-export function GroundTrackPlot({ segments, name, selectedTime, height = 320 }: GroundTrackPlotProps) {
-  const { latLines, lonLines, projected } = useMemo(() => {
+export function GroundTrackPlot({ segments, name, selectedTime, markerPosition, height = 320 }: GroundTrackPlotProps) {
+  const { latLines, lonLines, projected, markerProjected } = useMemo(() => {
     const project = makeProject(height);
     const latLines = [-60, -30, 0, 30, 60].map((lat) => ({ lat, y: project(lat, 0).y }));
     const lonLines = [-180, -120, -60, 0, 60, 120, 180].map((lon) => ({ lon, x: project(0, lon).x }));
@@ -42,8 +48,11 @@ export function GroundTrackPlot({ segments, name, selectedTime, height = 320 }: 
         ...project(p.latitudeDeg, p.longitudeDeg),
       })),
     );
-    return { latLines, lonLines, projected };
-  }, [segments, height]);
+    const markerProjected = markerPosition
+      ? { ...markerPosition, ...project(markerPosition.latitudeDeg, markerPosition.longitudeDeg), altitudeKm: 0 }
+      : null;
+    return { latLines, lonLines, projected, markerProjected };
+  }, [segments, height, markerPosition]);
 
   const selected = useMemo(() => {
     if (!selectedTime) return null;
@@ -98,6 +107,15 @@ export function GroundTrackPlot({ segments, name, selectedTime, height = 320 }: 
         {/* First sample marker */}
         {projected[0]?.[0] ? (
           <circle cx={projected[0][0].x} cy={projected[0][0].y} r={3} fill="var(--color-status-warn)" />
+        ) : null}
+
+        {/* Absolute marker for the current prediction instant (explorer fallback). */}
+        {markerProjected ? (
+          <g data-testid="ground-track-marker">
+            <circle cx={markerProjected.x} cy={markerProjected.y} r={6} fill="none" stroke="var(--color-accent)" strokeWidth={1.2} />
+            <circle cx={markerProjected.x} cy={markerProjected.y} r={2.4} fill="var(--color-accent)" />
+            <title>{`${name} @ ${formatUtc(new Date(markerProjected.time))} · ${markerProjected.latitudeDeg.toFixed(1)}°, ${markerProjected.longitudeDeg.toFixed(1)}°`}</title>
+          </g>
         ) : null}
 
         {/* Selected-position marker (time slider) */}

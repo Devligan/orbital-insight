@@ -178,12 +178,16 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
               <div className="absolute inset-0 overflow-auto bg-[var(--color-bg-panel)] p-3">
                 <p className="mb-2 text-[12px] text-[var(--color-status-warn)]">
                   3D globe unavailable — showing the computed 2D ground track instead.
+                  The accent marker follows the prediction-time slider below.
                 </p>
                 <GroundTrackPlot
                   name={detail?.name ?? target.name}
                   segments={((trackSegmentsPt ?? []) as [number, number][][]).map((segment) =>
                     segment.map(([lat, lon]) => ({ latitudeDeg: lat, longitudeDeg: lon, altitudeKm: 0, time: "" })),
                   )}
+                  markerPosition={selected
+                    ? { latitudeDeg: selected.latitudeDeg, longitudeDeg: selected.longitudeDeg, time: selected.time }
+                    : null}
                   height={420}
                 />
               </div>

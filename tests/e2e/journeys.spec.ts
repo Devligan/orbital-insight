@@ -172,6 +172,16 @@ test.describe("2D fallback journey", () => {
     await expect(page.getByText(/showing the computed 2D ground track/i)).toBeVisible({ timeout: 60_000 });
     // And the computed 2D ground track actually swaps in.
     await expect(page.locator("svg[role=img]").first()).toBeVisible({ timeout: 30_000 });
+    // The prediction-time slider must visibly act on the 2D fallback: the
+    // accent marker rides along the track as time moves.
+    const marker = page.locator('[data-testid="ground-track-marker"]').first();
+    await expect(marker).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("slider").fill("0");
+    const before = await marker.locator("circle").first().getAttribute("cx");
+    await page.getByRole("slider").fill("71");
+    const after = await marker.locator("circle").first().getAttribute("cx");
+    expect(after).not.toBeNull();
+    expect(after).not.toEqual(before);
   });
 });
 
