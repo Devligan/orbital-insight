@@ -77,3 +77,50 @@ describe("SatelliteService", () => {
     await expect(service.get("00005")).rejects.toMatchObject({ kind: "provider" });
   });
 });
+
+describe("SatelliteService — build-time seeded catalog", () => {
+  /** Search must answer from the snapshot (honest cached data) even while the
+   *  provider is unreachable; the background refresh failure is swallowed. */
+  it("answers search from the build-time snapshot without any provider dependency", async () => {
+    const unreachable = {
+      fetchGpTle: async (): Promise<NamedElementSet[]> => {
+        throw new ProviderError("network", "Could not reach CelesTrak");
+      },
+    } as unknown as HttpCelestrakClient;
+    const seeded = new SatelliteService(unreachable, true);
+
+    // Note: the search contract is substring + catalog-number matching, so the
+    // query must be a contiguous substring of the real catalog name.
+    const hits = await seeded.search("iss (zarya)");
+    expect(hits.some((h) => h.satelliteNumber === "25544" && h.name.includes("ISS"))).toBe(true);
+    expect(await seeded.search("no-such-object-xyz")).toEqual([]);
+    // Catalog-number search works too (leading-zero handling preserved).
+    expect(await seeded.search("25544")).not.toEqual([]);
+  });
+
+  it("keeps provider failure semantics for detail lookups outside the snapshot", async () => {
+    const unreachable = {
+      fetchGpTle: async (): Promise<NamedElementSet[]> => {
+        throw new ProviderError("network", "Could not reach CelesTrak");
+      },
+    } as unknown as HttpCelestrakClient;
+    const seeded = new SatelliteService(unreachable, true);
+
+    await expect(seeded.get("999999")).rejects.toMatchObject({ kind: "provider" });
+  });
+
+  it("serves seeded cached record when the provider is unreachable but data exists", async () => {
+    const unreachable = {
+      fetchGpTle: async (): Promise<NamedElementSet[]> => {
+        throw new ProviderError("network", "Could not reach CelesTrak");
+      },
+    } as unknown as HttpCelestrakClient;
+    const seeded = new SatelliteService(unreachable, true);
+
+    const served = await seeded.get("25544");
+    // Snapshot data is real previously-fetched provider data from the build:
+    // honest label is "cached", never "live" (this instance did not fetch it).
+    expect(served.lineage).toBe("cached");
+    expect(served.record.catalog.name).toContain("ISS");
+  });
+});

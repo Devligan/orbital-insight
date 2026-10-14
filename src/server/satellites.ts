@@ -30,6 +30,7 @@ import {
   ELEMENT_SET_TTL_MS,
   type CachedElementSet,
 } from "./catalog-cache";
+import { loadStaticCatalog } from "./search-index";
 
 /** Curated, bounded groups (total < ~400 entries). Deliberately excludes
  * `active` (~11k) and Starlink-scale catalogs to respect the free provider. */
@@ -49,7 +50,36 @@ export class SatelliteService {
   private names = new CatalogEntryCache();
   private groupsFetched = new Set<string>();
 
-  constructor(private readonly client: HttpCelestrakClient = celestrakClient) {}
+  /**
+   * @param hydrateStaticCatalog seed caches from the build-time catalog
+   *   snapshot (default false so injected/pure instances stay provider-free;
+   *   the app singleton opts in for instant curated answers).
+   */
+  constructor(
+    private readonly client: HttpCelestrakClient = celestrakClient,
+    hydrateStaticCatalog = false,
+  ) {
+    if (hydrateStaticCatalog) this.hydrateFromStaticCatalog();
+  }
+
+  /** Seed caches with the build-time snapshot (see search-index.ts). */
+  private hydrateFromStaticCatalog(): void {
+    const { generatedAt, entries } = loadStaticCatalog();
+    for (const entry of entries) {
+      this.cache.set({
+        name: entry.name,
+        group: entry.group,
+        elementSet: entry.elementSet,
+        retrievedAt: generatedAt ?? new Date(),
+        fromSnapshot: true,
+      });
+      this.names.set({
+        satelliteNumber: entry.satelliteNumber,
+        name: entry.name,
+        group: entry.group,
+      });
+    }
+  }
 
   /** Fetch and cache a bounded curated group (once per server instance TTL). */
   async ensureGroup(group: string): Promise<void> {
@@ -71,11 +101,21 @@ export class SatelliteService {
     this.groupsFetched.add(group);
   }
 
-  /** Search across cached catalog entries (fetched on demand). */
+  /**
+   * Search across the catalog. Instant on cold instances: the build-time
+   * snapshot seeds the catalog (see search-index.ts), so no provider fetch
+   * is on the latency-critical path. The live provider refreshes the same
+   * groups in the background — later searches on the same instance see the
+   * refreshed data; an outage simply leaves the snapshot in place.
+   */
   async search(query: string, limit = 25): Promise<SatelliteCatalogEntrySearchResult[]> {
     const q = query.trim().toLowerCase();
     if (q.length === 0) return [];
-    for (const group of CATALOG_GROUPS) await this.ensureGroup(group);
+
+    for (const group of CATALOG_GROUPS) {
+      // Non-blocking refresh: the response never waits on the provider.
+      void this.ensureGroup(group).catch(() => undefined);
+    }
 
     const results = this.names
       .all()
@@ -100,7 +140,10 @@ export class SatelliteService {
     if (cached) {
       const age = Date.now() - cached.retrievedAt.getTime();
       if (age <= ELEMENT_SET_TTL_MS || strategy === "cache-first") {
-        return { record: toRecord(cached), lineage: lineageFor(cached.retrievedAt) };
+        // Snapshot-held data is honest "cached", never "live": this instance
+        // did not fetch it (its retrieval happened at application build time).
+        const lineage: DataLineage = cached.fromSnapshot ? "cached" : lineageFor(cached.retrievedAt);
+        return { record: toRecord(cached), lineage };
       }
     }
 
@@ -118,7 +161,11 @@ export class SatelliteService {
         // Provider failed but we hold real previously-fetched data: serve it
         // clearly labelled. Only if within the stale horizon.
         if (Date.now() - cached.retrievedAt.getTime() <= MAX_STALE_AGE_MS) {
-          const lineage: DataLineage = error instanceof ProviderError && error.reason === "rate-limited" ? "cached" : "provider-unavailable-stale";
+          const lineage: DataLineage = cached.fromSnapshot
+            ? "cached" // build-time data: the provider state is irrelevant to its label
+            : error instanceof ProviderError && error.reason === "rate-limited"
+              ? "cached"
+              : "provider-unavailable-stale";
           return { record: toRecord(cached), lineage };
         }
       }
@@ -163,6 +210,9 @@ function lineageFor(retrievedAt: Date): DataLineage {
 }
 
 /** Singleton for route handlers; tests inject a fake client. */
-export const satelliteService: SatelliteService = new SatelliteService();
+export const satelliteService: SatelliteService = new SatelliteService(
+  celestrakClient,
+  true, // hydrate from the build-time catalog snapshot
+);
 
 export type { GpQuery };

@@ -45,10 +45,33 @@ test.describe("detail + search journey", () => {
   test("search returns real catalog hits and navigates to detail", async ({ page }) => {
     await page.goto("/");
     await page.getByPlaceholder(/Search satellites/i).fill("ISS");
+    await expect(page.getByRole("option").first()).toBeVisible({ timeout: 5_000 });
     await page.getByRole("option").first().click();
     await expect(page).toHaveURL(/\/satellites\/\d+$/);
     await expect(page.getByText(/Original GP record on CelesTrak/i)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/Element epoch/i)).toBeVisible();
+  });
+
+  test("search answers instantly from the shipped catalog snapshot", async ({ page }) => {
+    // The curated catalog ships with the deployment, so options appear without
+    // waiting on any provider call — verified even minutes after a cold boot.
+    await page.goto("/");
+    await page.getByPlaceholder(/Search satellites/i).fill("ZARYA");
+    await expect(page.getByRole("option", { name: /ISS \(ZARYA\)/ })).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("overhead widget computes what's above a manual location", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: /What's above you now/i })).toBeVisible();
+    await page.getByLabel("Manual latitude").fill("28.5");
+    await page.getByLabel("Manual longitude").fill("-80.6");
+    await page.getByRole("button", { name: "Go" }).click();
+    // Either named objects (stations above 15°) or the honest none-message —
+    // never a spinner-forever state.
+    await expect(page.getByText(/ISS|CSS|Nothing from the bright/i).first()).toBeVisible({ timeout: 30_000 });
+    // The widget's own observer line — deliberately specific (other fallback
+    // paragraphs on the share the word "computed").
+    await expect(page.getByText(/Observer 28\.50°/)).toBeVisible({ timeout: 10_000 });
   });
 });
 
@@ -141,13 +164,15 @@ test.describe("provider failure handling", () => {
     // The provider (CelesTrak) may be up or down when this runs; both states
     // are honest outcomes. What must NEVER happen is fake/simulated data.
     await page.goto("/satellites/25544");
-    const loaded = page.getByText(/Element epoch:/i);
+    // The detail page labels fields without a trailing colon (styled
+    // uppercase) — the colon form only exists on the explorer aside.
+    const loaded = page.getByText(/Element epoch/i);
     const honestFailure = page.getByText(/Satellite data unavailable/i);
     await expect(loaded.or(honestFailure).first()).toBeVisible({ timeout: 60_000 });
     // When data loaded, provenance is present; when it failed, the outage is
     // named specifically, not hidden behind a spinner or a generic error.
     if (await loaded.count()) {
-      await expect(page.getByText(/Retrieved:/i)).toBeVisible();
+      await expect(page.getByText(/Retrieved/i)).toBeVisible();
     } else {
       await expect(page.getByText(/upstream provider \(CelesTrak\) may be unreachable/i)).toBeVisible();
     }

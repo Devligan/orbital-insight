@@ -19,6 +19,8 @@ export interface CachedElementSet {
   elementSet: TwoLineElementSet;
   /** When this application obtained the record. */
   retrievedAt: Date;
+  /** True when hydrated from the build-time snapshot (never labelled "live"). */
+  fromSnapshot?: boolean;
 }
 
 const MAX_ENTRIES = 2_000;

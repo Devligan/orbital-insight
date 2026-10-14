@@ -55,6 +55,23 @@ export function OrbitGlobe({ samples, trackSegments, name, sampleIntervalSeconds
     let disposed = false;
     (window as unknown as { CESIUM_BASE_URL?: string }).CESIUM_BASE_URL = "/cesium";
 
+    // WebGL preflight: create (and discard) a throwaway context BEFORE paying
+    // for the ~2 MB Cesium module and imagery-provider setup. Machines without
+    // a working GPU stack engage the honest fallback in a fraction of a second
+    // instead of after a slow, timing-dependent module load — the fallback
+    // message stays exactly the same.
+    const probe = document.createElement("canvas");
+    const gl =
+      probe.getContext("webgl2") ??
+      probe.getContext("webgl") ??
+      probe.getContext("experimental-webgl");
+    if (!gl) {
+      if (!disposed) onUnavailable?.();
+      return () => {
+        disposed = true;
+      };
+    }
+
     (async () => {
       try {
         const Cesium = (await import("cesium")) as CesiumModule;

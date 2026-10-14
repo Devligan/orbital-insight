@@ -17,6 +17,7 @@ import type { PositionsResponse, GroundTrackResponse } from "@/features/orbit-vi
 import { toEciSamples, toTrackSegments } from "@/features/orbit-visualization/position-group";
 import { GroundTrackPlot } from "@/features/orbit-visualization/ground-track-plot";
 import { useWatchlist } from "@/features/watchlist/local-store";
+import { OverheadNow } from "@/features/overhead/overhead-now";
 import { Badge, ErrorState, Loading } from "@/components/ui/primitives";
 import { formatUtc } from "@/lib/units";
 
@@ -79,7 +80,10 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
     setBusy(true);
     setError(null);
     setTimeIndex(0);
-    setGlobeUnavailable(false);
+    // NOTE: globeUnavailable is deliberately NOT reset here. WebGL
+    // availability is a property of the machine/session, not of the selected
+    // satellite — resetting it would unstick the fallback and leave the 3D
+    // globe's loading state forever on GPUs that cannot start WebGL.
     try {
       const [detailRes, positionsRes, trackRes] = await Promise.all([
         fetch(`/api/satellites/${satelliteNumber}`),
@@ -188,7 +192,8 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
 
           {/* Information panel */}
           <aside className="panel-inset flex max-h-full flex-col gap-3 overflow-auto p-3">
-            <div>
+            <OverheadNow />
+            <div className="border-t border-[var(--color-border-hairline)] pt-3">
               <h1 className="text-[15px] font-semibold text-[var(--color-text-primary)]">
                 {detail?.name ?? target.name}
               </h1>
