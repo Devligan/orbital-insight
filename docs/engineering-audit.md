@@ -351,6 +351,49 @@ assertion regex; a file-formatting blemish) and one new e2e journey
 pass; the earlier audit fixes (C1–C6) are unchanged and their gates were
 re-run above.
 
+### G2. Search-speed and wow-surface upgrade (same day, post-deployment)
+
+Driven by two user-reported weaknesses with receipts: (1) cold-instance
+search cost **7.68 s** (measured on production) because the response waited
+on a chain of throttled provider fetches; (2) the WebGL-failure fallback
+globe engaged slowly and nondeterministically because the honest fallback
+message only appeared after the multi-megabyte Cesium module and imagery
+provider finished loading and failing.
+
+Fixes (code committed `4d8e5aa`):
+
+- **Build-time catalog snapshot** (`npm prebuild` →
+  `scripts/build-search-index.mjs` → `src/server/search-index.static.json`,
+  128 entries across the four bounded curated groups, real TLE element sets
+  included). The server seeds its caches from the snapshot at startup:
+  search, detail-for-curated-objects, and overhead answers never wait for a
+  provider chain. Snapshot data is labelled honestly — "cached", never
+  "live" (via `fromSnapshot`) — and the provider still refreshes the same
+  groups quietly in the background.
+- **`/api/overhead`** — reuses the production-validated SGP4 → TEME→ECF →
+  look-angle chain to answer which crewed stations and HST are above an
+  observer right now; per-candidate failures are skipped, never fabricated.
+- **Explorer landing surface** — new "What's above you now" widget
+  (geolocation with a manual-coordinate fallback, 60 s auto-refresh).
+- **WebGL preflight + sticky fallback** — a throwaway canvas probe runs
+  before the heavy Cesium module is imported; machines without a GPU stack
+  engage the fallback instantly, and it stays engaged for the session
+  (WebGL availability is a machine property, not a satellite property — the
+  earlier per-satellite reset left such sessions stuck on the loader
+  permanently).
+
+Receipts after the upgrade:
+
+| Check | Result |
+| --- | --- |
+| Cold search on production, immediately after deploy | **0.68 s** (was 7.68 s) |
+| `/api/overhead`, cold, on production | **0.50 s**, honest empty set (nothing above 15° over Florida at that instant — physics, not failure) |
+| Full gate re-run | tsc 0 · eslint 0 errors (14 style warnings, matching the build-script console pattern of the pre-existing copy script) · vitest **57 passed / 1 skipped** (new overhead + seeded-search suites) · build 0 (prebuild regenerated the snapshot cleanly) · e2e **14/14 in 17.9 s** |
+| Fresh-browser e2e against production | **3/3 in 9.6 s** (seeded-instant search, overhead widget, forced-WebGL fallback) |
+| Deployment | `deploy_exit=0`, production deployment `orbital-insight-dh5y6gmtk`; all pages 200; detail 200; honest typed 404 intact |
+| Honesty details | search index = public CelesTrak data snapshot (attributed), committed and regenerated per build; explicit `gaps` marker when a group fetch fails at build; unit tests pin selection/filtering/compass/skip semantics |
+| Verification notes | two of the new journeys were initially failed by wrong *test-text* probes (the detail page labels lack a trailing colon; a regex collided with sibling texts) — fixed against real page receipts; a stale local server that booted before a rebuild reproduced the user's original chunk-mismatch incident and was replaced (server hygiene item, see C7-pattern) |
+
 ## H. Deployment readiness
 
 > **Executed 2026-10-14:** authorized by the account owner via a Vercel token

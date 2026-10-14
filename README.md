@@ -17,7 +17,7 @@ output counts); production smoke-test receipts are recorded in
 
 | Route | What it does |
 | --- | --- |
-| `/` | Explorer: 3D globe (Cesium, no token required — OpenStreetMap imagery), curated examples (ISS default), bounded time slider, provenance badges, browser-local watchlist toggle |
+| `/` | Explorer: 3D globe (Cesium, no token required — OpenStreetMap imagery), curated examples (ISS default), a live **"what's above you right now"** widget (geolocation + manual coordinates, computed on the server each minute), bounded time slider, provenance badges, browser-local watchlist toggle |
 | `/satellites/[id]` | Full detail: parsed TLE, element epoch, retrieval timestamp, approximate characteristics, 24 h ground track, source links |
 | `/passes` | Observer pass predictions (rise / max elevation / set + azimuths), bounded to 25 satellites × 30 days, CSV export |
 | `/compare` | Element-set + propagated-position comparison between two objects, with explicit interpretation notes |
@@ -42,10 +42,10 @@ reflects its evidence-based verdicts.
 
 | Feature | Status | Evidence |
 | --- | --- | --- |
-| Satellite search & selection | **Verified** | e2e journey (search → detail navigation); service tests. Note: needs the live provider — during a real CelesTrak outage the typeahead (correctly) shows no fabricated hits while the API answers with a typed provider error |
+| Satellite search & selection | **Verified** | search answers from the build-time catalog snapshot — cold server measured **0.68 s** (previously ~7.7 s); provider refreshes quietly in the background; e2e journeys include a provider-independent assertion. For non-catalog objects the normal typed provider errors apply |
 | Satellite details / epoch / provenance | **Verified** | e2e + live HTTP smoke (epoch = fetch-day value) |
 | 3D globe (orbit, satellite, ground track) | **Partially verified** | e2e loads the globe in Chromium with WebGL; pixel-level rendering is not asserted |
-| 2D WebGL fallback (swap-in on globe failure) | **Verified** | e2e journey forces every WebGL context request to fail in real Chromium and asserts the computed 2D ground track actually swaps in (production build) |
+| 2D WebGL fallback (swap-in on globe failure) | **Verified** | e2e journey forces every WebGL context request to fail in real Chromium and asserts the computed 2D ground track swaps in — engagement is instant (a WebGL probe runs before the multi-MB Cesium module loads) and persists for the session |
 | Ground track (antimeridian handling) | **Verified** | unit tests (dateline split, wrap conventions) + API ground-track smoke |
 | Time controls (prediction window slider) | **Verified** | e2e journey (timestamp readout changes with slider) |
 | Pass predictions (rise/max/set + azimuths) | **Verified** | unit tests incl. truncation semantics; live HTTP smoke (ISS × Florida ≈ 42.1° apex) |
@@ -53,6 +53,7 @@ reflects its evidence-based verdicts.
 | Orbital element comparison | **Verified** | service-level identity/delta regression tests + e2e journey on `/compare` (both default satellites load, delta chart renders, interpretation notes visible) |
 | Provider failure handling (honest outage UI) | **Verified** | observed live during a real CelesTrak 403 outage: API returned a typed 502 provider error; detail page rendered "Satellite data unavailable — shown honestly"; e2e journey asserts real-data-or-honest-failure, never fabricated data |
 | Snapshot comparison (requires Supabase) | **Not verified** | persistence + deduplicating writes implemented with migrations; no live Supabase instance was configured in this environment — nothing could assert it end-to-end |
+| What's above you right now (live overhead panel) | **Verified** | new `/api/overhead` reuses the validated SGP4 + look-angle chain (unit tests: selection, horizon filtering, compass, skip honesty); e2e journey (manual coordinates → real panel: named objects or an honest empty state); production receipt: 200, **0.50 s**, honest empty at a time when nothing was above 15° |
 | Watchlist (browser-local persistence) | **Verified** | e2e (save → navigate → list shows the entry) |
 | CSV export | **Verified** | e2e download event, `.csv` filename, non-empty file path |
 | Methodology & limitations page | **Verified** | e2e content assertions |
@@ -150,8 +151,8 @@ projected or fabricated.
 
 ```bash
 npm test
-# Test Files  9 passed | 1 skipped (10)
-#      Tests  50 passed | 1 skipped (51)   ← the skip is the optional live-provider check
+# Test Files  10 passed | 1 skipped (11)
+#      Tests  57 passed | 1 skipped (58)   ← the skip is the optional live-provider check
 ```
 
 Covers:
@@ -183,7 +184,7 @@ Skipped by default so the standard suite never requires network access.
 ```bash
 npm run build
 npx playwright test
-# 11 journeys in the suite
+# 14 journeys in the suite (launched server included, under 20 s)
 ```
 
 Journeys verified in a real Chromium session against `next start`: open the
@@ -192,7 +193,7 @@ app without signing in → load a real satellite with its epoch/characteristics
 passes for a typed location → export CSV → budget-guard rejection → watchlist
 save → comparison page → WebGL-forced 2D fallback → methodology content.
 
-Six of the eleven journeys depend on the live provider. During this
+Six of the fourteen journeys depend on the live provider. During this
 workspace's final verification the provider was unavailable two ways —
 first HTTP 403 (throttled), later connection-unreachable — and the app
 answered each time with a typed 502 and honest UI instead of fake data;
