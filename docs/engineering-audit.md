@@ -380,6 +380,23 @@ re-run above.
 > connection did not. The six provider-dependent local journeys still
 > re-run when the local network path answers; nothing in the project
 > requires changes for them.
+>
+> **Deployment audit (same day, after a user-reported chunk-load error):
+> ** a user's browser reported `Loading chunk 782 failed (missing:
+> /_next/static/chunks/2117a04a.dabf5508675aba07.js)` during the same
+> minute the production alias was re-pointed at the Ready deployment —
+> a tab straddling two deployments (the same chunk-name, changed hash
+> suffix per deploy). The audit verified the current state is healthy:
+> the exact reported chunk now serves **HTTP 200 (274 kB)**; `vercel ls`
+> shows exactly one Ready production deployment (`7hkxv7yaz`) plus one
+> blocked-by-security-gate Error build (`bwyc06fr1`), no half-live state;
+> and fresh-browser e2e against the live URL passed 3/3 in 11.6 s
+> (explorer, detail+provenance, and the forced-WebGL-failure journey —
+> which loads the very chunk that 404'd, then exercises the 2D
+> fallback). The "WebGL could not start" wording is a separate,
+> client-side condition (GPU stack of that browser; hardware-acceleration
+> off, VM/remote sessions, or driver blocklists) for which the app's
+> computed 2D fallback is the designed and working behavior.
 
 The original readiness assessment (now executed above):
 
