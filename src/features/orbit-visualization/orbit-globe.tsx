@@ -30,7 +30,8 @@ interface CesiumViewer {
   entities: {
     add: (entity: unknown) => unknown;
     removeAll: () => void;
-    getEntityById?: (id: string) => unknown;
+    removeById?: (id: string) => boolean;
+    getById?: (id: string) => unknown;
   };
   camera: {
     flyTo: (options: unknown) => void;
@@ -202,6 +203,13 @@ export function OrbitGlobe({ samples, trackSegments, name, sampleIntervalSeconds
         flat.push(Cesium.Cartesian3.fromDegrees(lon, lat, 0));
       }
     }
+    // The ground-track entity uses a fixed id and survives the satellite
+    // effect's removeAll (which fires only on its own dependencies) — adding
+    // over a stale one is a hard Cesium DeveloperError. Remove-then-add is
+    // idempotent, so repeated track updates never throw.
+    if (viewer.entities.getById?.("ground-track")) {
+      viewer.entities.removeById?.("ground-track");
+    }
     viewer.entities.add({
       id: "ground-track",
       polyline: {
@@ -214,7 +222,10 @@ export function OrbitGlobe({ samples, trackSegments, name, sampleIntervalSeconds
         }),
       },
     });
-  }, [ready, trackSegments]);
+    // sampleIntervalSeconds is included deliberately: the orbit effect below
+    // needs it and calls removeAll on those changes, which would otherwise
+    // silently drop the ground-track line until the next track update.
+  }, [ready, trackSegments, sampleIntervalSeconds]);
 
   function resetCamera() {
     const Cesium = cesiumRef.current;

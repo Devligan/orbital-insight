@@ -9,6 +9,22 @@ import { expect, test } from "@playwright/test";
  */
 
 test.describe("explorer journey", () => {
+  test("switching satellites repeatedly never crashes the globe entity collection", async ({ page }) => {
+    // Crash receipt from production: the fixed-id "ground-track" entity was
+    // re-added over a stale one (Cesium DeveloperError). This journey pins
+    // the remove-then-add contract under the rapid user path.
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(String(error)));
+    await page.goto("/");
+    await expect(page.getByText(/Element epoch:/i)).toBeVisible({ timeout: 60_000 });
+    for (const name of ["CSS (TIANHE)", "NOAA 19", "STARLINK-30423", "ISS (ZARYA)"]) {
+      await page.getByRole("button", { name }).first().click();
+      await page.waitForTimeout(700);
+    }
+    await expect(page.getByText(/Element epoch:/i)).toBeVisible({ timeout: 30_000 });
+    expect(errors.filter((e) => /already exists/i.test(e))).toEqual([]);
+  });
+
   test("opens the explorer without signing in and shows the default satellite", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/Orbital Insight/i);
@@ -176,6 +192,21 @@ test.describe("provider failure handling", () => {
     } else {
       await expect(page.getByText(/upstream provider \(CelesTrak\) may be unreachable/i)).toBeVisible();
     }
+  });
+
+  test("no unexplained console errors on the explorer during provider outage", async ({ page }) => {
+    // Honest-but-error states must stay console-clean: real provider failures
+    // surface in the UI, not as page crashes or unexpected exceptions.
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error" && !/does not implement|favicon/i.test(message.text())) {
+        errors.push(message.text());
+      }
+    });
+    await page.goto("/");
+    await page.waitForTimeout(8_000);
+    expect(errors.filter((entry) => /exception|Error:/.test(entry))).toEqual([]);
   });
 });
 
