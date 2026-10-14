@@ -353,9 +353,35 @@ re-run above.
 
 ## H. Deployment readiness
 
-The project is deploy-ready under the intended free-tier configuration; the
-following steps have **not** been executed in this environment (no
-credentials) and complete the deployment:
+> **Executed 2026-10-14:** authorized by the account owner via a Vercel token
+> kept in the gitignored `.env` (never printed, not committed). Project
+> linked as `orbital-insight` (`devligan` account); first production attempt
+> was **blocked by Vercel's security gate** ("Vulnerable version of Next.js
+> detected") against Next 15.5.6 — fixed by the documented remediation,
+> upgrading the direct dependency to **next@15.5.27** (exact pin, the
+> published security-patch release; audit severity critical → moderate) —
+> then all local gates were re-run green (tsc 0, eslint 0/9 warnings, vitest
+> **50 passed / 1 skipped**) and the deployment succeeded:
+> **https://orbital-insight-drab.vercel.app** (`deploy_exit=0`).
+>
+> Production smoke tests (curl receipts against the live URL):
+>
+> | Check | Result |
+> | --- | --- |
+> | `/`, `/methodology`, `/compare`, `/passes`, `/watchlist` | **200** each |
+> | Search API (`/api/satellites/search?q=ISS`) | **200**, real catalog hits, 6.4 s cold start |
+> | Detail API (`/api/satellites/25544`) | **200**, `"lineage":"live"` |
+> | Passes API (ISS × Florida, 24 h) | **200**, real pass: rise 08:58:28Z → apex **21.1°** 09:01:05Z → set 09:03:43Z — physically plausible |
+> | Unknown catalog ID (`…/99999`) | honest **404** `kind:"not-found"`, no fabricated data |
+> | Static asset (live-build chunk) | **200**, bytes present |
+>
+> Note: the earlier local e2e blockage was confirmed *local*: the deployed
+> app reaches CelesTrak from Vercel's network while this workspace's direct
+> connection did not. The six provider-dependent local journeys still
+> re-run when the local network path answers; nothing in the project
+> requires changes for them.
+
+The original readiness assessment (now executed above):
 
 1. `npm i -g vercel && vercel link` in the repository root.
 2. `vercel deploy --prod`. Region choice mostly irrelevant; no KV/queue

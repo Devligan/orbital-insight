@@ -6,11 +6,12 @@ suite, an interactive 3D globe + 2D ground tracks, observer pass predictions,
 and orbital element comparison — free-tier deployable, no sign-in required
 for the core demo.
 
-**State of this repository:** complete, with automated tests passing
-(see [Testing](#testing) for the exact commands used and their real output
-counts). There is no deployed demo URL — no deployment credentials were
-configured in this environment; deployment instructions are below and the
-Vercel configuration follows the documented free-tier limits.
+**State of this repository:** complete and **deployed** to production on
+Vercel: **https://orbital-insight-drab.vercel.app** (deployed 2026-10-14,
+Next.js 15.5.27 including the published security patches). Automated tests
+passing (see [Testing](#testing) for the exact commands used and their real
+output counts); production smoke-test receipts are recorded in
+[`docs/engineering-audit.md`](docs/engineering-audit.md) §H.
 
 ## Feature map
 
@@ -221,8 +222,6 @@ Vercel project env only if you want persistence features.
 
 ## Known limitations
 
-- No deployed demo URL yet; the README will carry it once the project is
-  deployed.
 - Historical *snapshot* comparison requires a configured Supabase instance;
   in demo mode `/compare` works on live/cached element sets only, which is
   stated in the UI.

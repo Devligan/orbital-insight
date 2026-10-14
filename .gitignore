@@ -43,3 +43,6 @@ public/cesium/Workers/
 public/cesium/Assets/
 public/cesium/Widgets/
 public/cesium/ThirdParty/
+
+.vercel
+.env*
