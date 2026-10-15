@@ -5,12 +5,20 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { CatalogSearch } from "@/components/catalog-search";
 
+/**
+ * App shell — consumer-app framing.
+ *
+ * One unobtrusive top bar (brand → search → nav) and an honest footer for the
+ * engineering fine print. The old sidebar rail advertised SGP4/CelesTrak
+ * above the fold; that vocabulary belongs in the footer, where curious
+ * people can find it and everyone else can ignore it.
+ */
+
 const NAV = [
-  { href: "/", label: "Explorer", hint: "Live satellite explorer" },
-  { href: "/passes", label: "Passes", hint: "Pass predictions" },
-  { href: "/compare", label: "Compare", hint: "Orbital comparison" },
-  { href: "/watchlist", label: "Watchlist", hint: "Saved satellites" },
-  { href: "/methodology", label: "Methodology", hint: "Data & calculations" },
+  { href: "/", label: "Sky" },
+  { href: "/passes", label: "Passes" },
+  { href: "/compare", label: "Compare" },
+  { href: "/watchlist", label: "Watchlist" },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -18,59 +26,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   return (
-    <div className="flex min-h-dvh">
-      {/* Sidebar rail (desktop) */}
-      <nav
-        aria-label="Primary"
-        className="hidden w-44 shrink-0 flex-col border-r border-[var(--color-border-hairline)] bg-[var(--color-bg-panel)] md:flex"
-      >
-        <div className="flex items-center gap-2 px-4 py-4">
-          <span aria-hidden="true" className="inline-block size-2.5 rounded-full border border-[var(--color-accent)]" />
-          <Link href="/" className="text-[13px] font-semibold tracking-wide text-[var(--color-text-primary)]">
-            ORBITAL&nbsp;INSIGHT
-          </Link>
-        </div>
-        <ul className="flex flex-col gap-0.5 px-2">
-          {NAV.map((item) => {
-            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                  title={item.hint}
-                  className={
-                    "flex items-center gap-2 rounded-[3px] px-3 py-2 text-[13px] " +
-                    (active
-                      ? "bg-[var(--color-bg-inset)] text-[var(--color-accent)]"
-                      : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-inset)] hover:text-[var(--color-text-primary)]")
-                  }
-                >
-                  {item.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-        <div className="mt-auto px-4 py-4 text-[11px] leading-4 text-[var(--color-text-muted)]">
-          <p>Data: CelesTrak GP</p>
-          <p>Propagation: SGP4</p>
-          <p className="mt-1">Predictions only — not live telemetry.</p>
-        </div>
-      </nav>
+    <div className="flex min-h-dvh flex-col">
+      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 border-b border-[var(--color-border-hairline)] bg-[color-mix(in_oklab,var(--color-bg-panel)_88%,transparent)] px-4 backdrop-blur">
+        <Link href="/" className="flex items-center gap-2 text-[15px] font-bold tracking-tight text-[var(--color-text-primary)]">
+          <span aria-hidden="true" className="inline-block size-3 rounded-full bg-[var(--color-accent)] opacity-80" />
+          Orbital<span className="text-[var(--color-accent)]">Insight</span>
+        </Link>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Top bar */}
-        <header className="flex h-12 shrink-0 items-center gap-3 border-b border-[var(--color-border-hairline)] bg-[var(--color-bg-panel)] px-3">
-          <CatalogSearch
-            onSelect={(sat) => router.push(`/satellites/${sat.satelliteNumber}`)}
-          />
-          <span className="ml-auto hidden text-[11px] text-[var(--color-text-muted)] sm:inline">
-            SGP4 predictions · UTC
-          </span>
-        </header>
+        <div className="mx-auto w-full max-w-md">
+          <CatalogSearch onSelect={(sat) => router.push(`/satellites/${sat.satelliteNumber}`)} />
+        </div>
 
-        <nav aria-label="Primary (compact)" className="flex gap-1 overflow-x-auto border-b border-[var(--color-border-hairline)] bg-[var(--color-bg-panel)] px-2 py-1.5 md:hidden">
+        <nav aria-label="Primary" className="hidden md:flex items-center gap-1">
           {NAV.map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
@@ -79,10 +46,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={
-                  "shrink-0 rounded-[3px] px-3 py-1.5 text-[12px] " +
+                  "rounded-lg px-3 py-1.5 text-[14px] transition-colors " +
                   (active
-                    ? "bg-[var(--color-bg-inset)] text-[var(--color-accent)]"
-                    : "text-[var(--color-text-secondary)]")
+                    ? "bg-[var(--color-bg-inset)] font-semibold text-[var(--color-text-primary)]"
+                    : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-inset)] hover:text-[var(--color-text-primary)]")
                 }
               >
                 {item.label}
@@ -90,9 +57,41 @@ export function AppShell({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
+      </header>
 
-        <main className="min-w-0 flex-1">{children}</main>
-      </div>
+      {/* Phone nav: same links, scrollable chips under the top bar. */}
+      <nav aria-label="Primary (compact)" className="flex gap-1 overflow-x-auto border-b border-[var(--color-border-hairline)] bg-[var(--color-bg-panel)] px-3 py-2 md:hidden">
+        {NAV.map((item) => {
+          const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={
+                "shrink-0 rounded-lg px-3 py-1.5 text-[13px] " +
+                (active
+                  ? "bg-[var(--color-bg-inset)] font-semibold text-[var(--color-text-primary)]"
+                  : "text-[var(--color-text-secondary)]")
+              }
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <main className="min-w-0 flex-1">{children}</main>
+
+      <footer className="mt-8 border-t border-[var(--color-border-hairline)] px-4 py-6">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-[var(--color-text-muted)]">
+          <span>Real orbital elements from CelesTrak · predictions by SGP4 · never live telemetry.</span>
+          <Link href="/methodology" className="text-[var(--color-accent)] hover:underline">
+            How this works
+          </Link>
+          <span className="ml-auto">Not for navigation, safety, or collision avoidance.</span>
+        </div>
+      </footer>
     </div>
   );
 }

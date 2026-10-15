@@ -16,11 +16,17 @@ test.describe("explorer journey", () => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(String(error)));
     await page.goto("/");
-    await expect(page.getByText(/Element epoch:/i)).toBeVisible({ timeout: 60_000 });
+    // Redesigned surface: the default satellite's engineering prose stays
+    // collapsed until opened. The enabled slider is the "default satellite is
+    // loaded" sentinel (same data dependency as the epoch line).
+    await expect(page.getByRole("slider")).toBeEnabled({ timeout: 60_000 });
     for (const name of ["CSS (TIANHE)", "HST (Hubble)", "STARLINK-30423", "ISS (ZARYA)"]) {
       await page.getByRole("button", { name }).first().click();
       await page.waitForTimeout(700);
     }
+    // Engineering prose is collapsed by default in the redesigned surface —
+    // open the technical panel to reach epoch/provenance assertions.
+    await page.getByText(/Technical details & provenance/i).click();
     await expect(page.getByText(/Element epoch:/i)).toBeVisible({ timeout: 30_000 });
     expect(errors.filter((e) => /already exists/i.test(e))).toEqual([]);
   });
@@ -37,18 +43,21 @@ test.describe("explorer journey", () => {
   test("loads a real satellite with orbital characteristics and provenance", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "ISS (ZARYA)" }).first().click();
-    // Real data pipeline ends in the info panel: characteristics + provenance.
+    // Engineering prose is collapsed by default in the redesigned surface —
+    // open the technical panel, then verify the full data contract.
+    await page.getByText(/Technical details & provenance/i).click();
     await expect(page.getByText(/Element epoch:/i)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/Retrieved:/i)).toBeVisible();
     // Plain-language honesty line (rephrased deliberately — same contract:
     // a prediction, not live telemetry).
     await expect(page.getByText(/Position shown is calculated/i)).toBeVisible();
+    // Provenance link is always visible (uncollapsed) on the redesigned aside.
+    await expect(page.getByRole("link", { name: /source record/i })).toBeVisible();
   });
 
   test("time slider moves the displayed prediction timestamp", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "ISS (ZARYA)" }).first().click();
-    await expect(page.getByText(/Element epoch:/i)).toBeVisible({ timeout: 30_000 });
     const slider = page.getByRole("slider");
     await expect(slider).toBeEnabled({ timeout: 30_000 });
     const readout = page.locator("#time-slider ~ *").last();
@@ -81,21 +90,17 @@ test.describe("detail + search journey", () => {
     await expect(page.getByRole("option", { name: /ISS \(ZARYA\)/ })).toBeVisible({ timeout: 5_000 });
   });
 
-  test("overhead widget computes what's above a manual location", async ({ page }) => {
+  test("overhead computation answers from the hero's manual coordinates", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /What's above you now/i })).toBeVisible();
-    // Scope to the overhead section: the "tonight from your spot" panel has
-    // its own manual-coordinate inputs and Go button.
-    const overhead = page.locator("section[aria-label*='above you']").first();
-    await overhead.getByLabel("Manual latitude").fill("28.5");
-    await overhead.getByLabel("Manual longitude").fill("-80.6");
-    await overhead.getByRole("button", { name: "Go" }).click();
-    // Either named objects (stations above 15°) or the honest none-message —
-    // never a spinner-forever state.
-    await expect(page.getByText(/ISS|CSS|Nothing from the bright/i).first()).toBeVisible({ timeout: 30_000 });
-    // The widget's own observer line — deliberately specific (other fallback
-    // paragraphs on the share the word "computed").
-    await expect(page.getByText(/Observer 28\.50°/)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: /What's flying over you tonight/i })).toBeVisible();
+    const hero = page.getByRole("region", { name: "What's in the sky" });
+    await hero.getByLabel("Manual latitude").fill("28.5");
+    await hero.getByLabel("Manual longitude").fill("-80.6"); // Florida
+    await hero.getByRole("button", { name: "Go" }).click();
+    // The observer chip appears either way; the honest named-or-empty lines
+    // follow (never a spinner forever).
+    await expect(page.getByText(/watching from 28\.5/i)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/ISS|CSS|Nothing bright is above 15/i).first()).toBeVisible({ timeout: 30_000 });
   });
 });
 
@@ -176,8 +181,9 @@ test.describe("2D fallback journey", () => {
     });
     await page.goto("/");
     await page.getByRole("button", { name: "ISS (ZARYA)" }).first().click();
-    // The globe failure message appears — an honest failure, not a spinner forever.
-    await expect(page.getByText(/showing the computed 2D ground track/i)).toBeVisible({ timeout: 60_000 });
+    // The globe failure fallback appears — an honest failure message naming the
+    // 2D swap-in, not a spinner forever.
+    await expect(page.getByText(/same orbit drawn in 2D/i)).toBeVisible({ timeout: 60_000 });
     // And the computed 2D ground track actually swaps in.
     await expect(page.locator("svg[role=img]").first()).toBeVisible({ timeout: 30_000 });
     // The prediction-time slider must visibly act on the 2D fallback: the
@@ -249,7 +255,9 @@ test.describe("location-first + shareable moments", () => {
     // around.
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.goto("/");
-    await expect(page.getByText(/Element epoch:/i)).toBeVisible({ timeout: 60_000 });
+    // Engineering prose is collapsed in the redesigned surface; the enabled
+    // slider is the "object loaded" sentinel before switching.
+    await expect(page.getByRole("slider")).toBeEnabled({ timeout: 60_000 });
     // Switching satellites rewrites the share param through the router.
     await page.getByRole("button", { name: "HST (Hubble)" }).first().click();
     await expect(page).toHaveURL(/\?cat=20580/, { timeout: 60_000 });

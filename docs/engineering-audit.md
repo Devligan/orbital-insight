@@ -454,6 +454,21 @@ friendlier fallback copy, and an always-visible watchlist affordance.
 | Build + environment findings: a background `next dev` watcher (user-started) and a stale `next start` on :3000 were overwriting `.next` under production builds — the source of intermittent `Loading chunk … failed` / `MODULE_NOT_FOUND` failures inside e2e. Cleared before the final gate run; build regenerated from a clean `.next`. | environment | final gates: tsc 0 · eslint 0 errors · vitest 57 passed/1 skipped · build 0 · e2e **19/19 (4.9 min)** |
 | Deliberate finding kept in code comments: `window.history.replaceState(null, '', …)` inside the explorer silently broke every later `router.push` (Next Router state wipe) — URL sync now goes through `router.replace` only; the buggy effect was removed after a build-disabled A/B run reproduced the failure and its absence cleared it. | `explorer-view.tsx` comments | search-navigation journey failed with sync on (60 s URL timeout), passed with sync regime changed |
 
+## G5. Consumer-redesign pass (same day, receipts as above convention)
+
+Scope: verdict from the owner — “the plumbing works but the surface looks like an
+engineering dashboard” (three location panels fighting on one screen, tech chrome
+above the fold, badge clutter, 10 px type). This pass restructured the surface
+consumer-first; no data/propagation contracts changed.
+
+| Change | Where | Receipt |
+| --- | --- | --- |
+| Design system: sane type scale, softer surfaces, real hierarchy (token/class names unchanged so every page benefits) | `src/app/globals.css` | gates re-run after edits |
+| App shell: sidebar + tech chrome → simple top nav (“Sky / Passes / Compare / Watchlist”) + honest footer links (methodology, no-navigation disclaimer) | `src/components/app-shell.tsx` | a11y snapshots in failing-test receipts show the new structure |
+| One hero: “What's flying over you tonight?” — single location ask (device one-tap or typed coords) answering both “what's up right now” and “when do the bright stations return” | `src/features/tonight/sky-tonight.tsx` (replaces `overhead-now.tsx` + `tonight-passes.tsx`, both deleted) | geolocation journey and manual-coordinates journey pass against it |
+| Explorer: friendly headline aside (“About 416–425 km up, one lap every 93 minutes”), provenance link always visible, engineering prose + TLE table demoted into a collapsed “Technical details & provenance” `<details>` | `src/features/satellites/explorer-view.tsx` | e2e journeys updated to open the panel when asserting the data contract |
+| Journeys re-pinned to the new surface (locators: role/label-based hero region; collapsed-details opened before epoch assertions; new fallback copy) | `tests/e2e/journeys.spec.ts` | tsc 0 · vitest 57 passed/1 skipped · build 0 · e2e **19/19 (56.9 s)** — all after the edits, nothing skipped |
+
 ## H. Deployment readiness
 
 > **Executed 2026-10-14:** authorized by the account owner via a Vercel token
