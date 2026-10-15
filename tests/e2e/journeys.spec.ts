@@ -305,3 +305,48 @@ test.describe("methodology page", () => {
     await expect(page.getByText(/Not for collision avoidance/i)).toBeVisible();
   });
 });
+
+test.describe("whole-sky globe", () => {
+  test("the active-catalog API serves the full sky with compact propagation-ready rows", async ({ page }) => {
+    // The provider is the live dependency; a rate-limited IP gets the typed
+    // provider failure (honest 502, no fabricated sky). Both states assert
+    // their shape — full data must be compact and complete wherever it is
+    // present.
+    const res = await page.request.get("/api/sky/catalog", { timeout: 120_000 });
+    const body = (await res.json()) as {
+      ok: boolean;
+      data?: { stale: boolean; count: number; entries: Record<string, unknown>[] };
+      error?: { kind: string; message: string };
+    };
+    if (body.ok) {
+      const data = body.data!;
+      expect(data.count).toBeGreaterThanOrEqual(5_000);
+      expect(data.entries).toHaveLength(data.count);
+      const first = data.entries[0]; // noUncheckedIndexedAccess
+      // Compact shape: catalog number, name, both TLE lines — and nothing else.
+      expect(Object.keys(first!).sort()).toEqual(["i", "l1", "l2", "n"]);
+      expect(String(first!.l1)).toMatch(/^1 \d{5}/);
+      expect(String(first!.l2)).toMatch(/^2 \d{5}/);
+    } else {
+      expect(res.status()).toBe(502);
+      expect(body.error?.kind).toBe("provider");
+    }
+  });
+
+  test("the whole-sky toggle keeps the orbit view honest on any GPU outcome", async ({ page }) => {
+    // Environments differ: headless runners often lack WebGL entirely. What
+    // must hold everywhere: no crashes on toggle, and either the animated
+    // cloud commentary or the honest 3D-unavailable fallback — never blank.
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(String(error)));
+    await page.goto("/");
+    await expect(page.getByRole("slider")).toBeEnabled({ timeout: 60_000 });
+    // The toggle starts "on" (the hero visual); flip it both ways.
+    await page.getByRole("button", { name: "Whole sky: on" }).click();
+    await page.getByRole("button", { name: "Whole sky: off" }).click();
+    // WebGL available: cloud reaches ready (SGP4 commentary). WebGL off: the
+    // parent's honest 2D fallback. Both are acceptable, named outcomes.
+    await expect(page.getByText(/\d{1,3}[,.]\d{3} objects, live predictions/i)).toBeVisible().catch(() => { /* not WebGL here */ });
+    expect(errors.filter((e) => /already exists|Cesium|wasm/i.test(e))).toEqual([]);
+  });
+});

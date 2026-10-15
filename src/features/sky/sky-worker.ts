@@ -1,0 +1,223 @@
+/**
+ * Whole-sky propagation worker.
+ *
+ * Owns all SGP4 work for the 10k-object point cloud so the UI thread never
+ * blocks:
+ *  - parses the catalog (~10.6k TLEs) once, skipping unparsable rows
+ *  - classifies every object once (LEO / MEO / GEO / HEO from mean motion +
+ *    eccentricity — derived from the elements, never guessed)
+ *  - propagates continuously in round-robin batches against a shared
+ *    simulation clock; every post is a flat Float32Array (zero-copy transfer)
+ *
+ * Time contract: simulation time runs in real time from the init instant
+ * (`now = start + elapsedWall × speed`). GEO objects stay put over their
+ * longitude because eciToGeodetic folds in Earth's rotation via GMST.
+ */
+
+import { eciToGeodetic, gstime, sgp4, twoline2satrec } from "satellite.js";
+import { categoryOf, type SkyCategory } from "./category";
+
+export interface SkyWorkerEntry {
+  i: string;
+  l1: string;
+  l2: string;
+}
+
+export interface InitMessage {
+  type: "init";
+  entries: SkyWorkerEntry[];
+  /** Simulation-clock start, epoch ms (UTC). */
+  startMs: number;
+  /** Batch size per tick and tick interval (ms) — tuned by the main thread. */
+  batchSize: number;
+  tickMs: number;
+}
+
+export type SkyWorkerInbound = InitMessage | { type: "speed"; speed: number } | { type: "pause"; paused: boolean };
+
+export type { SkyCategory };
+
+export interface ReadyMessage {
+  type: "ready";
+  parsed: number;
+  failed: number;
+  categories: Int8Array;
+  /** Mean motion rev/day per parsed row (parallel to categories). */
+  revsPerDay: Float32Array;
+  ids: string[];
+}
+
+export interface PositionsMessage {
+  type: "positions";
+  /** Simulation time the batch was computed at (epoch ms). */
+  tMs: number;
+  /** Object indices covered by this batch (Int32Array, same order as values). */
+  idx: Int32Array;
+  /** Flat per-object [lonDeg, latDeg, altKm] values (see values below the last channel). */
+  values: Float32Array;
+  /** true when the final slice of the catalog — the full cloud is visible. */
+  sweepDone: boolean;
+}
+
+export type SkyWorkerOutbound = ReadyMessage | PositionsMessage | { type: "error"; message: string };
+
+interface Compiled {
+  satrec: ReturnType<typeof twoline2satrec>;
+}
+
+const MINUTE_MS = 60_000;
+
+let compiled: Compiled[] = [];
+let ids: string[] = [];
+let cursor = 0;
+let startMs = 0;
+let clockBaseMs = 0; // wall time when the clock (re)started
+let clockBaseSimMs = 0; // simulated time at that wall instant
+let speed = 1;
+let paused = false;
+let timer: ReturnType<typeof setInterval> | null = null;
+let batchSize = 600;
+let tickMs = 140;
+
+function simTimeMs(): number {
+  if (paused) return clockBaseSimMs;
+  return clockBaseSimMs + (Date.now() - clockBaseMs) * speed;
+}
+
+function setClockBase(): void {
+  clockBaseSimMs = simTimeMs();
+  clockBaseMs = Date.now();
+}
+
+self.onmessage = (event: MessageEvent<SkyWorkerInbound>) => {
+  const message = event.data;
+  if (message.type === "init") {
+    try {
+      compiled = [];
+      ids = [];
+      let failed = 0;
+      const categories = new Int8Array(message.entries.length);
+      const revsPerDay = new Float32Array(message.entries.length);
+      for (let k = 0; k < message.entries.length; k++) {
+        const entry = message.entries[k]; // noUncheckedIndexedAccess: guard below
+        if (!entry) continue;
+        try {
+          const satrec = twoline2satrec(entry.l1, entry.l2);
+          // Probe at epoch: reject records SGP4 cannot even start.
+          const probe = sgp4(satrec, 0) as { position: false } | { position: { x: number } };
+          if (probe === null || probe.position === false || !Number.isFinite(probe.position.x)) {
+            failed++;
+            continue;
+          }
+          ids.push(entry.i);
+          compiled.push({ satrec });
+          categories[ids.length - 1] = categoryOf(satrec);
+          const radPerMin = satrec.no;
+          revsPerDay[ids.length - 1] = radPerMin > 0 ? (radPerMin * 1440) / (2 * Math.PI) : 0;
+        } catch {
+          failed++;
+        }
+      }
+      startMs = message.startMs;
+      clockBaseMs = Date.now();
+      clockBaseSimMs = startMs;
+      batchSize = message.batchSize;
+      tickMs = message.tickMs;
+      cursor = 0;
+      const ready: ReadyMessage = {
+        type: "ready",
+        parsed: compiled.length,
+        failed,
+        categories: categories.slice(0, compiled.length),
+        revsPerDay: revsPerDay.slice(0, compiled.length),
+        ids,
+      };
+      self.postMessage(ready, { transfer: [ready.categories.buffer, ready.revsPerDay.buffer] });
+      startLoop();
+    } catch (error) {
+      self.postMessage({ type: "error", message: error instanceof Error ? error.message : "Worker init failed" } satisfies SkyWorkerOutbound);
+    }
+    return;
+  }
+  if (message.type === "speed") {
+    setClockBase();
+    speed = message.speed;
+    return;
+  }
+  if (message.type === "pause") {
+    if (message.paused && !paused) {
+      setClockBase();
+      paused = true;
+    } else if (!message.paused && paused) {
+      paused = false;
+      setClockBase();
+    }
+  }
+};
+
+function computeBatch(): { msg: PositionsMessage } | null {
+  const n = compiled.length;
+  if (n === 0) return null;
+  const size = Math.min(batchSize, n);
+  const idx = new Int32Array(size);
+  const values = new Float32Array(size * 3);
+  const tMs = simTimeMs();
+  const gd = new Date(tMs);
+  const gmst = gstime(gd);
+  const begin = cursor;
+  let written = 0;
+  for (let s = 0; s < size; s++) {
+    const objectIndex = cursor;
+    const object = compiled[objectIndex]; // noUncheckedIndexedAccess
+    cursor = (cursor + 1) % n;
+    if (!object) continue;
+    const minutesFromEpoch = (tMs - julianEpochMs(object.satrec)) / MINUTE_MS;
+    const result = sgp4(object.satrec, minutesFromEpoch) as
+      | { position: false }
+      | { position: { x: number; y: number; z: number } }
+      | null;
+    if (result === null || result.position === false || !Number.isFinite(result.position.x)) continue;
+    const geo = eciToGeodetic(result.position, gmst);
+    idx[written] = objectIndex;
+    values[written * 3] = ((geo.longitude * 180) / Math.PI) % 360;
+    values[written * 3 + 1] = (geo.latitude * 180) / Math.PI;
+    values[written * 3 + 2] = geo.height;
+    written++;
+  }
+  // Longitude can dip below -180 on the ((x) % 360) wrap; normalize.
+  for (let v = 0; v < written; v++) {
+    const lonIndex = v * 3; // channels: lon, lat, alt
+    if (lonIndex >= values.length) break;
+    const lon = values[lonIndex]; // noUncheckedIndexedAccess — guarded above
+    if (lon === undefined) continue;
+    if (lon > 180) values[lonIndex] = lon - 360;
+  }
+  return {
+    msg: {
+      type: "positions",
+      tMs,
+      idx: idx.slice(0, written),
+      values: values.slice(0, written * 3),
+      // A sweep completes when the cursor wrapped past its starting index.
+      sweepDone: cursor <= begin,
+    },
+  };
+}
+
+function julianEpochMs(satrec: ReturnType<typeof twoline2satrec>): number {
+  return (satrec.jdsatepoch - 2_440_587.5) * 86_400_000;
+}
+
+function startLoop(): void {
+  if (timer) clearInterval(timer);
+  timer = setInterval(() => {
+    if (paused) return;
+    const batch = computeBatch();
+    if (!batch) return;
+    const { idx, values } = batch.msg;
+    self.postMessage(batch.msg, { transfer: [idx.buffer, values.buffer] });
+  }, tickMs);
+  // Prime the cloud with the first batch immediately.
+  const first = computeBatch();
+  if (first) self.postMessage(first.msg, { transfer: [first.msg.idx.buffer, first.msg.values.buffer] });
+}

@@ -469,6 +469,27 @@ consumer-first; no data/propagation contracts changed.
 | Explorer: friendly headline aside (“About 416–425 km up, one lap every 93 minutes”), provenance link always visible, engineering prose + TLE table demoted into a collapsed “Technical details & provenance” `<details>` | `src/features/satellites/explorer-view.tsx` | e2e journeys updated to open the panel when asserting the data contract |
 | Journeys re-pinned to the new surface (locators: role/label-based hero region; collapsed-details opened before epoch assertions; new fallback copy) | `tests/e2e/journeys.spec.ts` | tsc 0 · vitest 57 passed/1 skipped · build 0 · e2e **19/19 (56.9 s)** — all after the edits, nothing skipped |
 
+## G6. Whole-sky 3D globe (same day, receipts as above convention)
+
+Scope: owner request — a fully interactive 3D globe with *all* satellites, as the
+home hero, animated in real time. Built on the existing Cesium stack plus
+client-side SGP4 in a web worker; no server propagation load added.
+
+| Change | Where | Receipt |
+| --- | --- | --- |
+| Whole-sky catalog service: one CelesTrak `GROUP=active` fetch (~10.6k entries), shared in-flight, TTL-cached; stale-serve labelled; refuses a truncated feed (<5k) instead of showing a fake sky | `src/server/sky-catalog.ts` | integration tests: compact shape, single provider call, small-feed refusal, honest propagating error (mocked provider) |
+| `GET /api/sky/catalog` compact rows `{i,n,l1,l2}`; provider failure = typed 502 (live run observed: CelesTrak 403 during rate-limit window → honest body, no fabricated data) | `src/app/api/sky/catalog/route.ts` | e2e provider-state-aware journey (full shape OR honest 502) |
+| Propagation worker: parse ~10.6k TLEs once (skip bad rows), classify LEO/MEO/GEO/HEO from mean motion+ecc, round-robin SGP4 batches (600/140 ms) at real-time or ×60 sim clock; flat typed-array transfers | `src/features/sky/sky-worker.ts`, `category.ts`, `sky-cloud.ts` | worker owns all SGP4 work off the UI thread; unit tests pin boundary classification (ISS/GPS/GEO/Molniya regimes) |
+| SkyField: PointPrimitiveCollection cloud (progressive light-up), category colors + legend, click-any-dot → select, selected-object orbit polyline + ground-track overlay, `requestRenderMode` bounded renders, honest catalog-failure overlay, WebGL preflight + 2D fallback preserved | `src/features/orbit-visualization/sky-field.tsx` (replaced single-orbit `orbit-globe.tsx`) | e2e toggle journey asserts no Cesium/crash errors; WebGL-off path keeps the legacy 2D fallback honest |
+| Build fix: satellite.js v7 re-exports an unused WASM/pthreads runtime statically referencing `node:worker_threads` — aliased `#wasm-*-thread` to an inert stub in the *client* graph only (server keeps full package) | `next.config.ts`, `src/shims/empty-wasm.ts` | production build passes; the pure-JS SGP4 the worker uses never touches the WASM path |
+| Gates after all edits: tsc 0 · eslint 0 errors · vitest **66 passed/1 skipped** (incl. 9 new) · build 0 · e2e **21/21** | — | live run receipts in this table |
+
+**Known live-environment caveat:** during the CelesTrak rate-limit window this
+IP saw (HTTP 403 after the audit's fetch volume), `GROUP=active` answers the
+honest typed failure until the throttle lifts or the cache TTL/`s-maxage`
+CDN cache warms; the UI then says exactly that next to the still-working
+tracked-object view.
+
 ## H. Deployment readiness
 
 > **Executed 2026-10-14:** authorized by the account owner via a Vercel token

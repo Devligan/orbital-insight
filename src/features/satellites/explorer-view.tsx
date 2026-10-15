@@ -26,12 +26,14 @@ import { ErrorState, Loading } from "@/components/ui/primitives";
 import { formatUtc } from "@/lib/units";
 
 // The globe ships ~2 MB of WebGL runtime; keep it out of the initial bundle.
-const OrbitGlobe = dynamic(
-  () => import("@/features/orbit-visualization/orbit-globe").then((m) => m.OrbitGlobe),
+const SkyField = dynamic(
+  () => import("@/features/orbit-visualization/sky-field").then((m) => m.SkyField),
   { ssr: false, loading: () => <Loading label="Loading 3D globe…" /> },
 );
 
 const DEFAULT_SATELLITE = { satelliteNumber: "25544", name: "ISS (ZARYA)" };
+
+/** The tracked object's orbit view + the (default-on) whole-sky cloud. */
 
 interface SatelliteDetail {
   ok: boolean;
@@ -99,6 +101,7 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
   const [error, setError] = useState<{ kind: string; message: string } | null>(null);
   const [busy, setBusy] = useState(true);
   const [globeUnavailable, setGlobeUnavailable] = useState(false);
+  const [wholeSky, setWholeSky] = useState(true); // the hero visual
   const [copied, setCopied] = useState(false);
 
   const displayName = detail?.name ?? initial.name;
@@ -210,6 +213,13 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
           <Link href={`/satellites/${selectedId}`} className="badge text-[var(--color-accent)] hover:underline">
             Full details →
           </Link>
+          <button
+            className="badge text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
+            aria-pressed={wholeSky}
+            onClick={() => setWholeSky((on) => !on)}
+          >
+            {wholeSky ? "Whole sky: on" : "Whole sky: off"}
+          </button>
         </div>
 
         {error ? (
@@ -224,14 +234,21 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
           </div>
         ) : (
           <div className="mx-auto mt-3 grid max-w-5xl grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
-            {/* Globe: the visual anchor */}
-            <div className="panel relative min-h-[320px] overflow-hidden lg:min-h-0">
-              <OrbitGlobe
+            {/* Globe: the visual anchor — the whole sky, with the tracked object highlighted */}
+            <div className="panel relative min-h-[440px] overflow-hidden lg:min-h-[560px]">
+              <SkyField
                 samples={positions}
                 trackSegments={trackSegmentsPt ?? []}
                 name={displayName}
                 sampleIntervalSeconds={intervalSeconds}
                 onUnavailable={() => setGlobeUnavailable(true)}
+                cloud={wholeSky}
+                onSelectSatellite={(satnum) => {
+                  if (satnum) {
+                    setWholeSky(true);
+                    setSelectedId(satnum);
+                  }
+                }}
               />
               {globeUnavailable ? (
                 <div className="absolute inset-0 overflow-auto bg-[var(--color-bg-panel)] p-4">
