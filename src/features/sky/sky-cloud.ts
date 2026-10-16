@@ -23,7 +23,7 @@ export interface SkyStartPosition {
 }
 
 export interface SkyCloudEvents {
-  onReady(info: { parsed: number; failed: number; categories: Int8Array; revsPerDay: Float32Array; ids: string[] }): void;
+  onReady(info: { parsed: number; failed: number; categories: Int8Array; ids: string[] }): void;
   onPositions(batch: { tMs: number; idx: Int32Array; values: Float32Array; sweepDone: boolean }): void;
   onError(message: string): void;
 }
@@ -51,7 +51,6 @@ export class SkyCloud {
           parsed: message.parsed,
           failed: message.failed,
           categories: message.categories,
-          revsPerDay: message.revsPerDay,
           ids: message.ids,
         });
       } else if (message.type === "positions") {

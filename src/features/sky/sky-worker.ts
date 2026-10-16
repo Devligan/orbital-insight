@@ -42,8 +42,6 @@ export interface ReadyMessage {
   parsed: number;
   failed: number;
   categories: Int8Array;
-  /** Mean motion rev/day per parsed row (parallel to categories). */
-  revsPerDay: Float32Array;
   ids: string[];
 }
 
@@ -97,7 +95,6 @@ self.onmessage = (event: MessageEvent<SkyWorkerInbound>) => {
       ids = [];
       let failed = 0;
       const categories = new Int8Array(message.entries.length);
-      const revsPerDay = new Float32Array(message.entries.length);
       for (let k = 0; k < message.entries.length; k++) {
         const entry = message.entries[k]; // noUncheckedIndexedAccess: guard below
         if (!entry) continue;
@@ -112,8 +109,6 @@ self.onmessage = (event: MessageEvent<SkyWorkerInbound>) => {
           ids.push(entry.i);
           compiled.push({ satrec });
           categories[ids.length - 1] = categoryOf(satrec);
-          const radPerMin = satrec.no;
-          revsPerDay[ids.length - 1] = radPerMin > 0 ? (radPerMin * 1440) / (2 * Math.PI) : 0;
         } catch {
           failed++;
         }
@@ -129,10 +124,9 @@ self.onmessage = (event: MessageEvent<SkyWorkerInbound>) => {
         parsed: compiled.length,
         failed,
         categories: categories.slice(0, compiled.length),
-        revsPerDay: revsPerDay.slice(0, compiled.length),
         ids,
       };
-      self.postMessage(ready, { transfer: [ready.categories.buffer, ready.revsPerDay.buffer] });
+      self.postMessage(ready, { transfer: [ready.categories.buffer] });
       startLoop();
     } catch (error) {
       self.postMessage({ type: "error", message: error instanceof Error ? error.message : "Worker init failed" } satisfies SkyWorkerOutbound);
@@ -179,18 +173,11 @@ function computeBatch(): { msg: PositionsMessage } | null {
     if (result === null || result.position === false || !Number.isFinite(result.position.x)) continue;
     const geo = eciToGeodetic(result.position, gmst);
     idx[written] = objectIndex;
-    values[written * 3] = ((geo.longitude * 180) / Math.PI) % 360;
+    // eciToGeodetic longitude comes from atan2 — already within [-180, 180].
+    values[written * 3] = (geo.longitude * 180) / Math.PI;
     values[written * 3 + 1] = (geo.latitude * 180) / Math.PI;
     values[written * 3 + 2] = geo.height;
     written++;
-  }
-  // Longitude can dip below -180 on the ((x) % 360) wrap; normalize.
-  for (let v = 0; v < written; v++) {
-    const lonIndex = v * 3; // channels: lon, lat, alt
-    if (lonIndex >= values.length) break;
-    const lon = values[lonIndex]; // noUncheckedIndexedAccess — guarded above
-    if (lon === undefined) continue;
-    if (lon > 180) values[lonIndex] = lon - 360;
   }
   return {
     msg: {
