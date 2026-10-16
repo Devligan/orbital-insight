@@ -127,8 +127,18 @@ const SECTIONS = [
           element age and let you judge against the guidelines linked below.
         </li>
         <li>
-          <strong>Passes ≠ visibility.</strong> A predicted pass is orbital geometry relative to your coordinates. It
-          does not model lighting, cloud cover, or optical brightness, so it is not an observing forecast.
+          <strong>Passes ≠ visibility.</strong> A predicted pass is orbital geometry relative to your coordinates.
+          Visual-visibility judgements model <em>sunlight geometry</em> — the satellite must be lit (cylindrical
+          shadow test) and the observer's sky must be past civil twilight (sun below −6°) — plus a
+          phase-corrected apparent-magnitude estimate. That estimate carries roughly ±1.5 magnitudes of
+          uncertainty (object sizes are not in the catalog), and clouds, weather, and eyesight are not modeled,
+          so this still is not an observing forecast.
+        </li>
+        <li>
+          <strong>Light-model approximations.</strong> The sun position is the low-precision Astronomical
+          Almanac approximation (~0.01°, far coarser than we need for the lit/unlit decisions); shadow timing
+          ignores penumbra and atmospheric refraction (seconds of difference); brightness assumes Lambertian
+          diffuse reflection. Standards for a plan-outside tool, not for photometry.
         </li>
         <li>
           <strong>Manoeuvring objects</strong> (spacecraft with thrusters, de-orbit schedules, dodging debris) can

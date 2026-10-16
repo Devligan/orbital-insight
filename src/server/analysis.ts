@@ -13,7 +13,9 @@ import { temeToEcf } from "@/domain/orbit/coordinates";
 import { buildGroundTrackSegments } from "@/domain/orbit/ground-track";
 import { computeCharacteristics, type OrbitalCharacteristics } from "@/domain/orbit/characteristics";
 import { findPasses, type PassSearchParams } from "@/domain/passes/finder";
+import { enrichPassVisibility } from "@/domain/passes/visibility";
 import type { PassResult } from "@/domain/passes/types";
+import type { PassResultDto } from "@/contracts/orbital";
 import { SatelliteService, type DataLineage, satelliteService } from "./satellites";
 
 /** Ground-track sampling bounds (free-tier + shared instance hostility). */
@@ -153,7 +155,8 @@ export interface PassSearchEntry {
 }
 
 export interface PassSearchServiceResult {
-  results: PassSearchEntry[];
+  /** Wire-shape results (contracts/orbital.ts) — ISO strings, honest nulls. */
+  results: PassResultDto[];
   windowStart: Date;
   windowEnd: Date;
   minElevationDeg: number;
@@ -349,22 +352,74 @@ export async function computePasses(options: {
     minElevationDeg: options.minElevationDeg,
   });
 
+  // Light-state enrichment + wire mapping: geometry says when the object is
+  // above the horizon; enrichment says whether anyone could actually see it
+  // (sunlit satellite, dark observer sky, phase-corrected brightness), and
+  // toPassEntryDto is the single place domain shapes become wire shapes.
+  const satrecByNumber = new Map(params.compiled.map((c) => [c.elementSet.satelliteNumber, c.satrec]));
   const byNumber = new Map(finderResults.map((r) => [r.satelliteNumber, r]));
-  const merged: PassSearchEntry[] = successes.map((entry) => {
+
+  const merged = successes.map((entry) => {
     const found = byNumber.get(entry.satelliteNumber);
-    return {
-      satelliteNumber: entry.satelliteNumber,
-      name: entry.name,
-      passes: found?.passes ?? [],
-      failure: found?.failure ?? entry.failure,
-      lineage: entry.lineage,
-    };
+    const satrec = satrecByNumber.get(entry.satelliteNumber);
+    const enriched = (found?.passes ?? []).map((pass) => {
+      if (!satrec || pass.truncated === "both") {
+        // Never enriched: a pass truncated on both sides has no honest
+        // in-window bracket to sample light state over. Geometry stays.
+        return pass;
+      }
+      return {
+        ...pass,
+        visibility: enrichPassVisibility({ satrec, pass, observer: options.observer, windowStart, windowEnd }),
+      } as PassResult;
+    });
+    return toPassEntryDto(
+      { satelliteNumber: entry.satelliteNumber, name: entry.name, lineage: entry.lineage, passes: [], failure: found?.failure },
+      enriched,
+    );
   });
 
   return {
-    results: [...merged, ...failures],
+    results: [...merged, ...failures.map((failure) => toPassEntryDto(failure, []))],
     windowStart,
     windowEnd,
     minElevationDeg: options.minElevationDeg,
+  };
+}
+
+/**
+ * Domain pass → wire DTO (the shape `contracts/orbital.ts` documents).
+ * Dates serialize to ISO strings, `truncated: null` becomes "none" so the
+ * client union never sees null, and the light-state block travels through
+ * with `bestTimeMs` normalized to an ISO instant.
+ */
+function toPassEntryDto(sat: PassSearchEntry, passes: PassResult[]): PassResultDto {
+  return {
+    satelliteNumber: sat.satelliteNumber,
+    name: sat.name,
+    lineage: sat.lineage,
+    failure: sat.failure
+      ? { reason: sat.failure.reason, message: sat.failure.message }
+      : undefined,
+    passes: passes.map((pass) => ({
+      riseTime: pass.rise ? pass.rise.toISOString() : null,
+      maxTime: pass.max.toISOString(),
+      maxElevationDeg: pass.maxElevationDeg,
+      setTime: pass.set ? pass.set.toISOString() : null,
+      truncated: pass.truncated ?? "none",
+      azimuthAtRiseDeg: pass.azimuthAtRiseDeg,
+      azimuthAtMaxDeg: pass.azimuthAtMaxDeg,
+      azimuthAtSetDeg: pass.azimuthAtSetDeg,
+      visibility: pass.visibility
+        ? {
+            fromGround: pass.visibility.fromGround,
+            bestEstimatedMagnitude: pass.visibility.bestEstimatedMagnitude,
+            bestTimeIso: pass.visibility.bestTimeMs !== null ? new Date(pass.visibility.bestTimeMs).toISOString() : null,
+            sunElevationDegAtApex: pass.visibility.sunElevationDegAtApex,
+            satelliteInShadowAtApex: pass.visibility.satelliteInShadowAtApex,
+            reasonIfNotVisible: pass.visibility.reasonIfNotVisible ?? null,
+          }
+        : undefined,
+    })),
   };
 }

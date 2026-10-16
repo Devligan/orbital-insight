@@ -116,6 +116,7 @@ export type PassPredictionRequest = z.infer<typeof passPredictionRequestSchema>;
 export const passResultSchema = z.object({
   satelliteNumber: z.string(),
   name: z.string(),
+  lineage: z.enum(["live", "cached", "provider-unavailable-stale"]).optional(),
   passes: z.array(
     z.object({
       riseTime: z.string().nullable(),
@@ -126,6 +127,17 @@ export const passResultSchema = z.object({
       azimuthAtRiseDeg: z.number().nullable(),
       azimuthAtMaxDeg: z.number(),
       azimuthAtSetDeg: z.number().nullable(),
+      /** Light-state evaluation; omitted when the pass was never enriched. */
+      visibility: z
+        .object({
+          fromGround: z.boolean(),
+          bestEstimatedMagnitude: z.number().nullable(),
+          bestTimeIso: z.string().nullable(),
+          sunElevationDegAtApex: z.number(),
+          satelliteInShadowAtApex: z.boolean(),
+          reasonIfNotVisible: z.enum(["satellite-in-shadow", "sky-too-bright", "both", "none"]).nullable(),
+        })
+        .optional(),
     }),
   ),
   failure: z

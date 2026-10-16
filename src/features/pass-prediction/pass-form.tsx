@@ -24,6 +24,14 @@ interface PassEntry {
   azimuthAtRiseDeg: number | null;
   azimuthAtMaxDeg: number;
   azimuthAtSetDeg: number | null;
+  visibility?: {
+    fromGround: boolean;
+    bestEstimatedMagnitude: number | null;
+    bestTimeIso: string | null;
+    sunElevationDegAtApex: number;
+    satelliteInShadowAtApex: boolean;
+    reasonIfNotVisible: "satellite-in-shadow" | "sky-too-bright" | "both" | "none" | null;
+  };
 }
 
 interface PassSatelliteResult {
@@ -149,8 +157,9 @@ export function PassPredictionsForm() {
         </form>
 
         <p className="mt-3 text-[11px] text-[var(--color-text-muted)]">
-          A predicted pass is a geometry calculation — it does not guarantee visual visibility (clouds, sunlight, observer
-          eyesight are not modeled). See the{" "}
+          Every pass is a geometry calculation. Sunlight geometry — Earth&apos;s shadow and the observer&apos;s sky
+          darkness — is modeled, with a phase-corrected magnitude estimate (±1.5 mag; object sizes are unknown).
+          Clouds and eyesight are not. See the{" "}
           <Link href="/methodology" className="text-[var(--color-accent)] hover:underline">methodology</Link>.
         </p>
       </Panel>
@@ -230,6 +239,11 @@ export function PassPredictionsForm() {
                             <td>{pass.azimuthAtSetDeg !== null ? `${pass.azimuthAtSetDeg.toFixed(1)}°` : "—"}</td>
                             <td>
                               {pass.truncated === "none" ? "" : `pass ${pass.truncated} outside window`}
+                              {pass.visibility
+                                ? pass.visibility.fromGround
+                                  ? ` visible (≈ mag ${pass.visibility.bestEstimatedMagnitude?.toFixed(1)})`
+                                  : " not visible " + (pass.visibility.reasonIfNotVisible ?? "")
+                                : ""}
                             </td>
                           </tr>
                         ))}
@@ -252,11 +266,11 @@ function exportCsv(
   inputs: { latitude: string; longitude: string; altitudeMeters: string; windowHours: string; minElevationDeg: string },
 ): void {
   const rows: string[][] = [
-    ["satellite_number", "name", "rise_utc", "rise_azimuth_deg", "max_utc", "max_elevation_deg", "max_azimuth_deg", "set_utc", "set_azimuth_deg", "truncated"],
+    ["satellite_number", "name", "rise_utc", "rise_azimuth_deg", "max_utc", "max_elevation_deg", "max_azimuth_deg", "set_utc", "set_azimuth_deg", "truncated", "visible", "estimated_magnitude"],
   ];
   for (const sat of results.results) {
     if (sat.failure) {
-      rows.push([sat.satelliteNumber, sat.name || `NORAD ${sat.satelliteNumber}`, "", "", "", "", "", "", "", `error: ${sat.failure.reason}`]);
+      rows.push([sat.satelliteNumber, sat.name || `NORAD ${sat.satelliteNumber}`, "", "", "", "", "", "", "", `error: ${sat.failure.reason}`, "", ""]);
       continue;
     }
     for (const pass of sat.passes) {
@@ -271,6 +285,8 @@ function exportCsv(
         pass.setTime ?? "",
         pass.azimuthAtSetDeg !== null ? pass.azimuthAtSetDeg.toFixed(2) : "",
         pass.truncated,
+        pass.visibility ? (pass.visibility.fromGround ? "yes" : "no" + (pass.visibility.reasonIfNotVisible ? `: ${pass.visibility.reasonIfNotVisible}` : "")) : "",
+        pass.visibility?.bestEstimatedMagnitude !== null && pass.visibility?.bestEstimatedMagnitude !== undefined ? pass.visibility.bestEstimatedMagnitude.toFixed(2) : "",
       ]);
     }
   }

@@ -35,6 +35,7 @@ interface PassSatResult {
   satelliteNumber: string;
   name: string;
   passes: PassCardData[];
+  lineage?: string;
   failure?: { reason: string; message: string };
 }
 
@@ -223,8 +224,9 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
                 })}
                 {windowStart ? (
                   <p className="text-[11px] text-[var(--color-text-muted)]">
-                    Predicted orbits from {new Date(windowStart).toLocaleDateString()}, over the next 24 h. Geometry
-                    only — clouds and sunlight aren&apos;t modeled.
+                    Predicted orbits from {new Date(windowStart).toLocaleDateString()}, over the next 24 h. Sunlight
+                    geometry is modeled — Earth&apos;s shadow and your sky&apos;s darkness decide the visual-visibility
+                    verdicts; clouds aren&apos;t. Magnitude estimates carry about ±1.5 mag of uncertainty.
                   </p>
                 ) : null}
               </div>

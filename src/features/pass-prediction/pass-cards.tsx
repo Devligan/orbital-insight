@@ -21,12 +21,50 @@ export interface PassCardData {
   azimuthAtMaxDeg: number;
   azimuthAtSetDeg: number | null;
   truncated: "rise" | "set" | "both" | "none";
+  /** Light-state evaluation — present when the server computed it. */
+  visibility?: {
+    fromGround: boolean;
+    bestEstimatedMagnitude: number | null;
+    bestTimeIso: string | null;
+    sunElevationDegAtApex: number;
+    satelliteInShadowAtApex: boolean;
+    reasonIfNotVisible: "satellite-in-shadow" | "sky-too-bright" | "both" | "none" | null;
+  };
 }
 
 /** 0–360° azimuth → the 8 compass points a human actually uses. */
 export function compassPoint(azimuthDeg: number): string {
   const points = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
   return points[Math.round(((azimuthDeg % 360) / 45)) % 8] ?? "N";
+}
+
+/**
+ * The visibility verdict, in words a human plans around. Magnitudes are
+ * surveys' business; here ±1.5 mag of uncertainty is part of the display.
+ */
+export function visibilityLine(pass: PassCardData): string | null {
+  const v = pass.visibility;
+  if (!v) return null;
+  if (v.fromGround && v.bestEstimatedMagnitude !== null) {
+    const look = compassPoint(pass.azimuthAtMaxDeg);
+    const brightness =
+      v.bestEstimatedMagnitude <= 3.5
+        ? "conspicuous"
+        : v.bestEstimatedMagnitude <= 6
+          ? "naked-eye"
+          : "needs binoculars";
+    return `visually confirmed in sunlight — look ${look} at the apex, estimated magnitude ${v.bestEstimatedMagnitude.toFixed(1)} (${brightness})`;
+  }
+  switch (v.reasonIfNotVisible) {
+    case "satellite-in-shadow":
+      return "crossing while inside Earth's shadow — no sunlight to reflect, don't look for it";
+    case "sky-too-bright":
+      return "the sun is still up at your spot then — invisible against the sky";
+    case "both":
+      return "overhead only while your sky is lit or the satellite is eclipsed";
+    default:
+      return null;
+  }
 }
 
 /** Local wall-clock time — pass times are for planning, so local is the useful form. */
@@ -56,6 +94,10 @@ export function PassCard({ pass }: { pass: PassCardData }) {
       {pass.truncated !== "none" ? (
         <p className="mt-1 text-[10px] text-[var(--color-status-warn)]">partially outside the prediction window</p>
       ) : null}
+      {(() => {
+        const line = visibilityLine(pass);
+        return line ? <p className="mt-1 text-[11px] text-[var(--color-text-secondary)]">{line}</p> : null;
+      })()}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import type { Degrees, Kilometers } from "@/lib/units";
 import type { ObserverLocation } from "@/domain/orbit/coordinates";
+import type { PassVisibility } from "./visibility";
 
 export interface PassTiming {
   /** First instant above the elevation threshold (UTC). */
@@ -18,6 +19,12 @@ export interface PassResult extends PassTiming {
   azimuthAtRiseDeg: Degrees | null;
   azimuthAtMaxDeg: Degrees;
   azimuthAtSetDeg: Degrees | null;
+  /**
+   * Light-state evaluation (sunlit satellite + dark observer sky + a
+   * phase-corrected brightness estimate). Optional: the bare geometry layer
+   * never fabricates it; only the enriched server path adds it.
+   */
+  visibility?: PassVisibility;
 }
 
 export interface SatellitePasses {
