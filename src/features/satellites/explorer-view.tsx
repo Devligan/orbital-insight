@@ -181,183 +181,185 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
   const selected = positions[timeIndex] ?? null;
 
   return (
-    <div className="flex flex-col">
-      {/* ─── Hero: the answer-first screen ─── */}
-      <div className="hero-band px-4 py-10 sm:px-8">
-        <div className="mx-auto max-w-5xl">
+    // One first screen, two answers side by side on desktop: "what can I see
+    // tonight" (left) and the live sky itself (right, sticky while the left
+    // column scrolls). Phones stack them in reading order: tonight → globe →
+    // the followed object's card.
+    <div className="hero-band px-3 pb-8 pt-6 sm:px-6 lg:pt-8">
+      <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-[minmax(360px,440px)_minmax(0,1fr)] lg:grid-rows-[auto_1fr]">
+        <div className="min-w-0 lg:col-start-1 lg:row-start-1">
           <SkyTonight location={observerLocation} />
         </div>
-      </div>
 
-      {/* ─── Orbit view: "here's what it looks like" ─── */}
-      <div className="px-3 pt-6 sm:px-6">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2">
-          <span className="label">Follow along</span>
-          {CURATED.map((example) => (
-            <button
-              key={example.satelliteNumber}
-              className={
-                "badge " +
-                (example.satelliteNumber === selectedId
-                  ? "border-[var(--color-accent)] text-[var(--color-accent)]"
-                  : "text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]")
-              }
-              onClick={() => setSelectedId(example.satelliteNumber)}
-            >
-              {example.name}
-            </button>
-          ))}
-          <button className="badge text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]" onClick={copyLink}>
-            {copied ? "Link copied ✓" : "Copy share link"}
-          </button>
-          <Link href={`/satellites/${selectedId}`} className="badge text-[var(--color-accent)] hover:underline">
-            Full details →
-          </Link>
-          <button
-            className="badge text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
-            aria-pressed={wholeSky}
-            onClick={() => setWholeSky((on) => !on)}
-          >
-            {wholeSky ? "Whole sky: on" : "Whole sky: off"}
-          </button>
-        </div>
+        {/* ─── The live sky: "here's what it looks like" ─── */}
+        <div className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+          <div className="flex flex-col gap-3 lg:sticky lg:top-[72px]">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="label">Follow along</span>
+              {CURATED.map((example) => (
+                <button
+                  key={example.satelliteNumber}
+                  className={
+                    "badge " +
+                    (example.satelliteNumber === selectedId
+                      ? "border-[var(--color-accent)] text-[var(--color-accent)]"
+                      : "text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]")
+                  }
+                  onClick={() => setSelectedId(example.satelliteNumber)}
+                >
+                  {example.name}
+                </button>
+              ))}
+              <button className="badge text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]" onClick={copyLink}>
+                {copied ? "Link copied ✓" : "Copy share link"}
+              </button>
+              <Link href={`/satellites/${selectedId}`} className="badge text-[var(--color-accent)] hover:underline">
+                Full details →
+              </Link>
+              <button
+                className="badge text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
+                aria-pressed={wholeSky}
+                onClick={() => setWholeSky((on) => !on)}
+              >
+                {wholeSky ? "Whole sky: on" : "Whole sky: off"}
+              </button>
+            </div>
 
-        {error ? (
-          <div className="mx-auto mt-3 max-w-5xl">
-            <div className="panel">
-              <ErrorState
-                title="Couldn't load this satellite right now"
-                message={`${error.message} — the public data provider may be briefly down; try again shortly.`}
-                retry={() => void load(selectedId, 0)}
+            {error ? (
+              <div className="panel">
+                <ErrorState
+                  title="Couldn't load this satellite right now"
+                  message={`${error.message} — the public data provider may be briefly down; try again shortly.`}
+                  retry={() => void load(selectedId, 0)}
+                />
+              </div>
+            ) : (
+              /* Globe: the visual anchor. On desktop it fills the viewport
+                 height beside the tonight column; on phones a tall band. */
+              <div className="panel relative h-[60vh] min-h-[420px] overflow-hidden lg:h-[calc(100vh-13rem)] lg:max-h-[920px] lg:min-h-[520px]">
+                <SkyField
+                  samples={positions}
+                  trackSegments={trackSegmentsPt ?? []}
+                  name={displayName}
+                  sampleIntervalSeconds={intervalSeconds}
+                  onUnavailable={() => setGlobeUnavailable(true)}
+                  cloud={wholeSky}
+                  onSelectSatellite={(satnum) => {
+                    if (satnum) {
+                      setWholeSky(true);
+                      setSelectedId(satnum);
+                    }
+                  }}
+                />
+                {globeUnavailable ? (
+                  <div className="absolute inset-0 overflow-auto bg-[var(--color-bg-panel)] p-4">
+                    <p className="mb-2 text-[13px] text-[var(--color-status-warn)]">
+                      This browser has 3D graphics turned off, so here&apos;s the same orbit drawn in 2D — the marker
+                      follows the time slider below. Want the full spinning globe? Turn on &quot;Use graphics
+                      acceleration&quot; in your browser settings and refresh.
+                    </p>
+                    <GroundTrackPlot
+                      name={displayName}
+                      segments={((trackSegmentsPt ?? []) as [number, number][][]).map((segment) =>
+                        segment.map(([lat, lon]) => ({ latitudeDeg: lat, longitudeDeg: lon, altitudeKm: 0, time: "" })),
+                      )}
+                      markerPosition={selected
+                        ? { latitudeDeg: selected.latitudeDeg, longitudeDeg: selected.longitudeDeg, time: selected.time }
+                        : null}
+                      height={420}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {/* Time slider row */}
+            <div className="panel flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+              <label htmlFor="time-slider" className="label shrink-0">
+                Time
+              </label>
+              <span className="text-[11px] text-[var(--color-text-muted)]">now</span>
+              <input
+                id="time-slider"
+                type="range"
+                className="min-w-0 flex-1"
+                min={0}
+                max={Math.max(positions.length - 1, 0)}
+                value={Math.min(timeIndex, Math.max(positions.length - 1, 0))}
+                onChange={(e) => setTimeIndex(Number(e.target.value))}
+                disabled={positions.length === 0}
+                aria-valuemin={0}
+                aria-valuemax={positions.length - 1}
+                aria-valuenow={timeIndex}
+                aria-valuetext={selected ? formatUtc(new Date(selected.time)) : "no data"}
               />
+              <span className="text-[11px] text-[var(--color-text-muted)]">+6 h</span>
+              {/* Own line on phones: the fixed-width UTC stamp overflowed a 390px screen. */}
+              <span className="data-value w-full text-right text-[13px] sm:w-auto sm:min-w-[19ch]">
+                {selected ? formatUtc(new Date(selected.time)) : "—"}
+              </span>
             </div>
           </div>
-        ) : (
-          <div className="mx-auto mt-3 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-            {/* Globe: the visual anchor — big, near edge-to-edge, the whole sky
-                with the tracked object highlighted. Height is viewport-driven
-                (capped) instead of a fixed short panel, so the cloud has room. */}
-            <div className="panel relative h-[68vh] max-h-[880px] min-h-[520px] overflow-hidden">
-              <SkyField
-                samples={positions}
-                trackSegments={trackSegmentsPt ?? []}
-                name={displayName}
-                sampleIntervalSeconds={intervalSeconds}
-                onUnavailable={() => setGlobeUnavailable(true)}
-                cloud={wholeSky}
-                onSelectSatellite={(satnum) => {
-                  if (satnum) {
-                    setWholeSky(true);
-                    setSelectedId(satnum);
-                  }
-                }}
-              />
-              {globeUnavailable ? (
-                <div className="absolute inset-0 overflow-auto bg-[var(--color-bg-panel)] p-4">
-                  <p className="mb-2 text-[13px] text-[var(--color-status-warn)]">
-                    This browser has 3D graphics turned off, so here&apos;s the same orbit drawn in 2D — the marker
-                    follows the time slider below. Want the full spinning globe? Turn on &quot;Use graphics
-                    acceleration&quot; in your browser settings and refresh.
-                  </p>
-                  <GroundTrackPlot
-                    name={displayName}
-                    segments={((trackSegmentsPt ?? []) as [number, number][][]).map((segment) =>
-                      segment.map(([lat, lon]) => ({ latitudeDeg: lat, longitudeDeg: lon, altitudeKm: 0, time: "" })),
-                    )}
-                    markerPosition={selected
-                      ? { latitudeDeg: selected.latitudeDeg, longitudeDeg: selected.longitudeDeg, time: selected.time }
-                      : null}
-                    height={420}
-                  />
-                </div>
+        </div>
+
+        {/* Object panel: friendly headline + collapsed engineering */}
+        {error ? null : (
+          <aside className="panel flex min-w-0 flex-col gap-3 self-start p-4 lg:col-start-1 lg:row-start-2">
+            <div>
+              <div className="flex items-baseline justify-between gap-2">
+                <h2 className="text-[17px] font-bold text-[var(--color-text-primary)]">{displayName}</h2>
+                <WatchlistStar satelliteNumber={selectedId} name={displayName} watchlist={watchlist} />
+              </div>
+              <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">
+                {detail?.characteristics
+                  ? `About ${detail.characteristics.perigeeAltitudeKm.toFixed(0)}–${detail.characteristics.apogeeAltitudeKm.toFixed(0)} km up, one lap every ${Math.round(detail.characteristics.periodMinutes)} minutes.`
+                  : "Measuring its orbit…"}
+              </p>
+              <p className="text-[13px] text-[var(--color-text-muted)]">
+                The dot on the view is where it is right now — slide the time to see where it goes next.
+              </p>
+              {detail ? (
+                <p className="mt-2 text-[11px] text-[var(--color-text-muted)]">
+                  {lineageLabel(detail.lineage)} · {detail.stale ? "elements > 36 h old" : "fresh elements"} ·{" "}
+                  <a
+                    className="text-[var(--color-accent)] hover:underline"
+                    href={`https://celestrak.org/NORAD/elements/gp.php?CATNR=${detail.satelliteNumber}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    source record ↗
+                  </a>
+                </p>
               ) : null}
             </div>
 
-            {/* Object panel: friendly headline + collapsed engineering */}
-            <aside className="panel flex min-w-0 flex-col gap-3 p-4">
-              <div>
-                <div className="flex items-baseline justify-between gap-2">
-                  <h2 className="text-[17px] font-bold text-[var(--color-text-primary)]">{displayName}</h2>
-                  <WatchlistStar satelliteNumber={selectedId} name={displayName} watchlist={watchlist} />
-                </div>
-                <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">
-                  {detail?.characteristics
-                    ? `About ${detail.characteristics.perigeeAltitudeKm.toFixed(0)}–${detail.characteristics.apogeeAltitudeKm.toFixed(0)} km up, one lap every ${Math.round(detail.characteristics.periodMinutes)} minutes.`
-                    : "Measuring its orbit…"}
-                </p>
-                <p className="text-[13px] text-[var(--color-text-muted)]">
-                  The dot on the view is where it is right now — slide the time to see where it goes next.
-                </p>
+            <details className="border-t border-[var(--color-border-hairline)] pt-2">
+              <summary className="cursor-pointer text-[13px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
+                Technical details &amp; provenance
+              </summary>
+              <div className="flex flex-col gap-2 pt-2 text-[12px] text-[var(--color-text-muted)]">
+                <p className="italic">Position shown is calculated from the orbital elements — a good prediction, not a live reading.</p>
                 {detail ? (
-                  <p className="mt-2 text-[11px] text-[var(--color-text-muted)]">
-                    {lineageLabel(detail.lineage)} · {detail.stale ? "elements > 36 h old" : "fresh elements"} ·{" "}
-                    <a
-                      className="text-[var(--color-accent)] hover:underline"
-                      href={`https://celestrak.org/NORAD/elements/gp.php?CATNR=${detail.satelliteNumber}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      source record ↗
-                    </a>
-                  </p>
+                  <>
+                    <p>Element epoch: <span className="data-value">{formatUtc(new Date(detail.epoch))}</span></p>
+                    <p>Retrieved: <span className="data-value">{formatUtc(new Date(detail.retrievedAt))}</span></p>
+                    <p>The upstream provider is CelesTrak&apos;s public catalog; propagation by SGP4.</p>
+                  </>
                 ) : null}
+                {detail?.characteristics ? (
+                  <dl className="flex flex-col">
+                    <Row label="Orbit tilt" value={`${detail.characteristics.inclinationDeg.toFixed(1)}°`} hint="how steeply it crosses the equator" />
+                    <Row label="Eccentricity" value={detail.characteristics.eccentricity.toFixed(7)} hint="how non-circular the orbit is" />
+                    <Row label="Orbits per day" value={detail.characteristics.meanMotionRevPerDay.toFixed(2)} />
+                    <Row label="NORAD id" value={detail.satelliteNumber} />
+                  </dl>
+                ) : (
+                  <Loading label={busy ? "Loading orbital elements…" : ""} />
+                )}
               </div>
-
-              <details className="border-t border-[var(--color-border-hairline)] pt-2">
-                <summary className="cursor-pointer text-[13px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-                  Technical details &amp; provenance
-                </summary>
-                <div className="flex flex-col gap-2 pt-2 text-[12px] text-[var(--color-text-muted)]">
-                  <p className="italic">Position shown is calculated from the orbital elements — a good prediction, not a live reading.</p>
-                  {detail ? (
-                    <>
-                      <p>Element epoch: <span className="data-value">{formatUtc(new Date(detail.epoch))}</span></p>
-                      <p>Retrieved: <span className="data-value">{formatUtc(new Date(detail.retrievedAt))}</span></p>
-                      <p>The upstream provider is CelesTrak&apos;s public catalog; propagation by SGP4.</p>
-                    </>
-                  ) : null}
-                  {detail?.characteristics ? (
-                    <dl className="flex flex-col">
-                      <Row label="Orbit tilt" value={`${detail.characteristics.inclinationDeg.toFixed(1)}°`} hint="how steeply it crosses the equator" />
-                      <Row label="Eccentricity" value={detail.characteristics.eccentricity.toFixed(7)} hint="how non-circular the orbit is" />
-                      <Row label="Orbits per day" value={detail.characteristics.meanMotionRevPerDay.toFixed(2)} />
-                      <Row label="NORAD id" value={detail.satelliteNumber} />
-                    </dl>
-                  ) : (
-                    <Loading label={busy ? "Loading orbital elements…" : ""} />
-                  )}
-                </div>
-              </details>
-            </aside>
-          </div>
+            </details>
+          </aside>
         )}
-
-        {/* Time slider row */}
-        <div className="panel mx-auto mt-4 mb-4 flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
-          <label htmlFor="time-slider" className="label shrink-0">
-            Time
-          </label>
-          <span className="text-[11px] text-[var(--color-text-muted)]">now</span>
-          <input
-            id="time-slider"
-            type="range"
-            className="min-w-0 flex-1"
-            min={0}
-            max={Math.max(positions.length - 1, 0)}
-            value={Math.min(timeIndex, Math.max(positions.length - 1, 0))}
-            onChange={(e) => setTimeIndex(Number(e.target.value))}
-            disabled={positions.length === 0}
-            aria-valuemin={0}
-            aria-valuemax={positions.length - 1}
-            aria-valuenow={timeIndex}
-            aria-valuetext={selected ? formatUtc(new Date(selected.time)) : "no data"}
-          />
-          <span className="text-[11px] text-[var(--color-text-muted)]">+6 h</span>
-          {/* Own line on phones: the fixed-width UTC stamp overflowed a 390px screen. */}
-          <span className="data-value w-full text-right text-[13px] sm:w-auto sm:min-w-[19ch]">
-            {selected ? formatUtc(new Date(selected.time)) : "—"}
-          </span>
-        </div>
       </div>
     </div>
   );

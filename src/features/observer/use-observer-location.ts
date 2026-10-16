@@ -33,6 +33,8 @@ export interface ObserverLocationState {
   locate: () => void;
   /** Validate + apply manually-typed coordinates; returns false on bad input. */
   submitManual: () => boolean;
+  /** Forget the current spot so a different one can be chosen. */
+  clear: () => void;
 }
 
 export function useObserverLocation(): ObserverLocationState {
@@ -78,6 +80,11 @@ export function useObserverLocation(): ObserverLocationState {
     return true;
   }
 
+  function clear() {
+    setObserver(null);
+    setError(null);
+  }
+
   return {
     observer,
     locating,
@@ -88,5 +95,6 @@ export function useObserverLocation(): ObserverLocationState {
     setManualLon,
     locate,
     submitManual,
+    clear,
   };
 }

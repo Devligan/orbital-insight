@@ -7,11 +7,11 @@
  * comparisons). On a phone a 7-column table scrolls off-screen — the same
  * numbers render as a card per pass so nothing needs horizontal scrolling.
  * Used by the /passes results table (small screens) and the explorer's
- * "tonight from my location" panel.
+ * "tonight from my location" panel. Times read on the observer's wall clock
+ * (zone from the server), not the viewing device's.
  */
 
-import { formatUtc } from "@/lib/units";
-import { brightnessWord, compassPoint, type PassCardData } from "./sky-words";
+import { brightnessWord, compassPoint, observerClock, type PassCardData } from "./sky-words";
 
 export { brightnessWord, compassPoint, type PassCardData };
 
@@ -35,7 +35,8 @@ export function visibilityLine(pass: PassCardData): string | null {
     case "satellite-in-shadow":
       return "crossing while inside Earth's shadow — no sunlight to reflect, don't look for it";
     case "sky-too-bright":
-      return "the sun is still up at your spot then — invisible against the sky";
+      // Covers civil twilight too (sun 0° to −6°), so not "the sun is up".
+      return "your sky is still too bright then — lost against daylight or twilight";
     case "both":
       return "overhead only while your sky is lit or the satellite is eclipsed";
     default:
@@ -43,47 +44,49 @@ export function visibilityLine(pass: PassCardData): string | null {
   }
 }
 
-/** Local wall-clock time — pass times are for planning, so local is the useful form. */
-export function localWhen(iso: string): string {
-  return new Date(iso).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" });
-}
-
-export function PassCard({ pass }: { pass: PassCardData }) {
+/**
+ * One pass, read at a glance: when it peaks (observer's wall clock), how
+ * high and where, rise/set, and the visibility verdict — a green dot when it
+ * can actually be seen, so the eye finds the passes that matter.
+ */
+export function PassCard({ pass, timeZone }: { pass: PassCardData; timeZone: string | null }) {
+  const visible = pass.visibility?.fromGround === true;
+  const line = visibilityLine(pass);
   return (
-    <div className="rounded border border-[var(--color-bg-inset)] p-2">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="data-value text-[13px]">{localWhen(pass.maxTime)}</span>
-        <span className="text-[11px] text-[var(--color-text-secondary)]">
-          peaks {pass.maxElevationDeg.toFixed(0)}° above the horizon ({compassPoint(pass.azimuthAtMaxDeg)})
+    <div className="rounded-lg border border-[var(--color-border-hairline)] bg-[var(--color-bg-inset)] px-3 py-2.5" data-testid="pass-card">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+        <span className="text-[15px] font-semibold tabular-nums text-[var(--color-text-primary)]">
+          {observerClock(pass.maxTime, timeZone)}
+        </span>
+        <span className="text-[12px] text-[var(--color-text-secondary)]">
+          peaks {pass.maxElevationDeg.toFixed(0)}° up in the {compassPoint(pass.azimuthAtMaxDeg)}
         </span>
       </div>
-      <div className="mt-1 flex items-baseline justify-between gap-2 text-[11px] text-[var(--color-text-muted)]">
+      <div className="mt-0.5 flex flex-wrap justify-between gap-x-3 text-[12px] tabular-nums text-[var(--color-text-muted)]">
         <span>
-          rises {pass.riseTime ? localWhen(pass.riseTime) : "already up"}
-          {pass.azimuthAtRiseDeg !== null ? ` ${compassPoint(pass.azimuthAtRiseDeg)}` : ""}
+          rises {pass.riseTime ? observerClock(pass.riseTime, timeZone, false) : "already up"}
+          {pass.azimuthAtRiseDeg !== null ? ` · ${compassPoint(pass.azimuthAtRiseDeg)}` : ""}
         </span>
         <span>
-          sets {pass.setTime ? localWhen(pass.setTime) : "still up"}
-          {pass.azimuthAtSetDeg !== null ? ` ${compassPoint(pass.azimuthAtSetDeg)}` : ""}
+          sets {pass.setTime ? observerClock(pass.setTime, timeZone, false) : "after the window"}
+          {pass.azimuthAtSetDeg !== null ? ` · ${compassPoint(pass.azimuthAtSetDeg)}` : ""}
         </span>
       </div>
       {pass.truncated !== "none" ? (
-        <p className="mt-1 text-[10px] text-[var(--color-status-warn)]">partially outside the prediction window</p>
+        <p className="mt-1 text-[11px] text-[var(--color-status-warn)]">partially outside the prediction window</p>
       ) : null}
-      {(() => {
-        const line = visibilityLine(pass);
-        return line ? <p className="mt-1 text-[11px] text-[var(--color-text-secondary)]">{line}</p> : null;
-      })()}
+      {line ? (
+        <p className="mt-1.5 flex items-start gap-1.5 text-[12px] text-[var(--color-text-secondary)]">
+          <span
+            aria-hidden
+            className={
+              "mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full " +
+              (visible ? "bg-[var(--color-status-good)]" : "bg-[var(--color-border-strong)]")
+            }
+          />
+          <span>{line}</span>
+        </p>
+      ) : null}
     </div>
-  );
-}
-
-/** Compact UTC range line for provenance honesty alongside the local-time cards. */
-export function PassUtcRange({ riseTime, maxTime, setTime }: { riseTime: string | null; maxTime: string; setTime: string | null }) {
-  return (
-    <span className="text-[10px] text-[var(--color-text-muted)]">
-      UTC {riseTime ? formatUtc(new Date(riseTime)).slice(0, 17) : "…"}→{formatUtc(new Date(maxTime)).slice(11, 16)}
-      {setTime ? `→${formatUtc(new Date(setTime)).slice(11, 16)}` : ""}
-    </span>
   );
 }

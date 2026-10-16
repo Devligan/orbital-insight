@@ -106,6 +106,18 @@ A production Next.js (App Router) app where a regular person can:
   it wipes the build under test. Don't kill the owner's dev servers; run the
   gates with an isolated output dir instead: set `NEXT_DIST_DIR=.next-prod`
   for `npm run build` *and* `npx playwright test` (next.config.ts reads it).
+- **Screenshots of the globe in headless Chromium** need
+  `--use-angle=swiftshader --enable-unsafe-swiftshader` for WebGL. SwiftShader
+  renders on the CPU (~1 frame/s once the whole-sky cloud animates at its
+  ~7 renders/s), so screenshots with the cloud on can time out — especially
+  at 2× density or full-page. That's the test renderer, not the app; turn
+  the whole sky off to check layouts.
+- **Provider politeness is now enforced in three places** after CelesTrak
+  blocked this machine (2026-10-16): the whole-sky catalog persists to a disk
+  snapshot (`SKY_CATALOG_SNAPSHOT_PATH`, default OS temp dir) and backs off
+  10 min after a failure; `scripts/build-search-index.mjs` reuses a snapshot
+  younger than 6 h (`SEARCH_INDEX_FORCE_REFRESH=1` to refetch) and never
+  overwrites a good snapshot with a failed refresh. Keep it that way.
 - **Dev mode hides minifier bugs.** The globe once shipped broken only in
   production (a Cesium dependency's WASM string minified into invalid JS).
   Judge visual work against a production build, and look at it: screenshots

@@ -14,12 +14,18 @@
  * celestrak — GROUP=<name>&FORMAT=tle with polite spacing — reimplemented
  * inline because build scripts cannot import TypeScript sources.
  *
- * Failure policy: the build must never depend on the provider. Any fetch
- * problem results in an (empty or partial) index plus a marker, and the
+ * Failure policy: the build must never depend on the provider, and a
+ * provider problem must never *destroy* a good snapshot. The file is
+ * replaced only when every group refreshes; otherwise the previous snapshot
+ * stays untouched (its single generatedAt remains the truthful retrieval
+ * time for all its entries — merging old entries under a new timestamp would
+ * misstate provenance). Only when no previous snapshot exists is an empty or
+ * partial index written, with the failed groups recorded in `gaps`, and the
  * running application falls back to its normal on-demand provider path.
+ * (A rate-limited build once replaced 125 good entries with zero.)
  */
 
-import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -34,6 +40,17 @@ const OUT_PATH = resolve(here, "../src/server/search-index.static.json");
 function writeOut(payload) {
   mkdirSync(dirname(OUT_PATH), { recursive: true });
   writeFileSync(OUT_PATH, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+}
+
+/** Entry count of the existing snapshot, or 0 when absent/unreadable. */
+function existingEntryCount() {
+  if (!existsSync(OUT_PATH)) return 0;
+  try {
+    const entries = JSON.parse(readFileSync(OUT_PATH, "utf8")).entries;
+    return Array.isArray(entries) ? entries.length : 0;
+  } catch {
+    return 0;
+  }
 }
 
 /** Minimal, strict TLE-triplet parser (same contract as the app client). */
@@ -79,7 +96,27 @@ async function fetchGroup(group) {
   return parseTriplets(text, group);
 }
 
+/** Rebuilds within this window reuse the snapshot (same 6 h TTL as the server caches). */
+const SNAPSHOT_REFRESH_MS = 6 * 60 * 60 * 1000;
+
+function snapshotAgeMs() {
+  try {
+    const generatedAt = Date.parse(JSON.parse(readFileSync(OUT_PATH, "utf8")).generatedAt);
+    return Number.isFinite(generatedAt) ? Date.now() - generatedAt : Infinity;
+  } catch {
+    return Infinity;
+  }
+}
+
 async function main() {
+  // Iterative builds shouldn't re-download the catalog each time (provider
+  // politeness — repeated builds contributed to an IP block).
+  const age = snapshotAgeMs();
+  if (existingEntryCount() > 0 && age < SNAPSHOT_REFRESH_MS && !process.env.SEARCH_INDEX_FORCE_REFRESH) {
+    console.warn(`[search-index] snapshot is ${Math.round(age / 60_000)} min old — reusing (SEARCH_INDEX_FORCE_REFRESH=1 to refetch)`);
+    return;
+  }
+
   const entries = [];
   const failures = [];
   for (const group of GROUPS) {
@@ -92,6 +129,14 @@ async function main() {
       console.warn(`[search-index] group ${group} failed (${error?.message ?? error}) — continuing`);
     }
     await sleep(MIN_REQUEST_INTERVAL_MS); // politeness contract
+  }
+
+  const previous = existingEntryCount();
+  if (failures.length > 0 && previous > 0) {
+    console.warn(
+      `[search-index] failed groups = ${failures.join(", ")} — keeping the existing ${previous}-entry snapshot unchanged`,
+    );
+    return;
   }
 
   const unique = new Map(entries.map((e) => [e.satelliteNumber, e]));
@@ -111,6 +156,6 @@ async function main() {
 
 main().catch((error) => {
   console.error(`[search-index] aborted: ${error?.message ?? error}`);
-  // Never fail the build on provider trouble.
-  writeOut({ generatedAt: new Date().toISOString(), gaps: "all", entries: [] });
+  // Never fail the build on provider trouble — and never clobber a good snapshot.
+  if (existingEntryCount() === 0) writeOut({ generatedAt: new Date().toISOString(), gaps: "all", entries: [] });
 });

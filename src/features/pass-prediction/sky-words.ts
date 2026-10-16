@@ -18,6 +18,41 @@ export function compassPoint(azimuthDeg: number): string {
   return points[Math.round(((azimuthDeg % 360) / 45)) % 8] ?? "N";
 }
 
+/**
+ * Wall-clock time at the observer's location ("Sat 4:06 AM"). `timeZone`
+ * is the observer's IANA zone from the server; null falls back to the
+ * device's zone (right whenever the location came from this device).
+ */
+export function observerClock(iso: string, timeZone: string | null, withDay = true): string {
+  return new Intl.DateTimeFormat("en-US", {
+    ...(withDay ? { weekday: "short" as const } : {}),
+    hour: "numeric",
+    minute: "2-digit",
+    ...(timeZone ? { timeZone } : {}),
+  }).format(new Date(iso));
+}
+
+function offsetName(timeZone: string, at: Date): string {
+  const part = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "shortOffset" })
+    .formatToParts(at)
+    .find((p) => p.type === "timeZoneName");
+  return part?.value ?? timeZone;
+}
+
+/**
+ * "Times are Tokyo time (GMT+9)" — shown only when the observer's clock
+ * differs from the device's at that instant, so a local user never sees
+ * noise. Null when no label is needed.
+ */
+export function observerZoneNote(timeZone: string | null, deviceTimeZone: string, at: Date): string | null {
+  if (!timeZone) return null;
+  const observerOffset = offsetName(timeZone, at);
+  if (observerOffset === offsetName(deviceTimeZone, at)) return null;
+  if (timeZone.startsWith("Etc/")) return `Times are local to that spot (${observerOffset}).`;
+  const place = (timeZone.split("/").pop() ?? timeZone).replace(/_/g, " ");
+  return `Times are ${place} time (${observerOffset}).`;
+}
+
 /** Plain-language bucket for an estimated magnitude (lower = brighter). */
 export function brightnessWord(magnitude: number): "conspicuous" | "naked-eye" | "needs binoculars" {
   return magnitude <= 3.5 ? "conspicuous" : magnitude <= 6 ? "naked-eye" : "needs binoculars";

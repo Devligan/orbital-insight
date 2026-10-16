@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { NamedElementSet } from "@/integrations/celestrak/client";
 import type { SkyCatalogEntry, SkyCatalogResult } from "@/server/sky-catalog";
 
@@ -30,8 +33,15 @@ function makeNamed(count: number, seed = 0): NamedElementSet[] {
 }
 
 let fetchGpTle: ReturnType<typeof vi.fn> | undefined;
+let snapshotDir: string;
+let snapshotFile: string;
 
 beforeEach(async () => {
+  // Each test gets its own snapshot file: no state leaks between tests or
+  // into the real server's restart cache.
+  snapshotDir = mkdtempSync(path.join(tmpdir(), "sky-catalog-test-"));
+  snapshotFile = path.join(snapshotDir, "sky-catalog.json");
+  process.env.SKY_CATALOG_SNAPSHOT_PATH = snapshotFile;
   vi.resetModules();
   vi.doMock("@/integrations/celestrak/client", () => {
     const mock = vi.fn();
@@ -42,7 +52,22 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
+  delete process.env.SKY_CATALOG_SNAPSHOT_PATH;
+  rmSync(snapshotDir, { recursive: true, force: true });
 });
+
+/** Let the fire-and-forget snapshot write land. */
+async function settle(): Promise<void> {
+  for (let i = 0; i < 20; i++) {
+    try {
+      if (readFileSync(snapshotFile, "utf8").length > 0) return;
+    } catch {
+      /* not written yet */
+    }
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
 
 describe("sky catalog service", () => {
   it("serves a compact payload (i/n/l1/l2) from one provider call", async () => {
@@ -70,6 +95,51 @@ describe("sky catalog service", () => {
     const { getSkyCatalog } = await import("@/server/sky-catalog");
     fetchGpTle!.mockRejectedValue(new Error("CelesTrak returned HTTP 503"));
     await expect(getSkyCatalog()).rejects.toThrow("HTTP 503");
+  });
+
+  it("survives a restart: a fresh module restores the disk snapshot instead of re-downloading", async () => {
+    const first = await import("@/server/sky-catalog");
+    fetchGpTle!.mockResolvedValue(makeNamed(5_300));
+    const original = await first.getSkyCatalog();
+    await settle();
+
+    vi.resetModules(); // simulate a server restart / dev hot-reload
+    const second = await import("@/server/sky-catalog");
+    fetchGpTle!.mockClear();
+    const restored = await second.getSkyCatalog();
+    expect(fetchGpTle).not.toHaveBeenCalled();
+    expect(restored.count).toBe(5_300);
+    // The snapshot keeps its true fetch time — never re-labelled as newer.
+    expect(restored.generatedAt).toBe(original.generatedAt);
+  });
+
+  it("ignores a snapshot older than 48 h and asks the provider", async () => {
+    const old = { generatedAt: new Date(Date.now() - 49 * 3_600_000).toISOString(), stale: false, count: 5_000, entries: [] as SkyCatalogEntry[] };
+    old.entries = makeNamed(5_000).map((n) => ({ i: n.elementSet.satelliteNumber, n: n.name, l1: n.elementSet.line1, l2: n.elementSet.line2 }));
+    writeFileSync(snapshotFile, JSON.stringify(old));
+    const { getSkyCatalog } = await import("@/server/sky-catalog");
+    fetchGpTle!.mockResolvedValue(makeNamed(5_400));
+    const result = await getSkyCatalog();
+    expect(fetchGpTle).toHaveBeenCalledTimes(1);
+    expect(result.count).toBe(5_400);
+  });
+
+  it("backs off after a failure instead of re-asking the provider on every request", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-16T12:00:00Z"));
+    const { getSkyCatalog } = await import("@/server/sky-catalog");
+    fetchGpTle!.mockRejectedValue(new Error("CelesTrak returned HTTP 403"));
+    await expect(getSkyCatalog()).rejects.toThrow("HTTP 403");
+    await expect(getSkyCatalog()).rejects.toThrow("HTTP 403");
+    await expect(getSkyCatalog()).rejects.toThrow("HTTP 403");
+    expect(fetchGpTle).toHaveBeenCalledTimes(1);
+
+    // After the backoff window, one new attempt.
+    vi.setSystemTime(new Date("2026-10-16T12:11:00Z"));
+    fetchGpTle!.mockResolvedValue(makeNamed(5_100));
+    const recovered = await getSkyCatalog();
+    expect(fetchGpTle).toHaveBeenCalledTimes(2);
+    expect(recovered.stale).toBe(false);
   });
 
   it("shares one in-flight fetch across concurrent callers", async () => {

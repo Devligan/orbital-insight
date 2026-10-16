@@ -17,8 +17,17 @@ const SECTIONS = [
             CelesTrak&apos;s current GP data interface
           </a>{" "}
           (GP `gp.php` queries in the documented TLE output format) — a free public service maintained by T.S. Kelso.
-          We fetch only bounded curated groups (crewed stations, GNSS constellations, scientific satellites) plus
-          single-object lookups, never the full active catalog (~11k elements), to respect the provider.
+          Detail, pass, and search views use bounded curated groups (crewed stations, GNSS constellations,
+          scientific satellites) plus single-object lookups. The whole-sky globe is the one exception: it needs every
+          active object (~11k elements), fetched in a single request at most once every 6 hours and shared by all
+          visitors.
+        </li>
+        <li>
+          The whole-sky copy is also kept on the server&apos;s disk with its original fetch time, so a restart
+          reuses it instead of downloading it again; it is served as &ldquo;stale&rdquo; for at most 48 hours after
+          that fetch, then dropped. After a failed fetch the server waits 10 minutes before asking CelesTrak again
+          rather than retrying on every page view. A feed far smaller than the active population is refused as
+          truncated, never drawn as the sky.
         </li>
         <li>
           Requests are cached server-side for 2 hours; when the provider is unreachable, previously fetched data is
@@ -164,6 +173,14 @@ const SECTIONS = [
           home page names which: Earth&apos;s shadow (&ldquo;fades into Earth&apos;s shadow 25° up in the E&rdquo;)
           or twilight (&ldquo;lost in the brightening sky&rdquo;). The home
           page lists only passes with a visible window still ahead; every geometric pass remains one click away.
+        </li>
+        <li>
+          <strong>Times are the observer&apos;s.</strong> Pass times are shown on the wall clock of the coordinates
+          you entered, not your device&apos;s: the server resolves the time zone offline from the coordinates with
+          tz-lookup, which uses simplified zone boundaries. Its authors measure that about 5% of random points on
+          Earth — mostly remote areas and open ocean — resolve to a zone with a different UTC offset; populated places
+          resolve reliably. Open ocean uses nautical UTC±N zones. When the zone differs from your device&apos;s, the
+          page says so, and the technical pass table also keeps UTC.
         </li>
         <li>
           <strong>Light-model approximations.</strong> The sun position is the low-precision Astronomical

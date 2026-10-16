@@ -11,14 +11,21 @@
  *    (the /api/passes computation + ./visible-tonight selection)
  *  - "Right now": those stations above 15° elevation at this instant —
  *    geometry only (the /api/overhead computation)
- * Both refresh every 60 s. Every pass, seen or not, stays one click away.
+ *
+ * Times read on the observer's wall clock (zone resolved server-side from
+ * the coordinates), so typing Tokyo's coordinates from New York shows Tokyo
+ * times — labelled as such.
+ *
+ * Refresh cadence: "right now" every minute; the 24 h pass search every 10
+ * minutes (passes don't change faster than that); countdowns tick every 30 s.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { PassResultDto } from "@/contracts/orbital";
 import type { ObserverLocationState } from "@/features/observer/use-observer-location";
-import { PassCard, brightnessWord, compassPoint, localWhen } from "@/features/pass-prediction/pass-cards";
+import { PassCard } from "@/features/pass-prediction/pass-cards";
+import { brightnessWord, observerClock, observerZoneNote } from "@/features/pass-prediction/sky-words";
 import { countdownTo, noneVisibleReason, skyPath, summarizeTonight, timeUntil, type VisiblePass } from "./visible-tonight";
 
 interface OverheadEntry {
@@ -33,10 +40,20 @@ interface OverheadData {
   visible: OverheadEntry[];
 }
 
+interface PassesData {
+  results: PassResultDto[];
+  windowStart: string;
+  observerTimeZone: string | null;
+}
+
 const TONIGHT_TARGETS = [
   { satelliteNumber: "25544", label: "ISS (ZARYA)" },
   { satelliteNumber: "48274", label: "CSS (TIANHE)" },
 ];
+
+const OVERHEAD_REFRESH_MS = 60_000;
+const PASSES_REFRESH_MS = 10 * 60_000;
+const CLOCK_TICK_MS = 30_000;
 
 /** "ISS" from "ISS (ZARYA)" — the name people actually say. */
 function shortLabel(satelliteNumber: string, fallbackName: string): string {
@@ -44,57 +61,77 @@ function shortLabel(satelliteNumber: string, fallbackName: string): string {
   return label.replace(/\s*\(.*\)$/, "") || `NORAD ${satelliteNumber}`;
 }
 
-function localClock(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+/** 40.7°N, 74.0°W — how coordinates read to people. */
+function formatSpot(lat: number, lon: number): string {
+  return `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? "N" : "S"}, ${Math.abs(lon).toFixed(1)}°${lon >= 0 ? "E" : "W"}`;
 }
 
 function SkyHeading() {
   return (
     <div>
-      <h1 className="heading-display text-[26px] sm:text-[34px]">What&apos;s flying over you tonight?</h1>
-      <p className="lede mt-1 max-w-xl">
-        One tap fills in your spot and shows what you can actually see: which bright stations cross your dark sky
-        while sunlit, when, and where to look. Real orbits, no account, no drama.
+      <h1 className="heading-display text-[30px] sm:text-[38px]">What&apos;s flying over you tonight?</h1>
+      <p className="lede mt-2 max-w-xl">
+        One tap and you&apos;ll know which space stations cross your dark sky while sunlit — when, and exactly where
+        to look. Real orbits, no account.
       </p>
     </div>
   );
 }
 
-function VisiblePassRow({ item, nowMs }: { item: VisiblePass; nowMs: number }) {
-  const { window } = item;
-  const minutes = Math.max(1, Math.round((Date.parse(window.end.timeIso) - Date.parse(window.start.timeIso)) / 60_000));
+function SectionTitle({ children, sub }: { children: React.ReactNode; sub?: React.ReactNode }) {
   return (
-    <li className="panel-inset p-3" data-testid="tonight-visible-pass">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="mb-2.5">
+      <h2 className="text-[17px] font-semibold text-[var(--color-text-primary)]">{children}</h2>
+      {sub ? <p className="text-[13px] text-[var(--color-text-secondary)]">{sub}</p> : null}
+    </div>
+  );
+}
+
+function VisiblePassRow({ item, nowMs, timeZone }: { item: VisiblePass; nowMs: number; timeZone: string | null }) {
+  const { window } = item;
+  const startMs = Date.parse(window.start.timeIso);
+  const minutes = Math.max(1, Math.round((Date.parse(window.end.timeIso) - startMs) / 60_000));
+  const countdown = countdownTo(window.start.timeIso, window.end.timeIso, nowMs);
+  const soon = countdown === "visible now" || startMs - nowMs < 30 * 60_000;
+  return (
+    <li className="panel p-3.5" data-testid="tonight-visible-pass">
+      <div className="flex items-center justify-between gap-3">
         <Link href={`/satellites/${item.satelliteNumber}`} className="text-[15px] font-semibold hover:underline">
           {item.label}
         </Link>
-        <span className="badge badge-good">{countdownTo(window.start.timeIso, window.end.timeIso, nowMs)}</span>
-        {item.lineage === "provider-unavailable-stale" ? (
-          <span className="badge badge-warn">older orbit data — times may drift</span>
-        ) : null}
+        <span className={"badge shrink-0 " + (soon ? "badge-good" : "text-[var(--color-text-secondary)]")}>{countdown}</span>
       </div>
-      <p className="data-value mt-1.5 text-[14px]">
-        {localWhen(window.start.timeIso)} – {localClock(window.end.timeIso)}
-        <span className="ml-2 text-[12px] text-[var(--color-text-muted)]">about {minutes} min</span>
+      <p className="mt-1 text-[20px] font-semibold leading-tight tabular-nums text-[var(--color-text-primary)]">
+        {observerClock(window.start.timeIso, timeZone)} – {observerClock(window.end.timeIso, timeZone, false)}
+        <span className="ml-2 text-[13px] font-normal text-[var(--color-text-muted)]">{minutes} min</span>
       </p>
-      <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">{skyPath(item.pass, window).join(" → ")}</p>
-      <p className="mt-1 text-[12px] text-[var(--color-text-muted)]">
-        {item.magnitude !== null ? (
-          <>
-            estimated magnitude {item.magnitude.toFixed(1)} ({brightnessWord(item.magnitude)}) · rough: real brightness
-            shifts with the station&apos;s attitude and solar arrays
-          </>
-        ) : (
-          "brightness unknown: no published standard magnitude for this object"
-        )}
+      <ol className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-[var(--color-text-secondary)]">
+        {skyPath(item.pass, window).map((step, i) => (
+          <li key={step} className="flex items-center gap-1.5">
+            {i > 0 ? <span aria-hidden className="text-[var(--color-text-muted)]">→</span> : null}
+            <span>{step}</span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-1.5 text-[12px] text-[var(--color-text-muted)]">
+        {item.magnitude !== null
+          ? `≈ magnitude ${item.magnitude.toFixed(1)} · ${brightnessWord(item.magnitude)}`
+          : "brightness unknown (no published standard magnitude)"}
+        {item.lineage === "provider-unavailable-stale" ? (
+          <span className="ml-2 text-[var(--color-status-warn)]">older orbit data — times may drift</span>
+        ) : null}
       </p>
     </li>
   );
 }
 
-function VisibleTonight({ results, nowMs }: { results: PassResultDto[]; nowMs: number }) {
-  const summary = summarizeTonight(results, nowMs, shortLabel);
+function VisibleTonight({ data, nowMs }: { data: PassesData; nowMs: number }) {
+  const summary = summarizeTonight(data.results, nowMs, shortLabel);
+  const zoneNote = observerZoneNote(
+    data.observerTimeZone,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+    new Date(nowMs),
+  );
   const missing =
     summary.unavailable.length > 0 ? (
       <p className="text-[13px] text-[var(--color-status-warn)]">
@@ -106,13 +143,24 @@ function VisibleTonight({ results, nowMs }: { results: PassResultDto[]; nowMs: n
     case "visible":
       return (
         <div className="flex flex-col gap-2">
-          <p className="text-[14px] text-[var(--color-text-secondary)]">
-            {summary.passes.length} {summary.passes.length === 1 ? "pass" : "passes"} in the next 24 hours, soonest
-            first.
-          </p>
+          <SectionTitle
+            sub={
+              <>
+                {summary.passes.length} {summary.passes.length === 1 ? "pass" : "passes"} in the next 24 hours, soonest
+                first.{zoneNote ? ` ${zoneNote}` : ""}
+              </>
+            }
+          >
+            You can actually see
+          </SectionTitle>
           <ul className="flex flex-col gap-2" data-testid="tonight-visible-list">
             {summary.passes.map((item) => (
-              <VisiblePassRow key={`${item.satelliteNumber}-${item.window.start.timeIso}`} item={item} nowMs={nowMs} />
+              <VisiblePassRow
+                key={`${item.satelliteNumber}-${item.window.start.timeIso}`}
+                item={item}
+                nowMs={nowMs}
+                timeZone={data.observerTimeZone}
+              />
             ))}
           </ul>
           {missing}
@@ -121,6 +169,7 @@ function VisibleTonight({ results, nowMs }: { results: PassResultDto[]; nowMs: n
     case "none-visible":
       return (
         <div className="flex flex-col gap-2" data-testid="tonight-visible-empty">
+          <SectionTitle>You can actually see</SectionTitle>
           <p className="text-[14px] text-[var(--color-text-secondary)]">{noneVisibleReason(summary)}</p>
           {missing}
         </div>
@@ -128,6 +177,7 @@ function VisibleTonight({ results, nowMs }: { results: PassResultDto[]; nowMs: n
     case "no-passes":
       return (
         <div className="flex flex-col gap-2" data-testid="tonight-visible-empty">
+          <SectionTitle>You can actually see</SectionTitle>
           <p className="text-[14px] text-[var(--color-text-secondary)]">
             Neither station clears 10° above your horizon in the next 24 hours, so there is nothing to see from here
             today.
@@ -137,131 +187,161 @@ function VisibleTonight({ results, nowMs }: { results: PassResultDto[]; nowMs: n
       );
     case "unavailable":
       return (
-        <p className="text-[13px] text-[var(--color-status-warn)]" data-testid="tonight-visible-empty">
-          Orbit data for {summary.unavailable.join(" and ")} is unavailable right now, so we can&apos;t say what&apos;s
-          visible. Try again shortly.
-        </p>
+        <div className="flex flex-col gap-2" data-testid="tonight-visible-empty">
+          <SectionTitle>You can actually see</SectionTitle>
+          <p className="text-[13px] text-[var(--color-status-warn)]">
+            Orbit data for {summary.unavailable.join(" and ")} is unavailable right now, so we can&apos;t say
+            what&apos;s visible. Try again shortly.
+          </p>
+        </div>
       );
   }
 }
 
 export function SkyTonight({ location }: { location: ObserverLocationState }) {
-  const { observer, locating, error: locationError, manualLat, manualLon, setManualLat, setManualLon, locate, submitManual } = location;
+  const { observer, locating, error: locationError, manualLat, manualLon, setManualLat, setManualLon, locate, submitManual, clear } =
+    location;
   const [overhead, setOverhead] = useState<OverheadData | null>(null);
-  const [passes, setPasses] = useState<PassResultDto[] | null>(null);
+  const [passes, setPasses] = useState<PassesData | null>(null);
   const [passesError, setPassesError] = useState<string | null>(null);
-  const [windowStart, setWindowStart] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Responses for a spot the user has since left are dropped on arrival.
+  const spotRef = useRef<string | null>(null);
 
   const lat = observer?.lat;
   const lon = observer?.lon;
 
-  const load = useCallback(async (obLat: number, obLon: number) => {
-    setBusy(true);
-    setError(null);
+  const loadOverhead = useCallback(async (obLat: number, obLon: number, spot: string) => {
     try {
-      const [overheadRes, passesRes] = await Promise.all([
-        fetch(`/api/overhead?latDeg=${obLat}&lonDeg=${obLon}`),
-        fetch("/api/passes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            satelliteNumbers: TONIGHT_TARGETS.map((t) => t.satelliteNumber),
-            observer: { latitudeDeg: obLat, longitudeDeg: obLon, altitudeMeters: 0 },
-            windowStartIso: new Date().toISOString(),
-            windowHours: 24,
-            minElevationDeg: 10,
-          }),
-        }),
-      ]);
-      const overheadBody = (await overheadRes.json()) as { ok: boolean; data?: OverheadData; error?: { message: string } };
-      const passesBody = (await passesRes.json()) as { ok: boolean; data?: { results: PassResultDto[]; windowStart: string }; error?: { message: string } };
+      const res = await fetch(`/api/overhead?latDeg=${obLat}&lonDeg=${obLon}`);
+      const body = (await res.json()) as { ok: boolean; data?: OverheadData };
+      if (spotRef.current === spot && body.ok && body.data) setOverhead(body.data);
+    } catch {
+      /* "right now" is a nicety; the pass list carries its own error state */
+    }
+  }, []);
 
-      if (overheadBody.ok && overheadBody.data) setOverhead(overheadBody.data);
-      if (passesBody.ok && passesBody.data) {
-        setPasses(passesBody.data.results);
-        setWindowStart(passesBody.data.windowStart);
+  const loadPasses = useCallback(async (obLat: number, obLon: number, spot: string) => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/passes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          satelliteNumbers: TONIGHT_TARGETS.map((t) => t.satelliteNumber),
+          observer: { latitudeDeg: obLat, longitudeDeg: obLon, altitudeMeters: 0 },
+          windowStartIso: new Date().toISOString(),
+          windowHours: 24,
+          minElevationDeg: 10,
+        }),
+      });
+      const body = (await res.json()) as { ok: boolean; data?: PassesData; error?: { message: string } };
+      if (spotRef.current !== spot) return;
+      if (body.ok && body.data) {
+        setPasses(body.data);
         setPassesError(null);
       } else {
-        setPassesError(passesBody.error?.message ?? "Pass predictions are briefly unavailable — try again shortly.");
-      }
-      if (!overheadBody.ok && !passesBody.ok) {
-        setError(passesBody.error?.message ?? "The sky computations are briefly unavailable — try again shortly.");
+        setPassesError(body.error?.message ?? "Pass predictions are briefly unavailable — try again shortly.");
       }
     } catch {
-      setError("Could not reach the analysis service");
+      if (spotRef.current === spot) setPassesError("Could not reach the analysis service — check your connection.");
     } finally {
-      setNowMs(Date.now());
-      setBusy(false);
+      if (spotRef.current === spot) {
+        setNowMs(Date.now());
+        setBusy(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     if (lat === undefined || lon === undefined) return;
-    const t = setTimeout(() => void load(lat, lon), 0);
-    const id = setInterval(() => void load(lat, lon), 60_000);
+    const spot = `${lat},${lon}`;
+    spotRef.current = spot;
+    const first = setTimeout(() => {
+      void loadOverhead(lat, lon, spot);
+      void loadPasses(lat, lon, spot);
+    }, 0);
+    const overheadTimer = setInterval(() => void loadOverhead(lat, lon, spot), OVERHEAD_REFRESH_MS);
+    const passesTimer = setInterval(() => void loadPasses(lat, lon, spot), PASSES_REFRESH_MS);
+    const clock = setInterval(() => setNowMs(Date.now()), CLOCK_TICK_MS);
     return () => {
-      clearTimeout(t);
-      clearInterval(id);
+      clearTimeout(first);
+      clearInterval(overheadTimer);
+      clearInterval(passesTimer);
+      clearInterval(clock);
     };
-  }, [lat, lon, load]);
+  }, [lat, lon, loadOverhead, loadPasses]);
+
+  function changeSpot() {
+    spotRef.current = null;
+    setPasses(null);
+    setOverhead(null);
+    setPassesError(null);
+    clear();
+  }
 
   const visibleNow = overhead?.visible ?? [];
 
   return (
-    <section aria-label="What's in the sky" className="flex flex-col gap-4">
+    <section aria-label="What's in the sky" className="flex flex-col gap-5">
       <SkyHeading />
 
       {observer === null ? (
-        <div className="flex max-w-xl flex-col gap-3">
+        <div className="flex flex-col gap-3">
           <button className="btn btn-primary self-start" onClick={locate} disabled={locating} data-testid="tonight-locate">
             {locating ? "Finding your spot…" : "Show me tonight's passes"}
           </button>
-          <div className="flex flex-wrap items-center gap-1.5 text-[13px] text-[var(--color-text-muted)]">
+          <form
+            className="flex flex-wrap items-center gap-1.5 text-[13px] text-[var(--color-text-muted)]"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submitManual();
+            }}
+          >
             <span>or type coordinates</span>
             <input
               aria-label="Manual latitude"
               placeholder="lat, e.g. 40.7"
-              className="input w-32"
+              inputMode="decimal"
+              className="input w-28"
               value={manualLat}
               onChange={(e) => setManualLat(e.target.value)}
             />
             <input
               aria-label="Manual longitude"
               placeholder="lon, e.g. -74"
-              className="input w-32"
+              inputMode="decimal"
+              className="input w-28"
               value={manualLon}
               onChange={(e) => setManualLon(e.target.value)}
             />
-            <button className="btn btn-secondary" onClick={() => submitManual()}>
+            <button type="submit" className="btn btn-secondary">
               Go
             </button>
-          </div>
+          </form>
           {locationError ? <p className="text-[13px] text-[var(--color-status-warn)]">{locationError.message}</p> : null}
         </div>
       ) : (
-        <div className="flex flex-col gap-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="badge badge-good">watching from {observer.lat.toFixed(1)}°, {observer.lon.toFixed(1)}°</span>
-            {busy && passes === null ? <span className="text-[13px] text-[var(--color-text-muted)]">Crunching orbits…</span> : null}
-            {error ? <span className="text-[13px] text-[var(--color-status-warn)]">{error}</span> : null}
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-wrap items-center gap-2 text-[13px]">
+            <span className="badge badge-good">Watching from {formatSpot(observer.lat, observer.lon)}</span>
+            <button className="text-[var(--color-accent)] hover:underline" onClick={changeSpot}>
+              change spot
+            </button>
+            {busy && passes === null ? <span className="text-[var(--color-text-muted)]">Crunching orbits…</span> : null}
           </div>
 
           {/* The headline: passes a person can actually see. */}
-          <div>
-            <h2 className="label mb-2">You can actually see</h2>
-            {passes !== null ? (
-              <VisibleTonight results={passes} nowMs={nowMs} />
-            ) : passesError && !busy ? (
-              <p className="text-[13px] text-[var(--color-status-warn)]">{passesError}</p>
-            ) : null}
-          </div>
+          {passes !== null ? (
+            <VisibleTonight data={passes} nowMs={nowMs} />
+          ) : passesError && !busy ? (
+            <p className="text-[13px] text-[var(--color-status-warn)]">{passesError}</p>
+          ) : null}
 
           {/* Right now — geometry, not visibility. */}
           <div>
-            <h2 className="label mb-2">Above your horizon right now</h2>
+            <h2 className="mb-1.5 text-[14px] font-semibold text-[var(--color-text-secondary)]">Above your horizon right now</h2>
             {visibleNow.length > 0 ? (
               <ul className="flex flex-wrap gap-2">
                 {visibleNow.map((entry) => (
@@ -283,9 +363,11 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
           {/* Every geometric pass, seen or not — for the curious, one click away. */}
           {passes !== null ? (
             <details className="group">
-              <summary className="label cursor-pointer select-none">Every pass in the next 24 hours, visible or not</summary>
+              <summary className="cursor-pointer select-none text-[14px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
+                Every pass in the next 24 hours, visible or not
+              </summary>
               <div className="mt-3 flex flex-col gap-3">
-                {passes.map((sat) => {
+                {passes.results.map((sat) => {
                   const label = shortLabel(sat.satelliteNumber, sat.name);
                   const first = sat.passes[0];
                   return sat.failure ? (
@@ -297,21 +379,23 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
                       {label} doesn&apos;t clear your horizon in the next day.
                     </p>
                   ) : (
-                    <div key={sat.satelliteNumber} className="panel-inset p-3">
-                      <div className="mb-2 flex flex-wrap items-center gap-2">
-                        <Link href={`/satellites/${sat.satelliteNumber}`} className="text-[15px] font-semibold hover:underline">
+                    <div key={sat.satelliteNumber}>
+                      <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                        <Link href={`/satellites/${sat.satelliteNumber}`} className="text-[14px] font-semibold hover:underline">
                           {label}
                         </Link>
-                        <span className="badge">next pass peaks {timeUntil(first.maxTime, nowMs) ?? "now"}</span>
+                        <span className="text-[12px] text-[var(--color-text-muted)]">
+                          next pass peaks {timeUntil(first.maxTime, nowMs) ?? "now"}
+                        </span>
                         {sat.passes.length > 3 ? (
                           <Link href="/passes" className="ml-auto text-[12px] text-[var(--color-accent)] hover:underline">
                             + {sat.passes.length - 3} more →
                           </Link>
                         ) : null}
                       </div>
-                      <div className="flex flex-col gap-1" data-testid="tonight-pass-cards">
+                      <div className="flex flex-col gap-1.5" data-testid="tonight-pass-cards">
                         {sat.passes.slice(0, 3).map((pass) => (
-                          <PassCard key={pass.maxTime} pass={pass} />
+                          <PassCard key={pass.maxTime} pass={pass} timeZone={passes.observerTimeZone} />
                         ))}
                       </div>
                     </div>
@@ -321,16 +405,15 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
             </details>
           ) : null}
 
-          {windowStart ? (
-            <p className="text-[11px] text-[var(--color-text-muted)]">
-              Predicted orbits from {new Date(windowStart).toLocaleDateString()}, over the next 24 h. Visible means the
-              satellite is sunlit while your sky is past civil twilight (sun below −6°) and it is at least 10° up;
-              clouds, light pollution, and your horizon aren&apos;t modeled. Brightness comes from published standard
-              magnitudes; their sources and weaknesses are on the{" "}
+          {passes !== null ? (
+            <p className="text-[11px] leading-relaxed text-[var(--color-text-muted)]">
+              Predicted from published orbits ({new Date(passes.windowStart).toLocaleDateString()}), next 24 h.
+              Visible means the station is sunlit while your sky is past civil twilight (sun below −6°) and it is at
+              least 10° up. Clouds, light pollution, and your horizon aren&apos;t modeled; brightness estimates are
+              rough (attitude, solar arrays).{" "}
               <Link href="/methodology" className="hover:underline">
-                methodology page
+                How this works
               </Link>
-              .
             </p>
           ) : null}
         </div>
@@ -338,7 +421,3 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
     </section>
   );
 }
-
-/** Small helper kept here so the hero owns its own compass vocabulary. */
-export const skyCompass = compassPoint;
-export const skyLocal = localWhen;

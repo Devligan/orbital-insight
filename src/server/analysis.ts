@@ -15,6 +15,7 @@ import { computeCharacteristics, type OrbitalCharacteristics } from "@/domain/or
 import { findPasses, type PassSearchParams } from "@/domain/passes/finder";
 import { enrichPassVisibility, type VisibleMoment } from "@/domain/passes/visibility";
 import { standardMagnitudeFor } from "@/domain/light/standard-magnitudes";
+import { timeZoneAt } from "@/integrations/timezone/lookup";
 import type { PassResult } from "@/domain/passes/types";
 import type { PassResultDto } from "@/contracts/orbital";
 import { SatelliteService, type DataLineage, satelliteService } from "./satellites";
@@ -161,6 +162,12 @@ export interface PassSearchServiceResult {
   windowStart: Date;
   windowEnd: Date;
   minElevationDeg: number;
+  /**
+   * IANA zone at the observer's coordinates, so clients show pass times on
+   * the observer's wall clock rather than the viewing device's. Null when
+   * the lookup can't resolve the point.
+   */
+  observerTimeZone: string | null;
 }
 
 /**
@@ -386,6 +393,7 @@ export async function computePasses(options: {
     windowStart,
     windowEnd,
     minElevationDeg: options.minElevationDeg,
+    observerTimeZone: timeZoneAt(options.observer.latitudeDeg, options.observer.longitudeDeg),
   };
 }
 

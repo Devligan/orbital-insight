@@ -12,6 +12,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useWatchlist } from "@/features/watchlist/local-store";
 import { PassCard, type PassCardData as PassEntry } from "@/features/pass-prediction/pass-cards";
+import { observerClock, observerZoneNote } from "@/features/pass-prediction/sky-words";
 import { Badge, EmptyState, ErrorState, Loading, Panel, PanelHeader } from "@/components/ui/primitives";
 import { formatUtc } from "@/lib/units";
 
@@ -25,7 +26,14 @@ interface PassSatelliteResult {
 
 interface PassResponse {
   ok: boolean;
-  data?: { results: PassSatelliteResult[]; windowStart: string; windowEnd: string; minElevationDeg: number };
+  data?: {
+    results: PassSatelliteResult[];
+    windowStart: string;
+    windowEnd: string;
+    minElevationDeg: number;
+    /** IANA zone at the observer's coordinates (server-resolved). */
+    observerTimeZone: string | null;
+  };
   error?: { kind: string; message: string };
 }
 
@@ -169,6 +177,14 @@ export function PassPredictionsForm() {
             <p className="text-[11px] text-[var(--color-text-muted)]">
               Window {formatUtc(new Date(results.windowStart))} → {formatUtc(new Date(results.windowEnd))} ·
               minimum elevation {results.minElevationDeg}°
+              {(() => {
+                const note = observerZoneNote(
+                  results.observerTimeZone,
+                  Intl.DateTimeFormat().resolvedOptions().timeZone,
+                  new Date(results.windowStart),
+                );
+                return note ? ` · ${note.replace(/^Times are/, "Local times are")}` : "";
+              })()}
             </p>
             {results.results.map((sat) => (
               <div key={sat.satelliteNumber} className="panel-inset p-3">
@@ -194,13 +210,14 @@ export function PassPredictionsForm() {
                     {/* Phones read cards; desktop keeps the technical table. */}
                     <div className="flex flex-col gap-2 md:hidden">
                     {sat.passes.map((pass, i) => (
-                      <PassCard key={`${sat.satelliteNumber}-${i}`} pass={pass} />
+                      <PassCard key={`${sat.satelliteNumber}-${i}`} pass={pass} timeZone={results.observerTimeZone} />
                     ))}
                   </div>
                   <div className="hidden overflow-x-auto md:block">
                     <table className="table-technical">
                       <thead>
                         <tr>
+                          <th>Peak (local)</th>
                           <th>Rise (UTC)</th>
                           <th>Rise az</th>
                           <th>Max elevation</th>
@@ -213,6 +230,7 @@ export function PassPredictionsForm() {
                       <tbody>
                         {sat.passes.map((pass, i) => (
                           <tr key={`${sat.satelliteNumber}-${i}`}>
+                            <td>{observerClock(pass.maxTime, results.observerTimeZone)}</td>
                             <td>{pass.riseTime ? formatUtc(new Date(pass.riseTime)) : "before window"}</td>
                             <td>{pass.azimuthAtRiseDeg !== null ? `${pass.azimuthAtRiseDeg.toFixed(1)}°` : "—"}</td>
                             <td>{pass.maxElevationDeg.toFixed(1)}°</td>

@@ -116,6 +116,7 @@ export function SkyField({
   const collectionRef = useRef<any | null>(null);
   const cloudRef = useRef<SkyCloud | null>(null);
   const metaRef = useRef<{ ids: string[]; categories: Int8Array } | null>(null);
+  const trackEntityIdsRef = useRef<string[]>([]);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   // Viewer construction is retryable: a failed init (module load, imagery
@@ -208,6 +209,10 @@ export function SkyField({
           infoBox: false,
           selectionIndicator: false,
           requestRenderMode: true, // bounded GPU load: render on events only
+          // 3D only: the app never switches to 2D/Columbus view, so Cesium
+          // can skip building 2D projections of every geometry (its
+          // longitude-splitting step, where date-line edge cases crash).
+          scene3DOnly: true,
           maximumScreenSpaceError: 6,
         });
         if (disposed) {
@@ -352,6 +357,9 @@ export function SkyField({
       metaRef.current = null;
       cloudRef.current?.dispose();
       cloudRef.current = null;
+      // requestRenderMode: without an explicit redraw the last frame — dots
+      // included — stayed on screen after "Whole sky: off".
+      if (!viewer.isDestroyed?.()) viewer.scene.requestRender();
     };
   }, [ready, cloud, cesiumRef]);
 
@@ -452,30 +460,32 @@ export function SkyField({
     const Cesium = cesiumRef.current;
     const viewer = viewerRef.current;
     if (!Cesium || !viewer || !ready) return;
-    const flat: unknown[] = [];
-    for (const segment of trackSegments) {
-      for (const [lat, lon] of segment) {
-        flat.push(Cesium.Cartesian3.fromDegrees(lon, lat, 0));
-      }
-    }
-    // The ground-track entity uses a fixed id and survives the satellite
-    // effect's removeAll (which fires only on its own dependencies) — adding
-    // over a stale one is a hard Cesium DeveloperError. Remove-then-add is
-    // idempotent, so repeated track updates never throw.
-    if (viewer.entities.getById?.("ground-track")) {
-      viewer.entities.removeById?.("ground-track");
-    }
-    viewer.entities.add({
-      id: "ground-track",
-      polyline: {
-        positions: flat,
-        width: 1.2,
-        clampToGround: true,
-        material: new Cesium.PolylineDashMaterialProperty({
-          color: Cesium.Color.fromCssColorString("#fbbf24aa"),
-          dashLength: 10,
-        }),
-      },
+    // One entity per antimeridian-split segment. (These were once flattened
+    // into a single polyline, which reconnected every +180° end to the next
+    // −180° start — a line across the globe — and fed Cesium degenerate
+    // date-line segments that crashed its geometry worker.)
+    //
+    // The entities use fixed ids and survive the satellite effect's removeAll
+    // (which fires only on its own dependencies) — adding over a stale id is a
+    // hard Cesium DeveloperError, so remove-then-add keeps updates idempotent.
+    for (const id of trackEntityIdsRef.current) viewer.entities.removeById?.(id);
+    trackEntityIdsRef.current = [];
+    trackSegments.forEach((segment, index) => {
+      if (segment.length < 2) return;
+      const id = `ground-track-${index}`;
+      viewer.entities.add({
+        id,
+        polyline: {
+          positions: segment.map(([lat, lon]) => Cesium.Cartesian3.fromDegrees(lon, lat, 0)),
+          width: 1.2,
+          clampToGround: true,
+          material: new Cesium.PolylineDashMaterialProperty({
+            color: Cesium.Color.fromCssColorString("#fbbf24aa"),
+            dashLength: 10,
+          }),
+        },
+      });
+      trackEntityIdsRef.current.push(id);
     });
     viewer.scene.requestRender();
     // sampleIntervalSeconds is included deliberately: the orbit effect above

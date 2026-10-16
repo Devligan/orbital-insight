@@ -311,7 +311,9 @@ test.describe("pass cards on phones", () => {
     await page.getByLabel(/Observer longitude/i).fill("0");
     await page.getByLabel(/Catalog IDs/i).fill("25544");
     await page.getByRole("button", { name: /Predict passes/i }).click();
-    const cards = page.locator(".md\\:hidden .rounded.border");
+    // A stable test id, not styling classes: a visual redesign once broke a
+    // `.rounded.border` selector here without changing behaviour.
+    const cards = page.locator('.md\\:hidden [data-testid="pass-card"]');
     const table = page.getByRole("table");
     await expect(cards.or(page.getByText(/No passes above/i)).first()).toBeVisible({ timeout: 90_000 });
     if (await cards.count()) {
@@ -377,6 +379,10 @@ test.describe("whole-sky globe", () => {
       page.locator('[aria-label^="3D globe showing"] canvas').or(page.locator('[data-testid="ground-track-marker"]')).first(),
     ).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('[data-testid="globe-failed"]')).toHaveCount(0);
+    // Cesium reports render-loop failures in its own panel, not as page
+    // errors — a date-line geometry crash once froze the globe this way.
+    await page.waitForTimeout(15_000);
+    await expect(page.locator(".cesium-widget-errorPanel")).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 });
