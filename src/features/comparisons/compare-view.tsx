@@ -118,7 +118,8 @@ export function CompareView({ initialLeft, initialRight }: { initialLeft: string
 
       {comparison ? (
         <>
-          <div className="grid gap-3 lg:grid-cols-2">
+          {/* minmax(0, 1fr) columns, so the unbreakable TLE lines scroll instead of widening the page. */}
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <SidePanel side={comparison.left} tag="Left" />
             <SidePanel side={comparison.right} tag="Right" />
           </div>

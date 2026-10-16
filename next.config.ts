@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 import path from "node:path";
 
 const nextConfig: NextConfig = {
+  // Opt-in separate output for production verification: `next dev` shares
+  // `.next` and overwrites a production build mid-run (the source of the
+  // "no production build" / "Cannot find module './887.js'" errors). Gate
+  // runs set NEXT_DIST_DIR=.next-prod; everything else keeps the default.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // CesiumJS ships large CommonJS worker bundles that must stay unbundled.
   serverExternalPackages: ["@cesium/engine"],
   webpack: (config, { isServer }) => {
@@ -19,6 +24,9 @@ const nextConfig: NextConfig = {
         ...config.resolve.alias,
         "#wasm-single-thread": path.resolve(__dirname, "src/shims/empty-wasm.ts"),
         "#wasm-multi-thread": path.resolve(__dirname, "src/shims/empty-wasm.ts"),
+        // Cesium's Gaussian-splat decoder: its embedded WASM string minifies
+        // into invalid JS and breaks the whole globe chunk. Unused here.
+        "@spz-loader/core": path.resolve(__dirname, "src/shims/no-spz-loader.ts"),
       };
     }
     return config;

@@ -3,7 +3,7 @@ import nextTypescript from "eslint-config-next/typescript";
 
 const eslintConfig = [
   // Third-party runtime assets copied into public/ by the prebuild script.
-  { ignores: ["public/**", ".next/**"] },
+  { ignores: ["public/**", ".next/**", ".next-prod/**"] },
   ...nextCoreWebVitals,
   ...nextTypescript,
   {

@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * Sky — the whole-sky 3D globe (Cesium, lazy-loaded, no Ion token: dark
- * CARTO/OSM raster imagery).
+ * Sky — the whole-sky 3D globe (Cesium, lazy-loaded, no Ion token: dimmed
+ * Natural Earth II imagery served from our own /cesium assets, with real
+ * day/night lighting).
  *
  * Two visual layers on one viewer:
  *  1. **The cloud** (opt-in via `cloud`): every active satellite, propagated
@@ -79,6 +80,26 @@ interface CesiumViewer {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type CesiumModule = any;
 
+const WIDGET_STYLESHEET_ID = "cesium-widgets-css";
+
+/** Inject Cesium's widget CSS (copied to /cesium by the build) once, and wait for it. */
+function ensureWidgetStylesheet(): Promise<void> {
+  const existing = document.getElementById(WIDGET_STYLESHEET_ID) as HTMLLinkElement | null;
+  if (existing?.sheet) return Promise.resolve();
+  const link = existing ?? document.createElement("link");
+  const loaded = new Promise<void>((resolve, reject) => {
+    link.addEventListener("load", () => resolve(), { once: true });
+    link.addEventListener("error", () => reject(new Error("Cesium widget stylesheet failed to load")), { once: true });
+  });
+  if (!existing) {
+    link.id = WIDGET_STYLESHEET_ID;
+    link.rel = "stylesheet";
+    link.href = "/cesium/Widgets/widgets.css";
+    document.head.appendChild(link);
+  }
+  return loaded;
+}
+
 export function SkyField({
   samples,
   trackSegments,
@@ -154,14 +175,28 @@ export function SkyField({
           if (!disposed) setFailed("Globe container is not mounted");
           return;
         }
+        // Cesium's widget stylesheet sizes the canvas to its container and
+        // lays out the credit line; without it the canvas stays at the
+        // browser default 300×150. Loaded before construction so the first
+        // frame is measured against the real container size.
+        await ensureWidgetStylesheet();
+        if (disposed) return;
+        // Basemap: Natural Earth II (public domain), shipped with Cesium and
+        // served from our own /cesium assets — no API key, no third-party
+        // tile requests, nothing to rate-limit. (The previous CARTO dark
+        // raster now requires a key and rendered "API KEY REQUIRED" tiles.)
+        // Dimmed and desaturated so the night-side palette and the cloud
+        // dots carry the visual weight. `baseLayer` is the current option;
+        // the old `imageryProvider` is silently ignored by Cesium ≥1.104,
+        // which then falls back to token-gated Cesium ion imagery.
+        const baseLayer = Cesium.ImageryLayer.fromProviderAsync(
+          Cesium.TileMapServiceImageryProvider.fromUrl(Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII")),
+        );
+        baseLayer.brightness = 0.55;
+        baseLayer.saturation = 0.55;
+        baseLayer.contrast = 1.15;
         const viewer = new Cesium.Viewer(host, {
-          imageryProvider: new Cesium.OpenStreetMapImageryProvider({
-            // CARTO's dark raster matches the app's night-sky palette and
-            // lets the cloud dots carry the visual weight; attribution is
-            // shown by the viewer's built-in credit element.
-            url: "https://basemaps.cartocdn.com/dark_all/",
-            credit: "© OpenStreetMap contributors © CARTO",
-          }),
+          baseLayer,
           baseLayerPicker: false,
           geocoder: false,
           homeButton: false,
@@ -179,6 +214,9 @@ export function SkyField({
           viewer.destroy();
           return;
         }
+        // Real day/night shading from Cesium's sun model: the same "is it
+        // dark where you are?" question the visibility verdicts answer.
+        viewer.scene.globe.enableLighting = true;
         viewerRef.current = viewer;
         setReady(true);
       } catch (error) {
@@ -456,7 +494,7 @@ export function SkyField({
 
   if (failed) {
     return (
-      <div className="panel flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
+      <div className="panel flex h-full flex-col items-center justify-center gap-2 p-6 text-center" data-testid="globe-failed">
         <p className="text-[var(--color-status-warn)] text-[13px]">The 3D globe couldn&apos;t start this time.</p>
         <p className="text-[12px] text-[var(--color-text-muted)] max-w-sm">{failed}</p>
         <div className="flex items-center gap-2">
@@ -482,7 +520,8 @@ export function SkyField({
 
       {/* Cloud commentary: load state or honest failure — one glanceable line. */}
       {cloud ? (
-        <div className="absolute bottom-3 left-3 z-10 flex max-w-[75%] flex-col gap-1 rounded-md bg-[#0b1017cc] px-3 py-2 backdrop-blur-sm">
+        // bottom-9: clears Cesium's credit line (imagery attribution) along the bottom edge.
+        <div className="absolute bottom-9 left-3 z-10 flex max-w-[75%] flex-col gap-1 rounded-md bg-[#0b1017cc] px-3 py-2 backdrop-blur-sm">
           {cloudStatus.state === "loading" ? (
             <p className="text-[11px] text-[var(--color-text-muted)]">
               Filling the sky — {cloudStatus.parsed ? "catalog in hand, propagating" : "fetching the live catalog"}…
@@ -548,7 +587,9 @@ export function SkyField({
           ) : null}
           {cloudStatus.state === "error" ? (
             <p className="text-[11px] text-[var(--color-status-warn)]">
-              {cloudStatus.message} The tracked object below still works.
+              Whole-sky catalog unavailable right now
+              {cloudStatus.message ? ` (${cloudStatus.message.replace(/\.$/, "")})` : ""}. The selected satellite is
+              still tracked live.
             </p>
           ) : null}
         </div>

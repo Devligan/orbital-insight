@@ -333,7 +333,7 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
         )}
 
         {/* Time slider row */}
-        <div className="panel mx-auto mt-4 mb-4 flex max-w-7xl items-center gap-3 px-4 py-3">
+        <div className="panel mx-auto mt-4 mb-4 flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
           <label htmlFor="time-slider" className="label shrink-0">
             Time
           </label>
@@ -341,7 +341,7 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
           <input
             id="time-slider"
             type="range"
-            className="flex-1"
+            className="min-w-0 flex-1"
             min={0}
             max={Math.max(positions.length - 1, 0)}
             value={Math.min(timeIndex, Math.max(positions.length - 1, 0))}
@@ -353,7 +353,8 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
             aria-valuetext={selected ? formatUtc(new Date(selected.time)) : "no data"}
           />
           <span className="text-[11px] text-[var(--color-text-muted)]">+6 h</span>
-          <span className="data-value min-w-[19ch] text-right text-[13px]">
+          {/* Own line on phones: the fixed-width UTC stamp overflowed a 390px screen. */}
+          <span className="data-value w-full text-right text-[13px] sm:w-auto sm:min-w-[19ch]">
             {selected ? formatUtc(new Date(selected.time)) : "—"}
           </span>
         </div>

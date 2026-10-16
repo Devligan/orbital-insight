@@ -12,6 +12,7 @@
 
 import { useMemo } from "react";
 import { formatUtc } from "@/lib/units";
+import { PLOT_WIDTH as WIDTH, projectEquirectangular } from "./equirectangular";
 
 export interface TrackSegmentPoint {
   latitudeDeg: number;
@@ -34,8 +35,6 @@ export interface GroundTrackPlotProps {
   height?: number;
 }
 
-const WIDTH = 720;
-const LAT_MARGIN = 8;
 
 export function GroundTrackPlot({ segments, name, selectedTime, markerPosition, height = 320 }: GroundTrackPlotProps) {
   const { latLines, lonLines, projected, markerProjected } = useMemo(() => {
@@ -72,8 +71,24 @@ export function GroundTrackPlot({ segments, name, selectedTime, markerPosition, 
         role="img"
         aria-label={`Ground track of ${name} in an equirectangular projection`}
       >
-        {/* Ocean background + graticule */}
+        {/* Ocean background, dimmed Natural Earth basemap, graticule */}
         <rect width={WIDTH} height={height} fill="var(--color-bg-inset)" />
+        {BASEMAP_TILES.map(({ col, row, href }) => {
+          const topLeft = projectEquirectangular(row === 1 ? 90 : 0, -180 + col * 90, height);
+          const bottomRight = projectEquirectangular(row === 1 ? 0 : -90, -90 + col * 90, height);
+          return (
+            <image
+              key={href}
+              href={href}
+              x={topLeft.x}
+              y={topLeft.y}
+              width={bottomRight.x - topLeft.x}
+              height={bottomRight.y - topLeft.y}
+              preserveAspectRatio="none"
+              opacity={0.4}
+            />
+          );
+        })}
         {latLines.map(({ lat, y }) => (
           <g key={lat}>
             <line x1={0} x2={WIDTH} y1={y} y2={y} stroke="var(--color-border-hairline)" strokeWidth={1} />
@@ -92,6 +107,7 @@ export function GroundTrackPlot({ segments, name, selectedTime, markerPosition, 
         ))}
 
         {/* Ground-track polylines */}
+        {/* Fades with time, so "where it goes next" reads before the later tangle of orbits. */}
         {projected.map((segment, si) => (
           <polyline
             key={si}
@@ -100,7 +116,7 @@ export function GroundTrackPlot({ segments, name, selectedTime, markerPosition, 
             stroke="var(--color-status-warn)"
             strokeWidth={1.3}
             strokeDasharray="4 3"
-            opacity={0.85}
+            opacity={segmentOpacity(si, projected.length)}
           />
         ))}
 
@@ -127,22 +143,27 @@ export function GroundTrackPlot({ segments, name, selectedTime, markerPosition, 
           </g>
         ) : null}
       </svg>
-      <figcaption className="absolute bottom-1 right-2 text-[10px] text-[var(--color-text-muted)]">
+      <figcaption className="absolute right-2 top-1 text-[10px] text-[var(--color-text-muted)]">
         Equirectangular projection · sub-satellite points
       </figcaption>
     </figure>
   );
 }
 
-function makeProject(height: number) {
-  const usableTop = LAT_MARGIN;
-  const usable = height - 2 * LAT_MARGIN;
-  return (latitudeDeg: number, longitudeDeg: number): { x: number; y: number } => {
-    const x = ((longitudeDeg + 180) / 360) * WIDTH;
-    // Equirectangular: linear in latitude across the usable vertical span.
-    const latRad = (latitudeDeg * Math.PI) / 180;
-    const yInverse = (latRad + Math.PI / 2) / Math.PI; // 0 at north pole
-    const y = usableTop + yInverse * usable;
-    return { x, y };
-  };
+/** Segments are chronological: the first is bright, the last faint. */
+function segmentOpacity(index: number, count: number): number {
+  return count <= 1 ? 0.9 : 0.95 - 0.7 * (index / (count - 1));
 }
+
+function makeProject(height: number) {
+  return (latitudeDeg: number, longitudeDeg: number) => projectEquirectangular(latitudeDeg, longitudeDeg, height);
+}
+
+/**
+ * Natural Earth II level-1 tiles (public domain, shipped with Cesium under
+ * /cesium): EPSG:4326, so each 90°×90° tile drops straight into this
+ * equirectangular frame. TMS rows count from the south: row 1 is 0…90°N.
+ */
+const BASEMAP_TILES = [0, 1, 2, 3].flatMap((col) =>
+  [0, 1].map((row) => ({ col, row, href: `/cesium/Assets/Textures/NaturalEarthII/1/${col}/${row}.jpg` })),
+);

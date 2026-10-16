@@ -4,9 +4,8 @@
   "private": true,
   "description": "Satellite analysis platform: live CelesTrak orbital data, SGP4 propagation, ground tracks, pass predictions.",
   "scripts": {
-    "prebuild": "node scripts/build-search-index.mjs",
+    "prebuild": "node scripts/build-search-index.mjs && node scripts/copy-cesium.mjs",
     "predev": "node scripts/copy-cesium.mjs",
-    "prebuild": "node scripts/copy-cesium.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

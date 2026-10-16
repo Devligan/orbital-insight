@@ -42,7 +42,9 @@ export default async function SatelliteDetailPage({ params }: { params: Promise<
   const tleSource = `https://celestrak.org/NORAD/elements/gp.php?CATNR=${record.catalog.satelliteNumber}`;
 
   return (
-    <div className="grid gap-3 p-3 lg:grid-cols-[380px_1fr]">
+    // minmax(0, …) columns: the implicit `auto` column sized itself to the
+    // unbreakable TLE lines and pushed the page off-screen on phones.
+    <div className="grid grid-cols-1 gap-3 p-3 lg:grid-cols-[380px_minmax(0,1fr)]">
       <Panel className="flex flex-col gap-3">
         <div>
           <h1 className="text-[16px] font-semibold">{record.catalog.name}</h1>

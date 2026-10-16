@@ -19,7 +19,8 @@ A production Next.js (App Router) app where a regular person can:
   apparent-magnitude estimate.
 - Watch a **whole-sky 3D globe** rendering every ~10.6k active satellites as a
   categorized point cloud, propagated client-side in a Web Worker with SGP4,
-  real-time animated, click-any-dot-to-open. Dark CARTO basemap, ~68vh
+  real-time animated, click-any-dot-to-open. Dimmed Natural Earth II basemap
+  served locally (CARTO now needs an API key) with day/night lighting, ~68vh
   full-bleed band, one-line collapsible status pill.
 - Get per-satellite detail (detail page, position samples, ground track,
   pass predictions table + phone cards + CSV), comparison of two element sets,
@@ -40,7 +41,7 @@ A production Next.js (App Router) app where a regular person can:
    directly** (not through output filters that mask status):
    `npx tsc --noEmit`, `npx eslint .` (0 errors; 15 pre-existing warnings
    are the accepted baseline — do not fix them casually, do not suppress
-   them), `npx vitest run` (currently 96 passed / 1 skipped), `npm run build`, `npx playwright test` (21 journeys). All must
+   them), `npx vitest run` (currently 104 passed / 1 skipped), `npm run build`, `npx playwright test` (22 journeys). All must
    be green before any commit. Never weaken assertions or add suppressions to
    pass.
 3. **Architecture discipline.** Routes are thin (`src/lib/http.ts` helpers:
@@ -99,9 +100,16 @@ A production Next.js (App Router) app where a regular person can:
   `start` plays no part; long servers must run as background processes.
 - Playwright's webServer runs `next start` — you must `npm run build` after
   clearing or changing `.next`, or e2e fails with "no production build".
-- A stale `.next` directory causes the notorious `Cannot find module
-  './887.js'` runtime error: fix by `rm -rf .next && npm run build`, never by
-  editing generated chunks.
+- **Root cause of the "no production build" / `Cannot find module './887.js'`
+  errors (found 2026-10-16):** the owner often has `next dev` servers running
+  (ports 3000/3010), and `next dev` shares `.next` with production builds, so
+  it wipes the build under test. Don't kill the owner's dev servers; run the
+  gates with an isolated output dir instead: set `NEXT_DIST_DIR=.next-prod`
+  for `npm run build` *and* `npx playwright test` (next.config.ts reads it).
+- **Dev mode hides minifier bugs.** The globe once shipped broken only in
+  production (a Cesium dependency's WASM string minified into invalid JS).
+  Judge visual work against a production build, and look at it: screenshots
+  at desktop and 390 px widths, not only test results.
 - CelesTrak rate-limits aggressive IPs (HTTP 403/429). Local runs may get
   typed 502s from `/api/sky/catalog` — that is the honest-degradation path
   working, not a bug.

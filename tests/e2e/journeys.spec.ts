@@ -222,7 +222,8 @@ test.describe("provider failure handling", () => {
     // Honest-but-error states must stay console-clean: real provider failures
     // surface in the UI, not as page crashes or unexpected exceptions.
     const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error" && !/does not implement|favicon/i.test(message.text())) {
         errors.push(message.text());
@@ -230,6 +231,9 @@ test.describe("provider failure handling", () => {
     });
     await page.goto("/");
     await page.waitForTimeout(8_000);
+    // Uncaught page errors are never acceptable, whatever their wording — a
+    // filtered check here once let a SyntaxError that killed the globe ship.
+    expect(pageErrors).toEqual([]);
     expect(errors.filter((entry) => /exception|Error:/.test(entry))).toEqual([]);
   });
 });
@@ -280,6 +284,22 @@ test.describe("location-first + shareable moments", () => {
     const slider = page.getByRole("slider");
     await expect(slider).toBeEnabled({ timeout: 60_000 });
     await expect(slider).toHaveValue("12");
+  });
+});
+
+test.describe("phone layout", () => {
+  test("no page scrolls sideways at phone width", async ({ page }) => {
+    // A single unbreakable line (TLE text, a wide table) inside an `auto`
+    // grid column once pushed the whole detail page off-screen on phones.
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const path of ["/", "/passes", "/satellites/25544", "/compare", "/watchlist", "/methodology"]) {
+      await page.goto(path);
+      await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {
+        /* long-lived requests (catalog, imagery) may keep the network busy; layout is settled by now */
+      });
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow, `${path} overflows horizontally by ${overflow}px`).toBeLessThanOrEqual(0);
+    }
   });
 });
 
@@ -350,9 +370,13 @@ test.describe("whole-sky globe", () => {
     // The toggle starts "on" (the hero visual); flip it both ways.
     await page.getByRole("button", { name: "Whole sky: on" }).click();
     await page.getByRole("button", { name: "Whole sky: off" }).click();
-    // WebGL available: cloud reaches ready (SGP4 commentary). WebGL off: the
-    // parent's honest 2D fallback. Both are acceptable, named outcomes.
-    await expect(page.getByText(/\d{1,3}[,.]\d{3} objects, live predictions/i)).toBeVisible().catch(() => { /* not WebGL here */ });
-    expect(errors.filter((e) => /already exists|Cesium|wasm/i.test(e))).toEqual([]);
+    // WebGL available: Cesium's canvas renders. WebGL off: the parent's honest
+    // 2D fallback. Both are acceptable, named outcomes — the "couldn't start"
+    // panel is not: it means the 3D runtime itself is broken.
+    await expect(
+      page.locator('[aria-label^="3D globe showing"] canvas').or(page.locator('[data-testid="ground-track-marker"]')).first(),
+    ).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator('[data-testid="globe-failed"]')).toHaveCount(0);
+    expect(errors).toEqual([]);
   });
 });
