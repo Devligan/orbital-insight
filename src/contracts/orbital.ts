@@ -138,6 +138,7 @@ export const passResultSchema = z.object({
       visibility: z
         .object({
           fromGround: z.boolean(),
+          /** Null when not visible, or visible with no published standard magnitude (brightness unknown). */
           bestEstimatedMagnitude: z.number().nullable(),
           bestTimeIso: z.string().nullable(),
           sunElevationDegAtApex: z.number(),

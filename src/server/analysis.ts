@@ -14,6 +14,7 @@ import { buildGroundTrackSegments } from "@/domain/orbit/ground-track";
 import { computeCharacteristics, type OrbitalCharacteristics } from "@/domain/orbit/characteristics";
 import { findPasses, type PassSearchParams } from "@/domain/passes/finder";
 import { enrichPassVisibility, type VisibleMoment } from "@/domain/passes/visibility";
+import { standardMagnitudeFor } from "@/domain/light/standard-magnitudes";
 import type { PassResult } from "@/domain/passes/types";
 import type { PassResultDto } from "@/contracts/orbital";
 import { SatelliteService, type DataLineage, satelliteService } from "./satellites";
@@ -362,6 +363,7 @@ export async function computePasses(options: {
   const merged = successes.map((entry) => {
     const found = byNumber.get(entry.satelliteNumber);
     const satrec = satrecByNumber.get(entry.satelliteNumber);
+    const standardMagnitude = standardMagnitudeFor(entry.satelliteNumber)?.value ?? null;
     const enriched = (found?.passes ?? []).map((pass) => {
       if (!satrec || pass.truncated === "both") {
         // Never enriched: a pass truncated on both sides has no honest
@@ -370,7 +372,7 @@ export async function computePasses(options: {
       }
       return {
         ...pass,
-        visibility: enrichPassVisibility({ satrec, pass, observer: options.observer, windowStart, windowEnd }),
+        visibility: enrichPassVisibility({ satrec, pass, observer: options.observer, windowStart, windowEnd, standardMagnitude }),
       } as PassResult;
     });
     return toPassEntryDto(

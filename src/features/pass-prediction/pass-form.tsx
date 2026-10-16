@@ -139,8 +139,9 @@ export function PassPredictionsForm() {
 
         <p className="mt-3 text-[11px] text-[var(--color-text-muted)]">
           Every pass is a geometry calculation. Sunlight geometry — Earth&apos;s shadow and the observer&apos;s sky
-          darkness — is modeled, with a phase-corrected magnitude estimate (±1.5 mag; object sizes are unknown).
-          Clouds and eyesight are not. See the{" "}
+          darkness — is modeled. Brightness is estimated only for objects with a published standard magnitude
+          (others read &ldquo;brightness unknown&rdquo;), and is rough even then. Clouds and eyesight are not
+          modeled. See the{" "}
           <Link href="/methodology" className="text-[var(--color-accent)] hover:underline">methodology</Link>.
         </p>
       </Panel>
@@ -222,7 +223,9 @@ export function PassPredictionsForm() {
                               {pass.truncated === "none" ? "" : `pass ${pass.truncated} outside window`}
                               {pass.visibility
                                 ? pass.visibility.fromGround
-                                  ? ` visible (≈ mag ${pass.visibility.bestEstimatedMagnitude?.toFixed(1)})`
+                                  ? pass.visibility.bestEstimatedMagnitude !== null
+                                    ? ` visible (≈ mag ${pass.visibility.bestEstimatedMagnitude.toFixed(1)})`
+                                    : " visible (brightness unknown)"
                                   : " not visible " + (pass.visibility.reasonIfNotVisible ?? "")
                                 : ""}
                             </td>

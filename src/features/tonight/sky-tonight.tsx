@@ -79,12 +79,16 @@ function VisiblePassRow({ item, nowMs }: { item: VisiblePass; nowMs: number }) {
         <span className="ml-2 text-[12px] text-[var(--color-text-muted)]">about {minutes} min</span>
       </p>
       <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">{skyPath(item.pass, window).join(" → ")}</p>
-      {item.magnitude !== null ? (
-        <p className="mt-1 text-[12px] text-[var(--color-text-muted)]">
-          estimated magnitude {item.magnitude.toFixed(1)} ({brightnessWord(item.magnitude)}) · ±1.5 mag, object size
-          unknown
-        </p>
-      ) : null}
+      <p className="mt-1 text-[12px] text-[var(--color-text-muted)]">
+        {item.magnitude !== null ? (
+          <>
+            estimated magnitude {item.magnitude.toFixed(1)} ({brightnessWord(item.magnitude)}) · rough: real brightness
+            shifts with the station&apos;s attitude and solar arrays
+          </>
+        ) : (
+          "brightness unknown: no published standard magnitude for this object"
+        )}
+      </p>
     </li>
   );
 }
@@ -321,8 +325,12 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
             <p className="text-[11px] text-[var(--color-text-muted)]">
               Predicted orbits from {new Date(windowStart).toLocaleDateString()}, over the next 24 h. Visible means the
               satellite is sunlit while your sky is past civil twilight (sun below −6°) and it is at least 10° up;
-              clouds, light pollution, and your horizon aren&apos;t modeled. Magnitude estimates carry about ±1.5 mag
-              of uncertainty.
+              clouds, light pollution, and your horizon aren&apos;t modeled. Brightness comes from published standard
+              magnitudes; their sources and weaknesses are on the{" "}
+              <Link href="/methodology" className="hover:underline">
+                methodology page
+              </Link>
+              .
             </p>
           ) : null}
         </div>

@@ -12,20 +12,16 @@
  *   3. The satellite must be above the pass elevation threshold at that
  *      moment (it is, by construction, between rise and set of the pass).
  *
- * Brightness is a standard low-precision apparent-magnitude model,
- * phase-corrected:
+ * Brightness follows the standard-magnitude convention (Mallama 2020,
+ * arXiv:2012.05100 §2): m_std is the magnitude at 1 000 km and 90° phase,
+ * and the phase term is the illuminated fraction of a sphere, normalized so
+ * it vanishes at 90°:
  *
- *      m ≈ m₀ − 15 + 5·log₁₀(rangeKm) − 2.5·log₁₀((1 + cos φ)/2)
+ *      m ≈ m_std − 15 + 5·log₁₀(rangeKm) − 2.5·log₁₀((1 + cos φ)/2) − 0.753
  *
- * As written, m₀ is the magnitude at 1 000 km range and full phase (φ = 0:
- * m = m₀ there; half phase reads m₀ + 0.75). Note this differs from the
- * McCants "standard magnitude" convention (1 000 km, 50 % illuminated) —
- * any per-object published std-mag must be converted before use here.
- * m₀ is size-dependent and per-object physical sizes are unknown to this
- * catalog, so the default m₀ = 0 and every estimate carries an honest ±1.5
- * magnitude uncertainty — the estimate still sorts objects into
- * "conspicuous / naked-eye / binoculars" buckets far better than a binary
- * visible flag would.
+ * (−0.753 = 2.5·log₁₀ 0.5; equivalently Quicksat's "− 15.75".) m_std comes
+ * only from published per-object values (domain/light/standard-magnitudes);
+ * for any other object the brightness is reported as unknown, never guessed.
  *
  * The visible window (when the pass is actually observable) is bracketed by
  * the per-pass light samples, then each edge is refined by bisection to
@@ -46,8 +42,8 @@ import type { PassResult } from "./types";
 /** Sky-darkness threshold: civil twilight — the satellite reads if it is bright. */
 const SKY_DARKNESS_SUN_ELEVATION_DEG = -6;
 
-/** Standard magnitude at 1 000 km, half-phase. Default when size is unknown. */
-const DEFAULT_STANDARD_MAGNITUDE = 0;
+/** 2.5·log₁₀(0.5): moves the phase term's zero from full phase to 90°. */
+const HALF_PHASE_NORMALIZATION = 2.5 * Math.log10(0.5);
 
 /** Samples per pass for the light sweep. Passes are 5–15 min for LEO. */
 const SAMPLES_PER_PASS = 24;
@@ -84,9 +80,13 @@ export interface VisibleWindow {
 export interface PassVisibility {
   /** True when at least one sampled instant satisfied all visibility conditions. */
   fromGround: boolean;
-  /** Brightest estimated magnitude among the visible samples; null when never visible. */
+  /**
+   * Brightest estimated magnitude among the visible samples. Null when never
+   * visible, or when visible but the object has no published standard
+   * magnitude (brightness unknown).
+   */
   bestEstimatedMagnitude: number | null;
-  /** Instant of that brightest sample (ISO), null when never visible. */
+  /** Instant of the brightest visible sample (epoch ms), null when never visible. */
   bestTimeMs: number | null;
   /** Sun elevation at the observer at the pass apex — sky-darkness context. */
   sunElevationDegAtApex: number;
@@ -156,11 +156,13 @@ function toMoment(sample: LightSample): VisibleMoment {
   };
 }
 
+/** Apparent magnitude from a standard magnitude (1 000 km, 90° phase). */
 function estimateMagnitude(stdMag: number, rangeKm: number, phaseDeg: number): number {
   const rangeTerm = 5 * Math.log10(Math.max(rangeKm, 1));
   const cosPhase = Math.cos((phaseDeg * Math.PI) / 180);
-  // Fully lit face (φ=0) → +0; half phase (φ=90°) → +0.75 (dimmer).
-  const phaseTerm = -2.5 * Math.log10(Math.max((1 + cosPhase) / 2, 1e-6));
+  // Illuminated fraction, zeroed at 90°: full phase (φ=0) → −0.75 (brighter),
+  // half phase → 0, crescent (φ>90°) → dimmer.
+  const phaseTerm = -2.5 * Math.log10(Math.max((1 + cosPhase) / 2, 1e-6)) + HALF_PHASE_NORMALIZATION;
   return stdMag - 15 + rangeTerm + phaseTerm;
 }
 
@@ -175,8 +177,10 @@ export function enrichPassVisibility(params: {
   observer: ObserverLocation;
   windowStart: Date;
   windowEnd: Date;
+  /** Published standard magnitude; null = brightness unknown, none estimated. */
+  standardMagnitude: number | null;
 }): PassVisibility {
-  const { satrec, pass, observer, windowStart, windowEnd } = params;
+  const { satrec, pass, observer, windowStart, windowEnd, standardMagnitude } = params;
 
   const riseMs = (pass.rise ?? windowStart).getTime();
   const setMs = (pass.set ?? windowEnd).getTime();
@@ -201,10 +205,12 @@ export function enrichPassVisibility(params: {
     z: apexState.teme.positionKm[2],
   };
 
+  // The brightest instant depends only on range and phase, so it is located
+  // with m_std = 0 even when the object's real m_std is unknown.
   const best = samples.reduce(
     (brightest, sample) => {
       if (!isVisible(sample)) return brightest;
-      const magnitude = estimateMagnitude(DEFAULT_STANDARD_MAGNITUDE, sample.rangeKm, sample.phaseDeg);
+      const magnitude = estimateMagnitude(standardMagnitude ?? 0, sample.rangeKm, sample.phaseDeg);
       if (magnitude < brightest.magnitude) {
         return { magnitude, timeMs: sample.timeMs };
       }
@@ -227,7 +233,7 @@ export function enrichPassVisibility(params: {
 
   return {
     fromGround,
-    bestEstimatedMagnitude: fromGround ? Number(best.magnitude.toFixed(1)) : null,
+    bestEstimatedMagnitude: fromGround && standardMagnitude !== null ? Number(best.magnitude.toFixed(1)) : null,
     bestTimeMs: best.timeMs,
     sunElevationDegAtApex: Number(sunElevationDegAt(apexTime, observer).toFixed(1)),
     satelliteInShadowAtApex: apexInShadow,
@@ -266,7 +272,6 @@ function visibleWindowOf(satrec: SatRec, observer: ObserverLocation, samples: Li
 }
 
 export {
-  DEFAULT_STANDARD_MAGNITUDE,
   SKY_DARKNESS_SUN_ELEVATION_DEG,
   estimateMagnitude,
   SAMPLES_PER_PASS as VISIBILITY_SAMPLES_PER_PASS,

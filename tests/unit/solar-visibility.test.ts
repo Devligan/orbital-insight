@@ -8,9 +8,9 @@
  *    about physics rather than about our own coefficients.
  *  - Shadow test on hand-built geometry vectors (sun side / night side /
  *    wide miss / grazing orbit altitudes over the pole).
- *  - Magnitude model: the working point the formula is normalized to
- *    (std magnitude at 1 000 km, half-phase reference ≈ 0 m per the
- *    documented contract) plus monotonicity in range and phase.
+ *  - Magnitude model: the published standard-magnitude definition (1 000 km,
+ *    90° phase) and phase adjustment, inverse-square range scaling, and an
+ *    ISS pass landing where observers report it.
  */
 
 import { describe, expect, it } from "vitest";
@@ -159,33 +159,37 @@ describe("phase angle", () => {
   });
 });
 
-describe("apparent magnitude model", () => {
-  it("adds the documented +0.75 half-phase correction at 1 000 km", () => {
-    // m = m₀ − 15 + 5·log10(range) − 2.5·log10((1+cos φ)/2).
-    // At range 1 000 km the range terms cancel (−15 + 5·log10(1000) = 0),
-    // leaving only the phase term: −2.5·log10(0.5) ≈ +0.75.
-    const halfPhase = estimateMagnitude(0, 1_000, 90);
-    expect(halfPhase).toBeCloseTo(0.75, 2);
+describe("apparent magnitude model (standard-magnitude convention)", () => {
+  it("returns the standard magnitude itself at 1 000 km and 90° phase — the definition", () => {
+    // Mallama 2020 (arXiv:2012.05100 §2): standard magnitude = brightness at
+    // 1 000 km, half illuminated (90° phase). Any m_std must round-trip.
+    for (const std of [-1.3, 0, 4.2]) {
+      expect(estimateMagnitude(std, 1_000, 90)).toBeCloseTo(std, 10);
+    }
   });
 
-  it("is brightest fully lit at close range and dims with range", () => {
-    const zenith = estimateMagnitude(0, 450, 0);
-    const horizon = estimateMagnitude(0, 1_800, 0);
-    expect(zenith).toBeLessThan(horizon);
-    // ISS-like zenith pass at ~450 km reads near −2 — inside the band the
-    // real sky shows for ISS-class passes:
-    expect(zenith).toBeGreaterThan(-3.5);
-    expect(zenith).toBeLessThan(-1);
+  it("applies the published phase adjustment 2.5·log10(0.5 + 0.5·cos φ) relative to 90°", () => {
+    // Full phase: illuminated fraction 1 vs 0.5 → 2.5·log10(2) ≈ 0.753 brighter.
+    expect(estimateMagnitude(0, 1_000, 0)).toBeCloseTo(-0.753, 3);
+    // 120°: fraction 0.25 vs 0.5 → 0.753 fainter.
+    expect(estimateMagnitude(0, 1_000, 120)).toBeCloseTo(0.753, 3);
   });
 
-  it("full phase (0°) is brighter than half phase (90°)", () => {
+  it("follows the inverse-square law: 10× closer is exactly 5 mag brighter", () => {
+    expect(estimateMagnitude(0, 100, 90) - estimateMagnitude(0, 1_000, 90)).toBeCloseTo(-5, 10);
+  });
+
+  it("puts a high ISS pass where observers report it (about −3 to −4)", () => {
+    // ISS standard magnitude −1.3 (Molczan 2005); a near-zenith pass at
+    // ~420 km range and ~60° phase. Commonly reported bright ISS passes sit
+    // around magnitude −3 to −4.
+    const m = estimateMagnitude(-1.3, 420, 60);
+    expect(m).toBeGreaterThan(-4.5);
+    expect(m).toBeLessThan(-3);
+  });
+
+  it("dims monotonically toward crescent phase", () => {
     expect(estimateMagnitude(0, 450, 0)).toBeLessThan(estimateMagnitude(0, 450, 90));
     expect(estimateMagnitude(0, 450, 150)).toBeGreaterThan(estimateMagnitude(0, 450, 90));
-  });
-
-  it("counts the ISS zenith pass as conspicuous, not marginal", () => {
-    // The public promise: this pass is unmistakable, not "binoculars".
-    const m = estimateMagnitude(0, 450, 20);
-    expect(m).toBeLessThan(1);
   });
 });

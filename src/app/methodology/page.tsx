@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { STANDARD_MAGNITUDES } from "@/domain/light/standard-magnitudes";
 
 export const metadata = {
   title: "Methodology and validation — Orbital Insight",
@@ -129,10 +130,30 @@ const SECTIONS = [
         <li>
           <strong>Passes ≠ visibility.</strong> A predicted pass is orbital geometry relative to your coordinates.
           Visual-visibility judgements model <em>sunlight geometry</em> — the satellite must be lit (cylindrical
-          shadow test) and the observer&apos;s sky must be past civil twilight (sun below −6°) — plus a
-          phase-corrected apparent-magnitude estimate. That estimate carries roughly ±1.5 magnitudes of
-          uncertainty (object sizes are not in the catalog), and clouds, weather, and eyesight are not modeled,
-          so this still is not an observing forecast.
+          shadow test) and the observer&apos;s sky must be past civil twilight (sun below −6°) — plus, where a
+          published value exists, a phase-corrected apparent-magnitude estimate. Clouds, weather, light pollution,
+          and eyesight are not modeled, so this still is not an observing forecast.
+        </li>
+        <li>
+          <strong>Brightness: only from published standard magnitudes.</strong> The standard magnitude is an
+          object&apos;s visual magnitude at 1 000 km range and 90° phase angle (&ldquo;half illuminated&rdquo;),
+          with phase adjustment 2.5·log₁₀(0.5 + 0.5·cos φ) (
+          <a className="text-[var(--color-accent)] hover:underline" href="https://arxiv.org/abs/2012.05100" target="_blank" rel="noreferrer">
+            Mallama 2020, §2
+          </a>
+          ). We estimate m ≈ m<sub>std</sub> − 15 + 5·log₁₀(range km) − 2.5·log₁₀((1 + cos φ)/2) − 0.753, which
+          equals m<sub>std</sub> at 1 000 km and 90°. Real satellites are not spheres — attitude and solar-array
+          orientation move their brightness around this model — so treat estimates as rough. Objects without a
+          published value get no magnitude at all (&ldquo;brightness unknown&rdquo;): a size-blind default would
+          rate a cubesat as bright as a space station. The values in use, with their sources and known weaknesses:
+          <ul className="mt-1 list-[circle] space-y-1 pl-5">
+            {Object.entries(STANDARD_MAGNITUDES).map(([satelliteNumber, entry]) => (
+              <li key={satelliteNumber}>
+                NORAD {satelliteNumber}: <span className="data-value">{entry.value.toFixed(1)}</span> — {entry.source}.{" "}
+                <em>Caveat:</em> {entry.caveat}.
+              </li>
+            ))}
+          </ul>
         </li>
         <li>
           <strong>The visible window.</strong> Each pass is sampled 24 times between rise and set; the first and
@@ -147,10 +168,9 @@ const SECTIONS = [
         <li>
           <strong>Light-model approximations.</strong> The sun position is the low-precision Astronomical
           Almanac approximation (~0.01°, far coarser than we need for the lit/unlit decisions); shadow timing
-          ignores penumbra and atmospheric refraction (seconds of difference); brightness scales with range²
-          and the illuminated fraction (1 + cos φ)/2 of phase angle φ — a simpler stand-in for a diffuse
-          sphere&apos;s phase function — from a default reference magnitude of 0 at 1 000 km and full phase.
-          Standards for a plan-outside tool, not for photometry.
+          ignores penumbra and atmospheric refraction (seconds of difference); the phase term is the
+          illuminated fraction of a sphere, the convention standard magnitudes are defined with, rather than a
+          diffuse (Lambertian) sphere&apos;s phase function. Standards for a plan-outside tool, not for photometry.
         </li>
         <li>
           <strong>Manoeuvring objects</strong> (spacecraft with thrusters, de-orbit schedules, dodging debris) can

@@ -31,8 +31,10 @@ A production Next.js (App Router) app where a regular person can:
 1. **Honesty contracts.** Data lineage is surfaced everywhere: `live` /
    `cached` / `provider-unavailable-stale`. Provider failures produce typed
    failures (never fabricated orbits or fake loading spinners). Truncated pass
-   windows are labelled. Magnitude estimates carry ~±1.5 mag uncertainty
-   because object sizes are unknown. The `/methodology` page must stay
+   windows are labelled. Magnitudes are estimated only from sourced
+   standard magnitudes (`src/domain/light/standard-magnitudes.ts`, each with
+   source + caveat); every other object reads "brightness unknown" — never
+   reintroduce a size-blind default. The `/methodology` page must stay
    accurate — if you change any approximation, update it.
 2. **The quality gates run after every change, with exit codes captured
    directly** (not through output filters that mask status):
@@ -117,7 +119,7 @@ A production Next.js (App Router) app where a regular person can:
    digest: "tomorrow, you'll get two visible ISS passes" — can be
    client-side (localStorage + service worker notification) to respect the
    no-account architecture. No accounts, no server-side PII.
-3. **Magnitude honesty upgrade.** Provider object sizes (RCS / apogee /
+3. **(Done — standard-magnitude convention per Mallama 2020; sourced ISS/CSS values; unknowns stay unknown. Open: confirm the CSS value first-hand, find a post-2009 ISS value.)** **Magnitude honesty upgrade.** Provider object sizes (RCS / apogee /
    object type) can replace the flat std-mag 0.0 default for the handful of
    flagship objects (ISS −1.3 etc.); document every source.
 4. **Performance + polish.** Lighthouse budget on the home page; audit the

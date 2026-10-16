@@ -16,15 +16,20 @@ import { brightnessWord, compassPoint, type PassCardData } from "./sky-words";
 export { brightnessWord, compassPoint, type PassCardData };
 
 /**
- * The visibility verdict, in words a human plans around. Magnitudes are
- * surveys' business; here ±1.5 mag of uncertainty is part of the display.
+ * The visibility verdict, in words a human plans around. A magnitude is
+ * shown only for objects with a published standard magnitude; otherwise the
+ * card says brightness is unknown rather than guessing.
  */
 export function visibilityLine(pass: PassCardData): string | null {
   const v = pass.visibility;
   if (!v) return null;
-  if (v.fromGround && v.bestEstimatedMagnitude !== null) {
+  if (v.fromGround) {
     const look = compassPoint(pass.azimuthAtMaxDeg);
-    return `predicted visible in sunlight against a dark sky — look ${look} at the apex, estimated magnitude ${v.bestEstimatedMagnitude.toFixed(1)} (${brightnessWord(v.bestEstimatedMagnitude)})`;
+    const brightness =
+      v.bestEstimatedMagnitude !== null
+        ? `estimated magnitude ${v.bestEstimatedMagnitude.toFixed(1)} (${brightnessWord(v.bestEstimatedMagnitude)})`
+        : "brightness unknown — no published standard magnitude for this object";
+    return `predicted visible in sunlight against a dark sky — look ${look} at the apex, ${brightness}`;
   }
   switch (v.reasonIfNotVisible) {
     case "satellite-in-shadow":

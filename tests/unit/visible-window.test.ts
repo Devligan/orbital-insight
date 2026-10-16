@@ -55,10 +55,28 @@ const cases = OBSERVERS.flatMap((observer) =>
     .map((pass) => ({
       observer,
       pass,
-      visibility: enrichPassVisibility({ satrec: vanguard.satrec, pass, observer, windowStart, windowEnd }),
+      visibility: enrichPassVisibility({ satrec: vanguard.satrec, pass, observer, windowStart, windowEnd, standardMagnitude: null }),
     })),
 );
 const visible = cases.filter((c) => c.visibility.fromGround);
+
+describe("brightness honesty", () => {
+  it("never estimates a magnitude for an object without a published standard magnitude", () => {
+    for (const { visibility } of visible) expect(visibility.bestEstimatedMagnitude).toBeNull();
+  });
+
+  it("estimates one when a standard magnitude is supplied, without changing the verdict or window", () => {
+    // Vanguard 1 is listed by Heavens-Above at 10.3 (1000 km, 50% illuminated)
+    // — a value used here only as an input, not asserted as truth.
+    for (const { observer, pass, visibility } of visible) {
+      const withStd = enrichPassVisibility({ satrec: vanguard.satrec, pass, observer, windowStart, windowEnd, standardMagnitude: 10.3 });
+      expect(withStd.bestEstimatedMagnitude).not.toBeNull();
+      expect(withStd.bestEstimatedMagnitude as number).toBeGreaterThan(5); // a 16 cm sphere is never naked-eye
+      expect(withStd.visibleWindow).toEqual(visibility.visibleWindow);
+      expect(withStd.bestTimeMs).toBe(visibility.bestTimeMs);
+    }
+  });
+});
 
 describe("visible window", () => {
   it("the fixture spans both visible and invisible passes (tests below are not vacuous)", () => {
