@@ -17,12 +17,19 @@
  *
  *      m ≈ m₀ − 15 + 5·log₁₀(rangeKm) − 2.5·log₁₀((1 + cos φ)/2)
  *
- * m₀ (standard magnitude at 1 000 km, fully lit, half-phase reference) is
- * size-dependent and per-object physical sizes are unknown to this catalog,
- * so the default m₀ = 0 and every estimate carries an honest ±1.5
- * magnitude-deeplen class uncertainty — the pass still spaces objects into
- * "conspicuous / faint / binocular or worse" buckets far better than a
- * binary visible flag would.
+ * As written, m₀ is the magnitude at 1 000 km range and full phase (φ = 0:
+ * m = m₀ there; half phase reads m₀ + 0.75). Note this differs from the
+ * McCants "standard magnitude" convention (1 000 km, 50 % illuminated) —
+ * any per-object published std-mag must be converted before use here.
+ * m₀ is size-dependent and per-object physical sizes are unknown to this
+ * catalog, so the default m₀ = 0 and every estimate carries an honest ±1.5
+ * magnitude uncertainty — the estimate still sorts objects into
+ * "conspicuous / naked-eye / binoculars" buckets far better than a binary
+ * visible flag would.
+ *
+ * The visible window (when the pass is actually observable) is bracketed by
+ * the per-pass light samples, then each edge is refined by bisection to
+ * about a second.
  */
 
 import { temeToEcf, ecfToLookAngle, type ObserverLocation, type SatRec } from "@/domain/orbit/coordinates";
@@ -45,6 +52,35 @@ const DEFAULT_STANDARD_MAGNITUDE = 0;
 /** Samples per pass for the light sweep. Passes are 5–15 min for LEO. */
 const SAMPLES_PER_PASS = 24;
 
+/**
+ * Bisection steps used to refine each edge of the visible window between two
+ * bracketing samples: the sample gap (≤ ~40 s for LEO passes) shrinks by 2⁶,
+ * to about a second — the same order as the cylindrical-shadow model's own
+ * timing error, so further refinement would only add false precision.
+ */
+const EDGE_REFINEMENT_STEPS = 6;
+
+/** Where and when the observer can actually see the satellite. */
+export interface VisibleMoment {
+  timeMs: number;
+  azimuthDeg: number;
+  elevationDeg: number;
+}
+
+/**
+ * The visible portion of a pass. Assumed contiguous: within one LEO pass the
+ * sky only darkens or brightens monotonically and the satellite crosses the
+ * shadow boundary at most once, so "first visible" → "last visible" bounds it.
+ */
+export interface VisibleWindow {
+  start: VisibleMoment;
+  end: VisibleMoment;
+  /** Visibility begins because the satellite leaves Earth's shadow mid-sky. */
+  startsFromShadow: boolean;
+  /** Visibility ends because the satellite enters Earth's shadow mid-sky. */
+  endsInShadow: boolean;
+}
+
 export interface PassVisibility {
   /** True when at least one sampled instant satisfied all visibility conditions. */
   fromGround: boolean;
@@ -58,14 +94,66 @@ export interface PassVisibility {
   satelliteInShadowAtApex: boolean;
   /** Human-usable plain reason when `fromGround` is false. */
   reasonIfNotVisible: "satellite-in-shadow" | "sky-too-bright" | "both" | null;
+  /** Visible portion of the pass (edges refined to ~1 s); null when never visible. */
+  visibleWindow: VisibleWindow | null;
 }
 
 interface LightSample {
   timeMs: number;
   rangeKm: number;
+  azimuthDeg: number;
+  elevationDeg: number;
   phaseDeg: number;
   inSunlight: boolean;
   observerSunElevationDeg: number;
+}
+
+function isVisible(sample: LightSample): boolean {
+  return sample.inSunlight && sample.observerSunElevationDeg < SKY_DARKNESS_SUN_ELEVATION_DEG;
+}
+
+function lightSampleAt(satrec: SatRec, observer: ObserverLocation, timeMs: number): LightSample {
+  const time = new Date(timeMs);
+  const state = propagateState(satrec, time);
+  const satEci: EciVectorKm = { x: state.teme.positionKm[0], y: state.teme.positionKm[1], z: state.teme.positionKm[2] };
+  const look = ecfToLookAngle(observer, temeToEcf(state.teme, time));
+  return {
+    timeMs,
+    rangeKm: look.rangeKm,
+    azimuthDeg: look.azimuthDeg,
+    elevationDeg: look.elevationDeg,
+    phaseDeg: phaseAngleDeg(satEci, observerEciKm(observer, time), time) as number,
+    inSunlight: satelliteInSunlight(satEci, time),
+    observerSunElevationDeg: sunElevationDegAt(time, observer) as number,
+  };
+}
+
+/**
+ * Bisect between an invisible (`outside`) and a visible (`inside`) sample,
+ * returning the sample nearest the transition on the visible side.
+ */
+function refineEdge(
+  satrec: SatRec,
+  observer: ObserverLocation,
+  outside: LightSample,
+  inside: LightSample,
+): LightSample {
+  let out = outside;
+  let inn = inside;
+  for (let i = 0; i < EDGE_REFINEMENT_STEPS; i++) {
+    const mid = lightSampleAt(satrec, observer, (out.timeMs + inn.timeMs) / 2);
+    if (isVisible(mid)) inn = mid;
+    else out = mid;
+  }
+  return inn;
+}
+
+function toMoment(sample: LightSample): VisibleMoment {
+  return {
+    timeMs: Math.round(sample.timeMs),
+    azimuthDeg: Number(sample.azimuthDeg.toFixed(1)),
+    elevationDeg: Number(sample.elevationDeg.toFixed(1)),
+  };
 }
 
 function estimateMagnitude(stdMag: number, rangeKm: number, phaseDeg: number): number {
@@ -101,27 +189,7 @@ export function enrichPassVisibility(params: {
   const hi = Math.min(setMs, windowEnd.getTime());
   const samples: LightSample[] = [];
   for (let i = 0; i < SAMPLES_PER_PASS; i++) {
-    const timeMs = lo + ((hi - lo) * i) / (SAMPLES_PER_PASS - 1);
-    const time = new Date(timeMs);
-
-    const state = propagateState(satrec, time);
-    const ecf = temeToEcf(state.teme, time);
-    const look = ecfToLookAngle(observer, ecf);
-
-    samples.push({
-      timeMs,
-      rangeKm: look.rangeKm,
-      phaseDeg: phaseAngleDeg(
-        { x: state.teme.positionKm[0], y: state.teme.positionKm[1], z: state.teme.positionKm[2] },
-        observerEciKm(observer, time),
-        time,
-      ) as number,
-      inSunlight: satelliteInSunlight(
-        { x: state.teme.positionKm[0], y: state.teme.positionKm[1], z: state.teme.positionKm[2] },
-        time,
-      ),
-      observerSunElevationDeg: sunElevationDegAt(time, observer) as number,
-    });
+    samples.push(lightSampleAt(satrec, observer, lo + ((hi - lo) * i) / (SAMPLES_PER_PASS - 1)));
   }
 
   // Apex context: the sky-darkness label the card shows alongside the verdict.
@@ -135,8 +203,7 @@ export function enrichPassVisibility(params: {
 
   const best = samples.reduce(
     (brightest, sample) => {
-      if (!sample.inSunlight) return brightest;
-      if (sample.observerSunElevationDeg >= SKY_DARKNESS_SUN_ELEVATION_DEG) return brightest;
+      if (!isVisible(sample)) return brightest;
       const magnitude = estimateMagnitude(DEFAULT_STANDARD_MAGNITUDE, sample.rangeKm, sample.phaseDeg);
       if (magnitude < brightest.magnitude) {
         return { magnitude, timeMs: sample.timeMs };
@@ -165,7 +232,42 @@ export function enrichPassVisibility(params: {
     sunElevationDegAtApex: Number(sunElevationDegAt(apexTime, observer).toFixed(1)),
     satelliteInShadowAtApex: apexInShadow,
     reasonIfNotVisible,
+    visibleWindow: fromGround ? visibleWindowOf(satrec, observer, samples) : null,
   };
 }
 
-export { DEFAULT_STANDARD_MAGNITUDE, estimateMagnitude, SAMPLES_PER_PASS as VISIBILITY_SAMPLES_PER_PASS };
+/**
+ * First → last visible sample, each edge refined by bisection against its
+ * invisible neighbour. An edge at the first/last sample is the pass's own
+ * rise/set (or the window bound) and needs no refinement.
+ */
+function visibleWindowOf(satrec: SatRec, observer: ObserverLocation, samples: LightSample[]): VisibleWindow | null {
+  const first = samples.findIndex(isVisible);
+  if (first === -1) return null;
+  let last = first;
+  for (let i = samples.length - 1; i > first; i--) {
+    if (isVisible(samples[i] as LightSample)) {
+      last = i;
+      break;
+    }
+  }
+
+  const before = samples[first - 1];
+  const after = samples[last + 1];
+  const startSample = before ? refineEdge(satrec, observer, before, samples[first] as LightSample) : (samples[first] as LightSample);
+  const endSample = after ? refineEdge(satrec, observer, after, samples[last] as LightSample) : (samples[last] as LightSample);
+
+  return {
+    start: toMoment(startSample),
+    end: toMoment(endSample),
+    startsFromShadow: before !== undefined && !before.inSunlight,
+    endsInShadow: after !== undefined && !after.inSunlight,
+  };
+}
+
+export {
+  DEFAULT_STANDARD_MAGNITUDE,
+  SKY_DARKNESS_SUN_ELEVATION_DEG,
+  estimateMagnitude,
+  SAMPLES_PER_PASS as VISIBILITY_SAMPLES_PER_PASS,
+};

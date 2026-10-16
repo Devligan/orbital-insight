@@ -11,28 +11,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useWatchlist } from "@/features/watchlist/local-store";
-import { PassCard } from "@/features/pass-prediction/pass-cards";
+import { PassCard, type PassCardData as PassEntry } from "@/features/pass-prediction/pass-cards";
 import { Badge, EmptyState, ErrorState, Loading, Panel, PanelHeader } from "@/components/ui/primitives";
 import { formatUtc } from "@/lib/units";
-
-interface PassEntry {
-  riseTime: string | null;
-  maxTime: string;
-  maxElevationDeg: number;
-  setTime: string | null;
-  truncated: "rise" | "set" | "both" | "none";
-  azimuthAtRiseDeg: number | null;
-  azimuthAtMaxDeg: number;
-  azimuthAtSetDeg: number | null;
-  visibility?: {
-    fromGround: boolean;
-    bestEstimatedMagnitude: number | null;
-    bestTimeIso: string | null;
-    sunElevationDegAtApex: number;
-    satelliteInShadowAtApex: boolean;
-    reasonIfNotVisible: "satellite-in-shadow" | "sky-too-bright" | "both" | "none" | null;
-  };
-}
 
 interface PassSatelliteResult {
   satelliteNumber: string;

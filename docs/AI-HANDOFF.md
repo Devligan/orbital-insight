@@ -36,10 +36,9 @@ A production Next.js (App Router) app where a regular person can:
    accurate — if you change any approximation, update it.
 2. **The quality gates run after every change, with exit codes captured
    directly** (not through output filters that mask status):
-   `npx tsc --noEmit`, `npx eslint` (0 errors; 2 pre-existing warnings in
-   `src/domain/passes/finder.ts` are accepted baseline — do not fix them
-   casually, do not suppress them), `npx vitest run` (currently 83 passed /
-   1 skipped), `npm run build`, `npx playwright test` (21 journeys). All must
+   `npx tsc --noEmit`, `npx eslint .` (0 errors; 15 pre-existing warnings
+   are the accepted baseline — do not fix them casually, do not suppress
+   them), `npx vitest run` (currently 96 passed / 1 skipped), `npm run build`, `npx playwright test` (21 journeys). All must
    be green before any commit. Never weaken assertions or add suppressions to
    pass.
 3. **Architecture discipline.** Routes are thin (`src/lib/http.ts` helpers:
@@ -72,7 +71,12 @@ A production Next.js (App Router) app where a regular person can:
   NOT demote the user to 2D); `cd2b3d7` full-bleed dark globe; `d15e033`
   whole-sky feature.
 - Gates at handoff: tsc 0 · eslint 0 errors · vitest 83 passed/1 skipped ·
-  build 0 · e2e 21/21. Working tree clean.
+  build 0 · e2e 21/21. Working tree clean. (Correction, 2026-10-16: at
+  `562599e`, `eslint .` actually reported 1 error — an unescaped `'` in
+  `/methodology` — which the visible-window commit fixed.)
+- Since then: the "You can actually see" headline (priority 1) shipped. The
+  domain computes a per-pass visible window (edges bisected to ~1 s, with
+  shadow-entry/exit flags), and the home page lists only visible passes.
 - The visibility light layer: `src/domain/light/solar.ts` (sun ephemeris,
   `satelliteInSunlight` cylindrical shadow, `sunElevationDegAt`, and
   `phaseAngleDeg` which takes km-scale geocentric vectors — note the earlier
@@ -103,7 +107,7 @@ A production Next.js (App Router) app where a regular person can:
 
 ## What to build next (owner-approved priorities, in order)
 
-1. **Make the visibility verdict the headline.** SkyTonight currently lists
+1. **(Done — see `src/features/tonight/visible-tonight.ts`.)** **Make the visibility verdict the headline.** SkyTonight currently lists
    next passes; the follow-up loop is a first-class "Tonight you can actually
    see: 0–N objects" list — only passes whose `visibility.fromGround` is
    true, sorted by time, with countdown "in 2 h 05 m", direction words, and

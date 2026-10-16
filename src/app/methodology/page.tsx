@@ -129,16 +129,28 @@ const SECTIONS = [
         <li>
           <strong>Passes ≠ visibility.</strong> A predicted pass is orbital geometry relative to your coordinates.
           Visual-visibility judgements model <em>sunlight geometry</em> — the satellite must be lit (cylindrical
-          shadow test) and the observer's sky must be past civil twilight (sun below −6°) — plus a
+          shadow test) and the observer&apos;s sky must be past civil twilight (sun below −6°) — plus a
           phase-corrected apparent-magnitude estimate. That estimate carries roughly ±1.5 magnitudes of
           uncertainty (object sizes are not in the catalog), and clouds, weather, and eyesight are not modeled,
           so this still is not an observing forecast.
         </li>
         <li>
+          <strong>The visible window.</strong> Each pass is sampled 24 times between rise and set; the first and
+          last visible samples bracket when it can actually be seen, and each edge is refined by bisection to about
+          a second (finer would be false precision — the shadow model itself is good to seconds). The window is
+          assumed contiguous: within one pass the sky only darkens or brightens, and the satellite crosses the
+          shadow boundary at most once. An edge in mid-sky has only two possible causes under this model, and the
+          home page names which: Earth&apos;s shadow (&ldquo;fades into Earth&apos;s shadow 25° up in the E&rdquo;)
+          or twilight (&ldquo;lost in the brightening sky&rdquo;). The home
+          page lists only passes with a visible window still ahead; every geometric pass remains one click away.
+        </li>
+        <li>
           <strong>Light-model approximations.</strong> The sun position is the low-precision Astronomical
           Almanac approximation (~0.01°, far coarser than we need for the lit/unlit decisions); shadow timing
-          ignores penumbra and atmospheric refraction (seconds of difference); brightness assumes Lambertian
-          diffuse reflection. Standards for a plan-outside tool, not for photometry.
+          ignores penumbra and atmospheric refraction (seconds of difference); brightness scales with range²
+          and the illuminated fraction (1 + cos φ)/2 of phase angle φ — a simpler stand-in for a diffuse
+          sphere&apos;s phase function — from a default reference magnitude of 0 at 1 000 km and full phase.
+          Standards for a plan-outside tool, not for photometry.
         </li>
         <li>
           <strong>Manoeuvring objects</strong> (spacecraft with thrusters, de-orbit schedules, dodging debris) can

@@ -242,11 +242,17 @@ test.describe("location-first + shareable moments", () => {
     await page.context().setGeolocation({ latitude: 0, longitude: 0 });
     await page.goto("/");
     await page.getByRole("button", { name: /Show me tonight's passes/i }).click();
-    // Real predictions arrive (cards), or the honest per-satellite no-pass
-    // message — never a spinner forever and never fabricated times.
+    // The headline answer arrives: visible passes, or the truthful reason
+    // there are none — never a spinner forever and never fabricated times.
+    await expect(
+      page.locator('[data-testid="tonight-visible-list"]').or(page.locator('[data-testid="tonight-visible-empty"]')).first(),
+    ).toBeVisible({ timeout: 90_000 });
+    // Every geometric pass stays one click away: real cards, or the honest
+    // per-satellite no-pass message.
+    await page.getByText(/Every pass in the next 24 hours/i).click();
     await expect(
       page.locator('[data-testid="tonight-pass-cards"]').or(page.getByText(/Doesn't clear your horizon/i)).first(),
-    ).toBeVisible({ timeout: 90_000 });
+    ).toBeVisible({ timeout: 10_000 });
   });
 
   test("the URL names the viewed object and instant, and reopening reproduces it", async ({ page }) => {

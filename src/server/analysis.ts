@@ -13,7 +13,7 @@ import { temeToEcf } from "@/domain/orbit/coordinates";
 import { buildGroundTrackSegments } from "@/domain/orbit/ground-track";
 import { computeCharacteristics, type OrbitalCharacteristics } from "@/domain/orbit/characteristics";
 import { findPasses, type PassSearchParams } from "@/domain/passes/finder";
-import { enrichPassVisibility } from "@/domain/passes/visibility";
+import { enrichPassVisibility, type VisibleMoment } from "@/domain/passes/visibility";
 import type { PassResult } from "@/domain/passes/types";
 import type { PassResultDto } from "@/contracts/orbital";
 import { SatelliteService, type DataLineage, satelliteService } from "./satellites";
@@ -418,8 +418,20 @@ function toPassEntryDto(sat: PassSearchEntry, passes: PassResult[]): PassResultD
             sunElevationDegAtApex: pass.visibility.sunElevationDegAtApex,
             satelliteInShadowAtApex: pass.visibility.satelliteInShadowAtApex,
             reasonIfNotVisible: pass.visibility.reasonIfNotVisible ?? null,
+            visibleWindow: pass.visibility.visibleWindow
+              ? {
+                  start: toMomentDto(pass.visibility.visibleWindow.start),
+                  end: toMomentDto(pass.visibility.visibleWindow.end),
+                  startsFromShadow: pass.visibility.visibleWindow.startsFromShadow,
+                  endsInShadow: pass.visibility.visibleWindow.endsInShadow,
+                }
+              : null,
           }
         : undefined,
     })),
   };
+}
+
+function toMomentDto(moment: VisibleMoment): { timeIso: string; azimuthDeg: number; elevationDeg: number } {
+  return { timeIso: new Date(moment.timeMs).toISOString(), azimuthDeg: moment.azimuthDeg, elevationDeg: moment.elevationDeg };
 }

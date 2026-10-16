@@ -112,6 +112,13 @@ export const passPredictionRequestSchema = z.object({
 });
 export type PassPredictionRequest = z.infer<typeof passPredictionRequestSchema>;
 
+/** A point on the sky at an instant: where to look, and when. */
+const visibleMomentSchema = z.object({
+  timeIso: z.string(),
+  azimuthDeg: z.number(),
+  elevationDeg: z.number(),
+});
+
 /** Pass-prediction response item. */
 export const passResultSchema = z.object({
   satelliteNumber: z.string(),
@@ -136,6 +143,17 @@ export const passResultSchema = z.object({
           sunElevationDegAtApex: z.number(),
           satelliteInShadowAtApex: z.boolean(),
           reasonIfNotVisible: z.enum(["satellite-in-shadow", "sky-too-bright", "both", "none"]).nullable(),
+          /** Observable portion of the pass (edges ~1 s); null when never visible. */
+          visibleWindow: z
+            .object({
+              start: visibleMomentSchema,
+              end: visibleMomentSchema,
+              /** Appears mid-sky as it leaves Earth's shadow. */
+              startsFromShadow: z.boolean(),
+              /** Fades out mid-sky as it enters Earth's shadow. */
+              endsInShadow: z.boolean(),
+            })
+            .nullable(),
         })
         .optional(),
     }),

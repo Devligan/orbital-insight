@@ -11,32 +11,9 @@
  */
 
 import { formatUtc } from "@/lib/units";
+import { brightnessWord, compassPoint, type PassCardData } from "./sky-words";
 
-export interface PassCardData {
-  riseTime: string | null;
-  maxTime: string;
-  maxElevationDeg: number;
-  setTime: string | null;
-  azimuthAtRiseDeg: number | null;
-  azimuthAtMaxDeg: number;
-  azimuthAtSetDeg: number | null;
-  truncated: "rise" | "set" | "both" | "none";
-  /** Light-state evaluation — present when the server computed it. */
-  visibility?: {
-    fromGround: boolean;
-    bestEstimatedMagnitude: number | null;
-    bestTimeIso: string | null;
-    sunElevationDegAtApex: number;
-    satelliteInShadowAtApex: boolean;
-    reasonIfNotVisible: "satellite-in-shadow" | "sky-too-bright" | "both" | "none" | null;
-  };
-}
-
-/** 0–360° azimuth → the 8 compass points a human actually uses. */
-export function compassPoint(azimuthDeg: number): string {
-  const points = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-  return points[Math.round(((azimuthDeg % 360) / 45)) % 8] ?? "N";
-}
+export { brightnessWord, compassPoint, type PassCardData };
 
 /**
  * The visibility verdict, in words a human plans around. Magnitudes are
@@ -47,13 +24,7 @@ export function visibilityLine(pass: PassCardData): string | null {
   if (!v) return null;
   if (v.fromGround && v.bestEstimatedMagnitude !== null) {
     const look = compassPoint(pass.azimuthAtMaxDeg);
-    const brightness =
-      v.bestEstimatedMagnitude <= 3.5
-        ? "conspicuous"
-        : v.bestEstimatedMagnitude <= 6
-          ? "naked-eye"
-          : "needs binoculars";
-    return `visually confirmed in sunlight — look ${look} at the apex, estimated magnitude ${v.bestEstimatedMagnitude.toFixed(1)} (${brightness})`;
+    return `predicted visible in sunlight against a dark sky — look ${look} at the apex, estimated magnitude ${v.bestEstimatedMagnitude.toFixed(1)} (${brightnessWord(v.bestEstimatedMagnitude)})`;
   }
   switch (v.reasonIfNotVisible) {
     case "satellite-in-shadow":
