@@ -11,7 +11,15 @@ import { Loading } from "@/components/ui/primitives";
  */
 export default function HomePage() {
   return (
-    <Suspense fallback={<Loading label="Loading explorer…" />}>
+    // The fallback reserves a full screen: a one-line placeholder let the
+    // footer paint in view and then jump (CLS 0.108 on phones).
+    <Suspense
+      fallback={
+        <div className="min-h-[calc(100svh-56px)]">
+          <Loading label="Loading explorer…" />
+        </div>
+      }
+    >
       <ExplorerView
         initialSatellite={{ satelliteNumber: "25544", name: "ISS (ZARYA)" }}
       />

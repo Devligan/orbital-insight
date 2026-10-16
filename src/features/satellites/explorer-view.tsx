@@ -22,6 +22,7 @@ import { useWatchlist } from "@/features/watchlist/local-store";
 import { useObserverLocation } from "@/features/observer/use-observer-location";
 import { SkyTonight } from "@/features/tonight/sky-tonight";
 import { copyToClipboard } from "@/lib/clipboard";
+import { useDeferredMount } from "@/lib/use-deferred-mount";
 import { ErrorState, Loading } from "@/components/ui/primitives";
 import { formatUtc } from "@/lib/units";
 
@@ -103,6 +104,8 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
   const [globeUnavailable, setGlobeUnavailable] = useState(false);
   const [wholeSky, setWholeSky] = useState(true); // the hero visual
   const [copied, setCopied] = useState(false);
+  const globeHostRef = useRef<HTMLDivElement>(null);
+  const globeReady = useDeferredMount(globeHostRef);
 
   const displayName = detail?.name ?? initial.name;
 
@@ -236,21 +239,31 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
             ) : (
               /* Globe: the visual anchor. On desktop it fills the viewport
                  height beside the tonight column; on phones a tall band. */
-              <div className="panel relative h-[60vh] min-h-[420px] overflow-hidden lg:h-[calc(100vh-13rem)] lg:max-h-[920px] lg:min-h-[520px]">
-                <SkyField
-                  samples={positions}
-                  trackSegments={trackSegmentsPt ?? []}
-                  name={displayName}
-                  sampleIntervalSeconds={intervalSeconds}
-                  onUnavailable={() => setGlobeUnavailable(true)}
-                  cloud={wholeSky}
-                  onSelectSatellite={(satnum) => {
-                    if (satnum) {
-                      setWholeSky(true);
-                      setSelectedId(satnum);
-                    }
-                  }}
-                />
+              <div
+                ref={globeHostRef}
+                className="panel relative h-[60vh] min-h-[420px] overflow-hidden lg:h-[calc(100vh-13rem)] lg:max-h-[920px] lg:min-h-[520px]"
+              >
+                {/* Mounted when near the viewport and the browser is idle — on
+                    phones the globe is below the fold, and starting Cesium at
+                    load froze taps on the tonight button for ~2.4 s. */}
+                {globeReady ? (
+                  <SkyField
+                    samples={positions}
+                    trackSegments={trackSegmentsPt ?? []}
+                    name={displayName}
+                    sampleIntervalSeconds={intervalSeconds}
+                    onUnavailable={() => setGlobeUnavailable(true)}
+                    cloud={wholeSky}
+                    onSelectSatellite={(satnum) => {
+                      if (satnum) {
+                        setWholeSky(true);
+                        setSelectedId(satnum);
+                      }
+                    }}
+                  />
+                ) : (
+                  <Loading label="Loading 3D globe…" />
+                )}
                 {globeUnavailable ? (
                   <div className="absolute inset-0 overflow-auto bg-[var(--color-bg-panel)] p-4">
                     <p className="mb-2 text-[13px] text-[var(--color-status-warn)]">
