@@ -55,16 +55,38 @@ test.describe("explorer journey", () => {
     await expect(page.getByRole("link", { name: /source record/i })).toBeVisible();
   });
 
-  test("time slider moves the displayed prediction timestamp", async ({ page }) => {
+  test("time slider moves the globe itself, not just the readout", async ({ page }) => {
+    // The slider once changed only a text readout while the globe sat frozen
+    // at page-load time; a readout-only assertion passed throughout. This
+    // reads the instant back from Cesium's own clock.
     await page.goto("/");
     await page.getByRole("button", { name: "ISS (ZARYA)" }).first().click();
     const slider = page.getByRole("slider");
     await expect(slider).toBeEnabled({ timeout: 30_000 });
+    const globe = page.locator('[aria-label^="3D globe showing"]');
+    await expect(globe).toHaveAttribute("data-clock-rate", "1", { timeout: 60_000 });
+    await expect(page.getByText("Live", { exact: true })).toBeVisible();
+    // The station is drawn where it is: ~400 km up, read back from Cesium.
+    // (km samples once went in as metres, putting it inside the Earth.)
+    await expect(globe).toHaveAttribute("data-satellite-altitude-km", /\d+/, { timeout: 30_000 });
+    const altitudeKm = Number(await globe.getAttribute("data-satellite-altitude-km"));
+    expect(altitudeKm).toBeGreaterThan(350);
+    expect(altitudeKm).toBeLessThan(460);
     const readout = page.locator("#time-slider ~ *").last();
-    const before = await readout.textContent();
-    await slider.fill(String(24));
-    const after = await readout.textContent();
-    expect(after).not.toEqual(before);
+    const readoutBefore = await readout.textContent();
+    const before = Date.parse((await globe.getAttribute("data-clock-instant")) ?? "");
+
+    await slider.fill(String(24)); // 24 steps of the 6 h / 72-sample window ≈ 2 h
+    await expect(globe).toHaveAttribute("data-clock-rate", "0");
+    const after = Date.parse((await globe.getAttribute("data-clock-instant")) ?? "");
+    const aheadMinutes = (after - before) / 60_000;
+    expect(aheadMinutes).toBeGreaterThan(100);
+    expect(aheadMinutes).toBeLessThan(140);
+    expect(await readout.textContent()).not.toEqual(readoutBefore);
+
+    await page.getByRole("button", { name: /Back to live/i }).click();
+    await expect(globe).toHaveAttribute("data-clock-rate", "1");
+    await expect(page.getByText("Live", { exact: true })).toBeVisible();
   });
 });
 

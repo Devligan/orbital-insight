@@ -118,6 +118,12 @@ A production Next.js (App Router) app where a regular person can:
   10 min after a failure; `scripts/build-search-index.mjs` reuses a snapshot
   younger than 6 h (`SEARCH_INDEX_FORCE_REFRESH=1` to refetch) and never
   overwrites a good snapshot with a failed refresh. Keep it that way.
+- **Globe correctness is asserted from Cesium itself**: the globe container
+  carries `data-clock-instant`, `data-clock-rate` and
+  `data-satellite-altitude-km` read back from Cesium. Keep them — readout-only
+  checks once passed while the slider moved nothing and the followed
+  satellite sat inside the Earth (km samples fed to Cesium as metres; see
+  `cesium-units.ts`). The explorer's single clock is `view-clock.ts`.
 - **Dev mode hides minifier bugs.** The globe once shipped broken only in
   production (a Cesium dependency's WASM string minified into invalid JS).
   Judge visual work against a production build, and look at it: screenshots

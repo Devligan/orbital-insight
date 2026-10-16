@@ -9,9 +9,12 @@
  *  - propagates continuously in round-robin batches against a shared
  *    simulation clock; every post is a flat Float32Array (zero-copy transfer)
  *
- * Time contract: simulation time runs in real time from the init instant
- * (`now = start + elapsedWall × speed`). GEO objects stay put over their
- * longitude because eciToGeodetic folds in Earth's rotation via GMST.
+ * Time contract: simulation time follows the explorer's shared clock
+ * (`sim = baseSim + elapsedWall × rate`, see view-clock.ts), set at init and
+ * on every `clock` message. rate 0 = paused at a chosen instant: the worker
+ * finishes one full sweep at that instant (so every dot moves there), then
+ * idles instead of recomputing identical positions. GEO objects stay put over
+ * their longitude because eciToGeodetic folds in Earth's rotation via GMST.
  */
 
 import { eciToGeodetic, gstime, sgp4, twoline2satrec } from "satellite.js";
@@ -26,14 +29,23 @@ export interface SkyWorkerEntry {
 export interface InitMessage {
   type: "init";
   entries: SkyWorkerEntry[];
-  /** Simulation-clock start, epoch ms (UTC). */
+  /** Simulated instant at init, epoch ms (UTC). */
   startMs: number;
+  /** Simulated ms per wall ms at init (0 paused, 1 real time, 60 fast-forward). */
+  rate: number;
   /** Batch size per tick and tick interval (ms) — tuned by the main thread. */
   batchSize: number;
   tickMs: number;
 }
 
-export type SkyWorkerInbound = InitMessage | { type: "speed"; speed: number } | { type: "pause"; paused: boolean };
+/** Re-base the simulation clock: show `simMs` now, advancing at `rate`. */
+export interface ClockMessage {
+  type: "clock";
+  simMs: number;
+  rate: number;
+}
+
+export type SkyWorkerInbound = InitMessage | ClockMessage;
 
 export type { SkyCategory };
 
@@ -68,23 +80,24 @@ const MINUTE_MS = 60_000;
 let compiled: Compiled[] = [];
 let ids: string[] = [];
 let cursor = 0;
-let startMs = 0;
-let clockBaseMs = 0; // wall time when the clock (re)started
+let clockBaseMs = 0; // wall time when the clock was last re-based
 let clockBaseSimMs = 0; // simulated time at that wall instant
-let speed = 1;
-let paused = false;
+let rate = 1;
+/** Objects still to propagate before a paused clock's sweep is complete. */
+let remainingInSweep = 0;
 let timer: ReturnType<typeof setInterval> | null = null;
 let batchSize = 600;
 let tickMs = 140;
 
 function simTimeMs(): number {
-  if (paused) return clockBaseSimMs;
-  return clockBaseSimMs + (Date.now() - clockBaseMs) * speed;
+  return clockBaseSimMs + (Date.now() - clockBaseMs) * rate;
 }
 
-function setClockBase(): void {
-  clockBaseSimMs = simTimeMs();
+function setClock(simMs: number, nextRate: number): void {
+  clockBaseSimMs = simMs;
   clockBaseMs = Date.now();
+  rate = nextRate;
+  remainingInSweep = compiled.length;
 }
 
 self.onmessage = (event: MessageEvent<SkyWorkerInbound>) => {
@@ -113,9 +126,7 @@ self.onmessage = (event: MessageEvent<SkyWorkerInbound>) => {
           failed++;
         }
       }
-      startMs = message.startMs;
-      clockBaseMs = Date.now();
-      clockBaseSimMs = startMs;
+      setClock(message.startMs, message.rate);
       batchSize = message.batchSize;
       tickMs = message.tickMs;
       cursor = 0;
@@ -133,19 +144,8 @@ self.onmessage = (event: MessageEvent<SkyWorkerInbound>) => {
     }
     return;
   }
-  if (message.type === "speed") {
-    setClockBase();
-    speed = message.speed;
-    return;
-  }
-  if (message.type === "pause") {
-    if (message.paused && !paused) {
-      setClockBase();
-      paused = true;
-    } else if (!message.paused && paused) {
-      paused = false;
-      setClockBase();
-    }
+  if (message.type === "clock") {
+    setClock(message.simMs, message.rate);
   }
 };
 
@@ -198,13 +198,18 @@ function julianEpochMs(satrec: ReturnType<typeof twoline2satrec>): number {
 function startLoop(): void {
   if (timer) clearInterval(timer);
   timer = setInterval(() => {
-    if (paused) return;
+    // Paused and every object already drawn at the paused instant: idle.
+    if (rate === 0 && remainingInSweep <= 0) return;
     const batch = computeBatch();
     if (!batch) return;
+    remainingInSweep -= batchSize;
     const { idx, values } = batch.msg;
     self.postMessage(batch.msg, { transfer: [idx.buffer, values.buffer] });
   }, tickMs);
   // Prime the cloud with the first batch immediately.
   const first = computeBatch();
-  if (first) self.postMessage(first.msg, { transfer: [first.msg.idx.buffer, first.msg.values.buffer] });
+  if (first) {
+    remainingInSweep -= batchSize;
+    self.postMessage(first.msg, { transfer: [first.msg.idx.buffer, first.msg.values.buffer] });
+  }
 }

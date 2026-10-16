@@ -28,6 +28,15 @@ const GP_URL = "https://celestrak.org/NORAD/elements/gp.php";
 const DEFAULT_TIMEOUT_MS = 15_000;
 /** Minimum interval between outbound requests from a client instance. */
 const MIN_REQUEST_INTERVAL_MS = 2_000;
+/**
+ * Circuit breaker: after an outage-type failure (unreachable, timeout,
+ * throttled, 5xx/403), further requests fail immediately for this long
+ * instead of each waiting out a fresh timeout. Callers then fall back to
+ * cached data at once. (Measured during a CelesTrak block: every object's
+ * first lookup took ~11 s before falling back; and re-asking a provider that
+ * is blocking you prolongs the block.)
+ */
+const OUTAGE_COOLDOWN_MS = 2 * 60_000;
 
 export type CelestrakFailureReason =
   | "network"
@@ -100,8 +109,31 @@ export function parseGpTleResponse(text: string): NamedElementSet[] {
 
 export class HttpCelestrakClient implements CelestrakClient {
   private lastRequestAt = 0;
+  /** Open circuit: no requests until `until`; fail fast with the cause. */
+  private outage: { until: number; reason: CelestrakFailureReason; message: string } | null = null;
+
+  constructor(private readonly now: () => number = Date.now) {}
 
   async fetchGpTle(query: GpQuery, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<NamedElementSet[]> {
+    if (this.outage && this.now() < this.outage.until) {
+      throw new ProviderError(
+        this.outage.reason,
+        `${this.outage.message} (not retrying until ${new Date(this.outage.until).toISOString().slice(11, 19)} UTC)`,
+      );
+    }
+    try {
+      const result = await this.request(query, timeoutMs);
+      this.outage = null;
+      return result;
+    } catch (error) {
+      if (error instanceof ProviderError && isOutage(error)) {
+        this.outage = { until: this.now() + OUTAGE_COOLDOWN_MS, reason: error.reason, message: error.message };
+      }
+      throw error;
+    }
+  }
+
+  private async request(query: GpQuery, timeoutMs: number): Promise<NamedElementSet[]> {
     await this.throttle();
 
     const url = new URL(GP_URL);
@@ -112,7 +144,9 @@ export class HttpCelestrakClient implements CelestrakClient {
     try {
       response = await this.doFetch(url.toString(), timeoutMs);
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
+      // AbortSignal.timeout() rejects with "TimeoutError" (not "AbortError"),
+      // which was being mislabelled as a network failure.
+      if (error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError")) {
         throw new ProviderError("timeout", `CelesTrak request timed out after ${timeoutMs}ms`);
       }
       throw new ProviderError("network", "Could not reach CelesTrak", {
@@ -168,6 +202,14 @@ export class HttpCelestrakClient implements CelestrakClient {
       },
     });
   }
+}
+
+/** Failures that mean "the provider isn't serving us right now" (vs. a bad query). */
+function isOutage(error: ProviderError): boolean {
+  if (error.reason === "network" || error.reason === "timeout" || error.reason === "rate-limited") return true;
+  if (error.reason !== "server-error") return false;
+  const status = (error.details as { status?: number } | undefined)?.status;
+  return status === undefined || status === 403 || status >= 500;
 }
 
 /** Singleton for route handlers; tests inject their own instances. */

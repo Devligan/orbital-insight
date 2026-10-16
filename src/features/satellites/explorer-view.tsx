@@ -23,6 +23,17 @@ import { useObserverLocation } from "@/features/observer/use-observer-location";
 import { SkyTonight } from "@/features/tonight/sky-tonight";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useDeferredMount } from "@/lib/use-deferred-mount";
+import {
+  FAST_FORWARD_RATE,
+  isLive,
+  liveClock,
+  offsetLabel,
+  pausedAt,
+  simTimeAt,
+  sliderIndexFor,
+  withRate,
+  type ViewClock,
+} from "@/features/orbit-visualization/view-clock";
 import { ErrorState, Loading } from "@/components/ui/primitives";
 import { formatUtc } from "@/lib/units";
 
@@ -33,6 +44,11 @@ const SkyField = dynamic(
 );
 
 const DEFAULT_SATELLITE = { satelliteNumber: "25544", name: "ISS (ZARYA)" };
+
+/** Position window: 10 min before now → 6 h after, one sample every 5 min. */
+const WINDOW_LEAD_MS = 10 * 60_000;
+const WINDOW_HOURS = 6 + WINDOW_LEAD_MS / 3_600_000;
+const WINDOW_SAMPLES = Math.round((WINDOW_HOURS * 60) / 5) + 1; // 75
 
 /** The tracked object's orbit view + the (default-on) whole-sky cloud. */
 
@@ -97,8 +113,11 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
   const [detail, setDetail] = useState<SatelliteDetail["data"] | null>(null);
   const [positions, setPositions] = useState<EciSample[]>([]);
   const [trackSegmentsPt, setTrackSegmentsPt] = useState<[number, number][][]>();
-  const [intervalSeconds, setIntervalSeconds] = useState(60);
-  const [timeIndex, setTimeIndex] = useState(0);
+  // One clock for the whole view (see view-clock.ts): live by default; the
+  // slider pauses it at a chosen instant; fast-forward runs it at 60×.
+  const [clock, setClock] = useState<ViewClock>(() => liveClock(Date.now()));
+  const [wallNow, setWallNow] = useState(() => Date.now());
+  const [loaded, setLoaded] = useState<{ satelliteNumber: string; name: string } | null>(null);
   const [error, setError] = useState<{ kind: string; message: string } | null>(null);
   const [busy, setBusy] = useState(true);
   const [globeUnavailable, setGlobeUnavailable] = useState(false);
@@ -108,6 +127,8 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
   const globeReady = useDeferredMount(globeHostRef);
 
   const displayName = detail?.name ?? initial.name;
+  // The current selection, readable from async loads (stale-response guard).
+  const selectedIdRef = useRef(selectedId);
 
   const load = useCallback(async (satelliteNumber: string, initialIndex: number) => {
     // Yield to the microtask queue first: setState after an await is an
@@ -115,7 +136,6 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
     await Promise.resolve();
     setBusy(true);
     setError(null);
-    setTimeIndex(0);
     // NOTE: globeUnavailable is deliberately NOT reset here. WebGL
     // availability is a property of the machine/session, not of the selected
     // satellite — resetting it would unstick the fallback and leave the 3D
@@ -123,7 +143,12 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
     try {
       const [detailRes, positionsRes, trackRes] = await Promise.all([
         fetch(`/api/satellites/${satelliteNumber}`),
-        fetch(`/api/satellites/${satelliteNumber}/positions?hours=6&samples=72`),
+        // Window opens 10 min before this device's "now" (5-min steps to +6 h)
+        // so the current instant is always inside the samples, whatever the
+        // latency or clock skew — otherwise the globe has nothing to draw.
+        fetch(
+          `/api/satellites/${satelliteNumber}/positions?start=${new Date(Date.now() - WINDOW_LEAD_MS).toISOString()}&hours=${WINDOW_HOURS}&samples=${WINDOW_SAMPLES}`,
+        ),
         fetch(`/api/satellites/${satelliteNumber}/ground-track?hours=24&samples=240`),
       ]);
       const detailBody = (await detailRes.json()) as SatelliteDetail;
@@ -135,17 +160,21 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
         setBusy(false);
         return;
       }
-      const sampleCount = positionsBody.data?.positions.length ?? 0;
-      // Only adopt a new detail when it matches the selection at completion
-      // time — a slow response for an earlier click must never overwrite the
-      // data of a later one.
+      // A slow response for an earlier click must never overwrite the data of
+      // a later one — for the detail card, the positions, and the track alike.
+      if (satelliteNumber !== selectedIdRef.current) return;
       if (detailBody.data && detailBody.data.satelliteNumber === satelliteNumber) {
         setDetail(detailBody.data);
       }
-      setPositions(positionsBody.data ? toEciSamples(positionsBody.data.positions) : []);
+      const samples = positionsBody.data ? toEciSamples(positionsBody.data.positions) : [];
+      setPositions(samples);
       setTrackSegmentsPt(toTrackSegments(trackBody.data));
-      setIntervalSeconds(trackBody.data?.sampleIntervalSeconds ?? 60);
-      setTimeIndex(initialIndex > 0 ? Math.min(initialIndex, Math.max(sampleCount - 1, 0)) : 0);
+      // The globe draws what these samples are: its id/name come from the
+      // loaded data, not the (possibly newer) selection.
+      setLoaded({ satelliteNumber, name: detailBody.data?.name ?? satelliteNumber });
+      // A shared link's step (?t=) opens paused at that instant.
+      const linked = initialIndex > 0 ? samples[Math.min(initialIndex, samples.length - 1)] : undefined;
+      if (linked) setClock(pausedAt(Date.parse(linked.time), Date.now()));
     } catch {
       setError({ kind: "network", message: "Could not reach the analysis service" });
     } finally {
@@ -153,13 +182,48 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
     }
   }, []);
 
+  // The shared link's instant applies to the first load only — switching
+  // satellites afterwards keeps whatever time the user is looking at.
+  const pendingLinkStepRef = useRef(urlTime);
   useEffect(() => {
+    selectedIdRef.current = selectedId;
     // Defer via a timer: setState happens in a callback, not synchronously
     // within the effect body.
-    const t = setTimeout(() => void load(selectedId, urlTime), 0);
+    const step = pendingLinkStepRef.current;
+    pendingLinkStepRef.current = 0;
+    const t = setTimeout(() => void load(selectedId, step), 0);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId]);
+  }, [selectedId, load]);
+
+  // One-second tick: advances the slider/readout, stops fast-forward at the
+  // end of the predicted window, and fetches a fresh 6 h window before live
+  // time runs past the current one.
+  const clockRef = useRef(clock);
+  const positionsRef = useRef(positions);
+  const lastRefreshRef = useRef(0);
+  useEffect(() => {
+    clockRef.current = clock;
+    positionsRef.current = positions;
+  });
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = Date.now();
+      setWallNow(now);
+      const samples = positionsRef.current;
+      const last = samples[samples.length - 1];
+      if (!last) return;
+      const current = clockRef.current;
+      const endMs = Date.parse(last.time);
+      const sim = simTimeAt(current, now);
+      if (current.rate > 1 && sim >= endMs) {
+        setClock(pausedAt(endMs, now));
+      } else if (current.rate === 1 && sim > endMs - 60 * 60_000 && now - lastRefreshRef.current > 5 * 60_000) {
+        lastRefreshRef.current = now;
+        void load(selectedIdRef.current, 0);
+      }
+    }, 1_000);
+    return () => clearInterval(id);
+  }, [load]);
 
   // URL sync through the router only (raw window.history writes broke later
   // client navigation). On satellite *changes* only — slider ticks would
@@ -181,6 +245,11 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
     });
   }
 
+  const simNow = simTimeAt(clock, wallNow);
+  const live = isLive(clock, wallNow);
+  const windowStartMs = positions[0] ? Date.parse(positions[0].time) : 0;
+  const stepMs = positions[1] && positions[0] ? Date.parse(positions[1].time) - windowStartMs : 0;
+  const timeIndex = sliderIndexFor(simNow, windowStartMs, stepMs, positions.length);
   const selected = positions[timeIndex] ?? null;
 
   return (
@@ -250,8 +319,9 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
                   <SkyField
                     samples={positions}
                     trackSegments={trackSegmentsPt ?? []}
-                    name={displayName}
-                    sampleIntervalSeconds={intervalSeconds}
+                    name={loaded?.name ?? displayName}
+                    satelliteNumber={loaded?.satelliteNumber ?? selectedId}
+                    clock={clock}
                     onUnavailable={() => setGlobeUnavailable(true)}
                     cloud={wholeSky}
                     onSelectSatellite={(satnum) => {
@@ -286,30 +356,70 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
               </div>
             )}
 
-            {/* Time slider row */}
-            <div className="panel flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+            {/* Time controls: the slider drives the whole globe (satellite,
+                model, every whole-sky dot) through the shared clock. */}
+            <div className="panel flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
               <label htmlFor="time-slider" className="label shrink-0">
                 Time
               </label>
-              <span className="text-[11px] text-[var(--color-text-muted)]">now</span>
+              {live ? (
+                <span className="badge badge-good shrink-0" title="Positions update in real time">
+                  <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[var(--color-status-good)]" />
+                  Live
+                </span>
+              ) : (
+                <button
+                  className="badge shrink-0 text-[var(--color-accent)] hover:border-[var(--color-accent)]"
+                  onClick={() => setClock(liveClock(Date.now()))}
+                >
+                  ↺ Back to live
+                </button>
+              )}
               <input
                 id="time-slider"
                 type="range"
                 className="min-w-0 flex-1"
                 min={0}
                 max={Math.max(positions.length - 1, 0)}
-                value={Math.min(timeIndex, Math.max(positions.length - 1, 0))}
-                onChange={(e) => setTimeIndex(Number(e.target.value))}
+                value={timeIndex}
+                onChange={(e) => {
+                  const sample = positions[Number(e.target.value)];
+                  if (sample) setClock(pausedAt(Date.parse(sample.time), Date.now()));
+                }}
                 disabled={positions.length === 0}
                 aria-valuemin={0}
                 aria-valuemax={positions.length - 1}
                 aria-valuenow={timeIndex}
-                aria-valuetext={selected ? formatUtc(new Date(selected.time)) : "no data"}
+                aria-valuetext={positions.length ? `${offsetLabel(simNow, wallNow)}, ${formatUtc(new Date(simNow))}` : "no data"}
               />
               <span className="text-[11px] text-[var(--color-text-muted)]">+6 h</span>
+              <button
+                className="badge shrink-0 text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
+                disabled={positions.length === 0}
+                aria-pressed={clock.rate === FAST_FORWARD_RATE}
+                onClick={() =>
+                  setClock(
+                    clock.rate === FAST_FORWARD_RATE
+                      ? pausedAt(simNow, Date.now())
+                      : withRate(clock, FAST_FORWARD_RATE, Date.now()),
+                  )
+                }
+                title="Fast-forward: one hour of orbits per minute"
+              >
+                {clock.rate === FAST_FORWARD_RATE ? "❚❚ Pause" : "▶ 60×"}
+              </button>
               {/* Own line on phones: the fixed-width UTC stamp overflowed a 390px screen. */}
               <span className="data-value w-full text-right text-[13px] sm:w-auto sm:min-w-[19ch]">
-                {selected ? formatUtc(new Date(selected.time)) : "—"}
+                {positions.length ? (
+                  <>
+                    {!live ? (
+                      <span className="mr-2 text-[var(--color-accent)]">{offsetLabel(simNow, wallNow)}</span>
+                    ) : null}
+                    {formatUtc(new Date(simNow))}
+                  </>
+                ) : (
+                  "—"
+                )}
               </span>
             </div>
           </div>
@@ -329,7 +439,10 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
                   : "Measuring its orbit…"}
               </p>
               <p className="text-[13px] text-[var(--color-text-muted)]">
-                The dot on the view is where it is right now — slide the time to see where it goes next.
+                Shown where it is right now — drag the time slider (or fast-forward) to see where it goes next.
+                {selectedId === "25544"
+                  ? " The 3D station model (NASA) is drawn enlarged; the real ISS is about 109 m across."
+                  : ""}
               </p>
               {detail ? (
                 <p className="mt-2 text-[11px] text-[var(--color-text-muted)]">

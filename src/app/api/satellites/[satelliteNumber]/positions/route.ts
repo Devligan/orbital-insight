@@ -1,5 +1,5 @@
 /**
- * GET /api/satellites/:satelliteNumber/positions?hours=&samples=
+ * GET /api/satellites/:satelliteNumber/positions?hours=&samples=&start=
  *
  * Bounded sampled positions (≤ 48 h, ≤ 600 samples) in TEME and ECEF km plus
  * geodetic values, for orbit rendering and the time slider. These are
@@ -23,6 +23,18 @@ export async function GET(request: Request, context: { params: Promise<{ satelli
       .object({
         hours: z.coerce.number().min(1).max(48).default(6).optional(),
         samples: z.coerce.number().int().min(2).max(600).default(96).optional(),
+        /**
+         * Window start (ISO). Lets the client open the window a little before
+         * its own "now": with a window starting at server-now, latency or a
+         * device clock running behind put the current instant *before* the
+         * first sample, and the globe had no position to draw. Bounded to
+         * ±24 h of server time.
+         */
+        start: z
+          .string()
+          .datetime()
+          .refine((iso) => Math.abs(Date.parse(iso) - Date.now()) <= 24 * 3_600_000, "start must be within 24 h of now")
+          .optional(),
       })
       .safeParse(Object.fromEntries(url.searchParams.entries()));
     if (!input.success) {
@@ -35,6 +47,7 @@ export async function GET(request: Request, context: { params: Promise<{ satelli
       satelliteNumber: id,
       hours: input.data.hours,
       samples: input.data.samples,
+      ...(input.data.start ? { start: new Date(input.data.start) } : {}),
     });
 
     return jsonOk(

@@ -29,14 +29,30 @@
 import { useEffect, useRef, useState } from "react";
 import type { EciSample } from "./sample-types";
 import { SkyCloud, CATEGORY_COLORS, CATEGORY_LABELS } from "@/features/sky/sky-cloud";
+import { simTimeAt, type ViewClock } from "./view-clock";
+import { ecfKmToMeters } from "./cesium-units";
+
+/**
+ * 3D models for followed objects, served from /public/models. Only objects
+ * with a sourced model get one; everything else stays an honest dot.
+ * ISS: "International Space Station (ISS) (B)", NASA 3D Resources, credit
+ * NASA/Michael D. Carbajal (NASA states its 3D resources are free and without
+ * copyright; NASA brand guidelines apply). Drawn enlarged — at globe scale
+ * the real 109 m station would be far below one pixel.
+ */
+const SATELLITE_MODELS: Record<string, { uri: string; credit: string }> = {
+  "25544": { uri: "/models/iss.glb", credit: "ISS model: NASA/Michael D. Carbajal" },
+};
 
 export interface SkyFieldProps {
   samples: EciSample[];
   /** consecutive [lat, lon] pairs split at the antimeridian, degrees */
   trackSegments: [number, number][][];
   name: string;
-  /** Seconds between samples — drives interpolated-orbit line timing. */
-  sampleIntervalSeconds: number;
+  /** NORAD id of the followed object — selects its 3D model when one exists. */
+  satelliteNumber: string;
+  /** The explorer's shared clock: what instant the whole globe shows. */
+  clock: ViewClock;
   /** Called once when WebGL unavailable — the parent shows the 2D fallback. */
   onUnavailable?: () => void;
   /** Render the whole-sky cloud (fetches /api/sky/catalog, spawns the worker). */
@@ -65,6 +81,7 @@ interface CesiumViewer {
       remove: (primitive: unknown) => void;
     };
     requestRender: () => void;
+    maximumRenderTimeChange: number;
     pick: (position: unknown) => { id?: unknown; primitive?: unknown } | undefined;
     canvas: HTMLCanvasElement;
   };
@@ -72,13 +89,32 @@ interface CesiumViewer {
     flyTo: (options: unknown) => void;
     setView: (options: unknown) => void;
   };
-  clock: { currentTime: unknown; shouldAnimate: boolean };
+  clock: { currentTime: unknown; shouldAnimate: boolean; multiplier: number; clockStep: unknown; clockRange: unknown };
+  trackedEntity: unknown;
   destroy: () => void;
   isDestroyed?: () => boolean;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type CesiumModule = any;
+
+/**
+ * Mirror what the globe is actually showing onto its container as data
+ * attributes, read back from Cesium itself (its clock; the satellite entity's
+ * position at that instant). Tests assert against these — a readout-only
+ * check once passed while the slider moved nothing and the satellite sat
+ * inside the Earth.
+ */
+function publishGlobeState(Cesium: CesiumModule, viewer: CesiumViewer, element: HTMLElement | null): void {
+  if (!element) return;
+  element.setAttribute("data-clock-instant", Cesium.JulianDate.toIso8601(viewer.clock.currentTime, 0));
+  const entity = viewer.entities.getById?.("satellite") as any;
+  const position = entity?.position?.getValue(viewer.clock.currentTime);
+  if (position) {
+    const height = Cesium.Cartographic.fromCartesian(position)?.height;
+    if (Number.isFinite(height)) element.setAttribute("data-satellite-altitude-km", String(Math.round(height / 1000)));
+  }
+}
 
 const WIDGET_STYLESHEET_ID = "cesium-widgets-css";
 
@@ -104,12 +140,19 @@ export function SkyField({
   samples,
   trackSegments,
   name,
-  sampleIntervalSeconds,
+  satelliteNumber,
+  clock,
   onUnavailable,
   cloud = false,
   onSelectSatellite,
   onCloudStatus,
 }: SkyFieldProps) {
+  // Latest clock for effects that start asynchronous work (the cloud worker)
+  // without re-running whenever the clock changes.
+  const clockRef = useRef(clock);
+  useEffect(() => {
+    clockRef.current = clock;
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<CesiumViewer | null>(null);
   const cesiumRef = useRef<CesiumModule | null>(null);
@@ -117,6 +160,11 @@ export function SkyField({
   const cloudRef = useRef<SkyCloud | null>(null);
   const metaRef = useRef<{ ids: string[]; categories: Int8Array } | null>(null);
   const trackEntityIdsRef = useRef<string[]>([]);
+  // Camera locked to the followed satellite (Cesium trackedEntity).
+  const [following, setFollowing] = useState(false);
+  const followingRef = useRef(false);
+  /** Satellite the camera last turned to face (null before the first). */
+  const centeredOnRef = useRef<string | null>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   // Viewer construction is retryable: a failed init (module load, imagery
@@ -124,10 +172,9 @@ export function SkyField({
   // job. Bumping `attempt` tears down and rebuilds the viewer.
   const [attempt, setAttempt] = useState(0);
   const [cloudStatus, setCloudStatusState] = useState<CloudStatus>({ state: "idle" });
-  const [speed, setSpeed] = useState(1);
   const [categoryCounts, setCategoryCounts] = useState<number[] | null>(null);
-  // The cloud's legend/speed controls add up; collapsed by default, one
-  // click away when someone actually wants them.
+  // The cloud's legend is collapsed by default, one click away when someone
+  // actually wants it. (Time controls live with the explorer's slider.)
   const [cloudDetailsOpen, setCloudDetailsOpen] = useState(false);
   const statusRef = useRef(onCloudStatus);
 
@@ -332,7 +379,8 @@ export function SkyField({
           },
         });
         cloudRef.current = sky;
-        sky.start(body.data.entries);
+        const current = clockRef.current;
+        sky.start(body.data.entries, simTimeAt(current, Date.now()), current.rate);
       } catch (error) {
         if (disposed || (error instanceof DOMException && error.name === "AbortError")) return;
         setStatus({
@@ -383,9 +431,29 @@ export function SkyField({
     };
   }, [ready, onSelectSatellite]);
 
+  // The shared clock drives everything on the globe: Cesium's own clock (the
+  // followed satellite and its model move along their sampled path) and the
+  // whole-sky worker (every dot). Live = real time; slider scrub = paused at
+  // the chosen instant; fast-forward = 60×.
   useEffect(() => {
-    cloudRef.current?.setSpeed(speed);
-  }, [speed]);
+    const Cesium = cesiumRef.current;
+    const viewer = viewerRef.current;
+    if (!Cesium || !viewer || !ready) return;
+    const simNow = simTimeAt(clock, Date.now());
+    viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK_MULTIPLIER;
+    viewer.clock.clockRange = Cesium.ClockRange.UNBOUNDED;
+    viewer.clock.currentTime = Cesium.JulianDate.fromDate(new Date(simNow));
+    viewer.clock.multiplier = clock.rate > 0 ? clock.rate : 1;
+    viewer.clock.shouldAnimate = clock.rate > 0;
+    // requestRenderMode: redraw when simulated time has moved this many
+    // seconds — ~7 redraws per wall second at any rate (matching the cloud's
+    // cadence) instead of a 60 fps churn.
+    viewer.scene.maximumRenderTimeChange = Math.max(clock.rate, 1) * 0.15;
+    cloudRef.current?.setClock(simNow, clock.rate);
+    containerRef.current?.setAttribute("data-clock-rate", String(clock.rate));
+    publishGlobeState(Cesium, viewer, containerRef.current);
+    viewer.scene.requestRender();
+  }, [ready, clock]);
 
   // Satellite position + trail updates when samples change.
   useEffect(() => {
@@ -395,43 +463,68 @@ export function SkyField({
     const first = samples[0];
     const last = samples[samples.length - 1];
     if (!first || !last) return;
-    viewer.entities.removeAll();
+    // Only this effect's own entities: the ground track is owned (and
+    // replaced) by its own effect, so it no longer vanishes when samples change.
+    viewer.entities.removeById?.("satellite");
+    viewer.entities.removeById?.("orbit");
 
+    // The sampled window. (The clock is no longer pinned to its start: the
+    // shared clock effect above sets the shown instant — live by default.)
     const startDate = Cesium.JulianDate.fromDate(new Date(first.time));
     const endDate = Cesium.JulianDate.fromDate(new Date(last.time));
-    viewer.clock.currentTime = startDate;
-    viewer.clock.shouldAnimate = false;
-    Cesium.JulianDate.addSeconds(startDate, samples.length * sampleIntervalSeconds, endDate);
 
     // Bounded orbit polyline from TEME→fixed conversions sampled server-side.
-    const orbitPositions: unknown[] = [];
-    for (const s of samples) {
-      orbitPositions.push(new Cesium.Cartesian3(s.ecf.x, s.ecf.y, s.ecf.z));
-    }
+    // Samples are km; Cesium is metres (see cesium-units.ts).
+    const toCartesian = (s: EciSample) => {
+      const m = ecfKmToMeters(s.ecf);
+      return new Cesium.Cartesian3(m.x, m.y, m.z);
+    };
+    const orbitPositions: unknown[] = samples.map(toCartesian);
 
     const sampleCbs = new Cesium.SampledPositionProperty();
     for (const s of samples) {
-      sampleCbs.addSample(Cesium.JulianDate.fromDate(new Date(s.time)), new Cesium.Cartesian3(s.ecf.x, s.ecf.y, s.ecf.z));
+      sampleCbs.addSample(Cesium.JulianDate.fromDate(new Date(s.time)), toCartesian(s));
     }
     sampleCbs.setInterpolationOptions({
       interpolationDegree: 2,
       interpolationAlgorithm: Cesium.LagrangePolynomialApproximation,
     });
 
-    viewer.entities.add({
+    // A sourced 3D model when we have one (enlarged: minimumPixelSize keeps
+    // it visible from orbit-viewing distance; maximumScale stops it from
+    // ballooning when zoomed in). Attitude follows the direction of travel —
+    // close to the ISS's usual flight attitude, but an approximation: the
+    // real attitude isn't in the element set. Everything else: a dot.
+    const model = SATELLITE_MODELS[satelliteNumber];
+    const satelliteEntity = viewer.entities.add({
       id: "satellite",
       name,
       position: sampleCbs,
-      point: {
-        pixelSize: 9,
-        color: Cesium.Color.fromCssColorString("#ffffff"),
-        outlineColor: Cesium.Color.fromCssColorString("#0b1017"),
-        outlineWidth: 1,
-      },
+      // "Follow" camera offset (east, north, up of the satellite, metres):
+      // behind and above, so the craft rides over the curve of the Earth.
+      viewFrom: new Cesium.Cartesian3(0, -1_800_000, 700_000),
+      ...(model
+        ? {
+            orientation: new Cesium.VelocityOrientationProperty(sampleCbs),
+            model: {
+              uri: model.uri,
+              minimumPixelSize: 72,
+              maximumScale: 20_000,
+              credits: model.credit,
+            },
+          }
+        : {
+            point: {
+              pixelSize: 9,
+              color: Cesium.Color.fromCssColorString("#ffffff"),
+              outlineColor: Cesium.Color.fromCssColorString("#0b1017"),
+              outlineWidth: 1,
+            },
+          }),
       label: {
         text: name,
         font: "12px sans-serif",
-        pixelOffset: new Cesium.Cartesian2(0, -14),
+        pixelOffset: new Cesium.Cartesian2(0, model ? -40 : -14),
         fillColor: Cesium.Color.fromCssColorString("#dbe4f0"),
         showBackground: true,
         backgroundColor: Cesium.Color.fromCssColorString("#0b1017ee"),
@@ -452,8 +545,34 @@ export function SkyField({
         new Cesium.TimeInterval({ start: startDate, stop: endDate }),
       ]),
     });
+    // Re-created entities drop Cesium's tracking; keep following if asked.
+    viewer.trackedEntity = followingRef.current ? satelliteEntity : undefined;
+
+    // First time this satellite is shown: turn the globe to face it (the
+    // fixed opening view often had it on the far side of the Earth). Later
+    // sample refreshes for the same object leave the user's camera alone.
+    if (!followingRef.current && centeredOnRef.current !== satelliteNumber) {
+      const here = (satelliteEntity as any).position?.getValue(viewer.clock.currentTime);
+      if (here) {
+        const c = Cesium.Cartographic.fromCartesian(here);
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, 20_000_000),
+          duration: centeredOnRef.current === null ? 0 : 1.2,
+        });
+        centeredOnRef.current = satelliteNumber;
+      }
+    }
+    publishGlobeState(Cesium, viewer, containerRef.current);
     viewer.scene.requestRender();
-  }, [ready, samples, name, sampleIntervalSeconds]);
+  }, [ready, samples, name, satelliteNumber]);
+
+  useEffect(() => {
+    followingRef.current = following;
+    const viewer = viewerRef.current;
+    if (!viewer || !ready) return;
+    viewer.trackedEntity = following ? viewer.entities.getById?.("satellite") : undefined;
+    viewer.scene.requestRender();
+  }, [following, ready]);
 
   // Ground track segments (antimeridian-split polylines at ellipsoid level 0).
   useEffect(() => {
@@ -465,9 +584,8 @@ export function SkyField({
     // −180° start — a line across the globe — and fed Cesium degenerate
     // date-line segments that crashed its geometry worker.)
     //
-    // The entities use fixed ids and survive the satellite effect's removeAll
-    // (which fires only on its own dependencies) — adding over a stale id is a
-    // hard Cesium DeveloperError, so remove-then-add keeps updates idempotent.
+    // The entities use fixed ids — adding over a stale id is a hard Cesium
+    // DeveloperError, so remove-then-add keeps updates idempotent.
     for (const id of trackEntityIdsRef.current) viewer.entities.removeById?.(id);
     trackEntityIdsRef.current = [];
     trackSegments.forEach((segment, index) => {
@@ -488,16 +606,21 @@ export function SkyField({
       trackEntityIdsRef.current.push(id);
     });
     viewer.scene.requestRender();
-    // sampleIntervalSeconds is included deliberately: the orbit effect above
-    // needs it and calls removeAll on those changes, which would otherwise
-    // silently drop the ground-track line until the next track update.
-  }, [ready, trackSegments, sampleIntervalSeconds]);
+  }, [ready, trackSegments]);
 
   function resetCamera() {
     const Cesium = cesiumRef.current;
     if (!Cesium || !viewerRef.current) return;
-    viewerRef.current.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(0, 20, 22_000_000),
+    const viewer = viewerRef.current;
+    setFollowing(false);
+    viewer.trackedEntity = undefined;
+    // Back to the whole-Earth view, facing the followed satellite.
+    const here = (viewer.entities.getById?.("satellite") as any)?.position?.getValue(viewer.clock.currentTime);
+    const c = here ? Cesium.Cartographic.fromCartesian(here) : null;
+    viewer.camera.flyTo({
+      destination: c
+        ? Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, 20_000_000)
+        : Cesium.Cartesian3.fromDegrees(0, 20, 22_000_000),
       duration: 0.6,
     });
   }
@@ -521,12 +644,28 @@ export function SkyField({
 
   return (
     <div className="relative h-full w-full">
-      <div ref={containerRef} className="h-full w-full" aria-label={`3D globe showing ${name}`} />      <button
-        className="badge absolute bottom-3 right-3 z-10 cursor-pointer bg-[#0b1017cc] px-3 py-1.5 text-[var(--color-text-secondary)] backdrop-blur-sm hover:text-[var(--color-text-primary)]"
-        onClick={resetCamera}
-      >
-        Reset camera
-      </button>
+      <div ref={containerRef} className="h-full w-full" aria-label={`3D globe showing ${name}`} />
+      <div className="absolute bottom-3 right-3 z-10 flex gap-2">
+        <button
+          className={
+            "badge cursor-pointer bg-[#0b1017cc] px-3 py-1.5 backdrop-blur-sm " +
+            (following
+              ? "border-[var(--color-accent)] text-[var(--color-accent)]"
+              : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]")
+          }
+          aria-pressed={following}
+          disabled={!ready || samples.length === 0}
+          onClick={() => setFollowing((on) => !on)}
+        >
+          {following ? "Following" : "Follow"} {name.replace(/\s*\(.*\)$/, "")}
+        </button>
+        <button
+          className="badge cursor-pointer bg-[#0b1017cc] px-3 py-1.5 text-[var(--color-text-secondary)] backdrop-blur-sm hover:text-[var(--color-text-primary)]"
+          onClick={resetCamera}
+        >
+          Reset camera
+        </button>
+      </div>
 
       {/* Cloud commentary: load state or honest failure — one glanceable line. */}
       {cloud ? (
@@ -559,32 +698,18 @@ export function SkyField({
                       {categoryCounts ? ` · ${(categoryCounts[index] ?? 0).toLocaleString()}` : ""}
                     </span>
                   ))}
-                  <span className="ml-auto flex items-center gap-1 text-[10px]">
-                    <button
-                      className={"badge px-1 " + (speed === 1 ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "text-[var(--color-text-secondary)]")}
-                      onClick={() => setSpeed(1)}
-                    >
-                      Real time
-                    </button>
-                    <button
-                      className={"badge px-1 " + (speed === 60 ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "text-[var(--color-text-secondary)]")}
-                      onClick={() => setSpeed(60)}
-                    >
-                      60×
-                    </button>
-                  </span>
                 </div>
               </>
             ) : (
               // At rest the cloud is one quiet line: a count and a promise.
-              // The legend and speed controls stay one click away.
+              // The legend stays one click away.
               <button
                 className="flex items-center gap-2 self-start text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                 aria-expanded="false"
                 onClick={() => setCloudDetailsOpen(true)}
               >
                 <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-[var(--color-status-good)]" />
-                {cloudStatus.parsed?.toLocaleString()} objects · live — click any dot to open it
+                {cloudStatus.parsed?.toLocaleString()} objects — click any dot to open it
                 <span aria-hidden className="text-[var(--color-text-muted)]">· legend ▴</span>
               </button>
             )

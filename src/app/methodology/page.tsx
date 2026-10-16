@@ -190,6 +190,17 @@ const SECTIONS = [
           diffuse (Lambertian) sphere&apos;s phase function. Standards for a plan-outside tool, not for photometry.
         </li>
         <li>
+          <strong>The globe&apos;s satellite and 3D model.</strong> The followed object is placed from SGP4 samples
+          every ~5 minutes over a 6-hour window, interpolated between them; the time slider, &ldquo;live&rdquo;, and
+          60× fast-forward all move the same simulation clock, so the satellite and every whole-sky dot always show
+          the same instant. The ISS is drawn with NASA&apos;s &ldquo;International Space Station (ISS) (B)&rdquo;
+          model (NASA 3D Resources, credit NASA/Michael D. Carbajal; NASA states its 3D resources are free and without
+          copyright). Two things about it are not measurements: it is drawn <em>enlarged</em> so it stays visible
+          — the real station is about 109 m across — and its attitude is approximated as pointing along its
+          direction of travel, close to how the ISS usually flies, because attitude is not part of an element set.
+          Other objects are shown as dots: we only use models we can source.
+        </li>
+        <li>
           <strong>Manoeuvring objects</strong> (spacecraft with thrusters, de-orbit schedules, dodging debris) can
           depart from published elements quickly after manoeuvre; predictions for such objects deserve extra caution.
         </li>

@@ -34,6 +34,45 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("HttpCelestrakClient circuit breaker", () => {
+  it("fails fast during an outage instead of waiting out a new timeout per request, then retries after the cooldown", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    let now = Date.parse("2026-10-16T12:00:00Z");
+    const client = new HttpCelestrakClient(() => now);
+
+    await expect(client.fetchGpTle({ kind: "catnr", value: "25544" })).rejects.toMatchObject({ reason: "network" });
+    // Within the cooldown: no network call at all, same typed failure.
+    await expect(client.fetchGpTle({ kind: "catnr", value: "20580" })).rejects.toMatchObject({ reason: "network" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // After the cooldown one real attempt is made again; success closes the circuit.
+    now += 2 * 60_000 + 1;
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(ISS_TRIPLET, { status: 200 })));
+    const result = await client.fetchGpTle({ kind: "catnr", value: "25544" });
+    expect(result).toHaveLength(1);
+  });
+
+  it("does not trip on a well-formed 'no such object' answer", async () => {
+    const fetchMock = vi.fn(async () => new Response("", { status: 404 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new HttpCelestrakClient();
+    expect(await client.fetchGpTle({ kind: "catnr", value: "99999" })).toEqual([]);
+    expect(await client.fetchGpTle({ kind: "catnr", value: "99998" })).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("classifies AbortSignal.timeout() rejections as timeouts, not network errors", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    }));
+    const client = new HttpCelestrakClient();
+    await expect(client.fetchGpTle({ kind: "catnr", value: "25544" })).rejects.toMatchObject({ reason: "timeout" });
+  });
+});
+
 describe("HttpCelestrakClient", () => {
   it("returns parsed element sets on a valid GP response", async () => {
     stubFetch(ISS_TRIPLET);

@@ -12,7 +12,7 @@
  * motion reads continuously without saturating a single worker core.
  */
 
-import type { SkyWorkerOutbound } from "./sky-worker";
+import type { SkyWorkerInbound, SkyWorkerOutbound } from "./sky-worker";
 import { CATEGORY_COLORS, CATEGORY_LABELS, type SkyCategory } from "./category";
 
 export interface SkyStartPosition {
@@ -36,7 +36,8 @@ export class SkyCloud {
     this.events = events;
   }
 
-  start(entries: { i: string; l1: string; l2: string }[]): void {
+  /** Start propagating, showing `simMs` now and advancing at `rate` (see view-clock.ts). */
+  start(entries: { i: string; l1: string; l2: string }[], simMs: number, rate: number): void {
     if (typeof window === "undefined") return;
     const worker = new Worker(new URL("./sky-worker.ts", import.meta.url));
     const errorHandler = (error: ErrorEvent) => {
@@ -69,18 +70,16 @@ export class SkyCloud {
     worker.postMessage({
       type: "init",
       entries,
-      startMs: Date.now(),
+      startMs: simMs,
+      rate,
       batchSize: 600,
       tickMs: 140,
-    });
+    } satisfies SkyWorkerInbound);
   }
 
-  setSpeed(speed: number): void {
-    this.worker?.postMessage({ type: "speed", speed });
-  }
-
-  setPaused(paused: boolean): void {
-    this.worker?.postMessage({ type: "pause", paused });
+  /** Follow the explorer's shared clock: show `simMs` now, advancing at `rate`. */
+  setClock(simMs: number, rate: number): void {
+    this.worker?.postMessage({ type: "clock", simMs, rate } satisfies SkyWorkerInbound);
   }
 
   dispose(): void {

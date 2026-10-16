@@ -61,6 +61,18 @@ describe("validation bounds are enforced", () => {
     expect(passSchema.safeParse(ok).success).toBe(true);
   });
 
+  it("positions route rejects a window start more than 24 h from now (before any provider work)", async () => {
+    const { GET } = await import("@/app/api/satellites/[satelliteNumber]/positions/route");
+    const farFuture = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    const response = await GET(new Request(`http://local/api/satellites/25544/positions?start=${farFuture}&hours=6`), {
+      params: Promise.resolve({ satelliteNumber: "25544" }),
+    });
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { ok: boolean; error?: { kind: string } };
+    expect(body.ok).toBe(false);
+    expect(body.error?.kind).toBe("validation");
+  });
+
   it("detail route id validation", () => {
     const idSchema = /^[0-9]{1,5}$/;
     expect(idSchema.test("25544")).toBe(true);
