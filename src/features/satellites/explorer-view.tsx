@@ -190,8 +190,8 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
       </div>
 
       {/* ─── Orbit view: "here's what it looks like" ─── */}
-      <div className="px-4 pt-6 sm:px-8">
-        <div className="mx-auto flex max-w-5xl max-w-5xl flex-wrap items-center gap-2">
+      <div className="px-3 pt-6 sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2">
           <span className="label">Follow along</span>
           {CURATED.map((example) => (
             <button
@@ -233,9 +233,11 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
             </div>
           </div>
         ) : (
-          <div className="mx-auto mt-3 grid max-w-5xl grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
-            {/* Globe: the visual anchor — the whole sky, with the tracked object highlighted */}
-            <div className="panel relative min-h-[440px] overflow-hidden lg:min-h-[560px]">
+          <div className="mx-auto mt-3 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+            {/* Globe: the visual anchor — big, near edge-to-edge, the whole sky
+                with the tracked object highlighted. Height is viewport-driven
+                (capped) instead of a fixed short panel, so the cloud has room. */}
+            <div className="panel relative h-[68vh] max-h-[880px] min-h-[520px] overflow-hidden">
               <SkyField
                 samples={positions}
                 trackSegments={trackSegmentsPt ?? []}
@@ -272,7 +274,7 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
             </div>
 
             {/* Object panel: friendly headline + collapsed engineering */}
-            <aside className="panel flex flex-col gap-3 p-4">
+            <aside className="panel flex min-w-0 flex-col gap-3 p-4">
               <div>
                 <div className="flex items-baseline justify-between gap-2">
                   <h2 className="text-[17px] font-bold text-[var(--color-text-primary)]">{displayName}</h2>
@@ -331,7 +333,7 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
         )}
 
         {/* Time slider row */}
-        <div className="panel mx-auto mt-4 mb-4 flex max-w-5xl items-center gap-3 px-4 py-3">
+        <div className="panel mx-auto mt-4 mb-4 flex max-w-7xl items-center gap-3 px-4 py-3">
           <label htmlFor="time-slider" className="label shrink-0">
             Time
           </label>

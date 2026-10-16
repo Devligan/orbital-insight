@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Sky — the whole-sky 3D globe (Cesium, lazy-loaded, no Ion token: OSM
- * raster imagery).
+ * Sky — the whole-sky 3D globe (Cesium, lazy-loaded, no Ion token: dark
+ * CARTO/OSM raster imagery).
  *
  * Two visual layers on one viewer:
  *  1. **The cloud** (opt-in via `cloud`): every active satellite, propagated
@@ -100,6 +100,9 @@ export function SkyField({
   const [cloudStatus, setCloudStatusState] = useState<CloudStatus>({ state: "idle" });
   const [speed, setSpeed] = useState(1);
   const [categoryCounts, setCategoryCounts] = useState<number[] | null>(null);
+  // The cloud's legend/speed controls add up; collapsed by default, one
+  // click away when someone actually wants them.
+  const [cloudDetailsOpen, setCloudDetailsOpen] = useState(false);
   const statusRef = useRef(onCloudStatus);
 
   // Parent status callback is kept in a ref (never called during render).
@@ -147,7 +150,11 @@ export function SkyField({
         }
         const viewer = new Cesium.Viewer(host, {
           imageryProvider: new Cesium.OpenStreetMapImageryProvider({
-            url: "https://tile.openstreetmap.org/",
+            // CARTO's dark raster matches the app's night-sky palette and
+            // lets the cloud dots carry the visual weight; attribution is
+            // shown by the viewer's built-in credit element.
+            url: "https://basemaps.cartocdn.com/dark_all/",
+            credit: "© OpenStreetMap contributors © CARTO",
           }),
           baseLayerPicker: false,
           geocoder: false,
@@ -239,8 +246,10 @@ export function SkyField({
                 id: index,
                 position: Cesium.Cartesian3.fromDegrees(0, 0, 0),
                 show: false,
-                pixelSize: category === 2 ? 4 : 3,
-                color: Cesium.Color.fromCssColorString(CATEGORY_COLORS[category] ?? "#38bdf8"),
+                pixelSize: category === 2 ? 3 : 2.5,
+                // Slightly translucent: ten thousand saturated dots compete
+                // for attention; muted colors let the map and cloud coexist.
+                color: Cesium.Color.fromCssColorString((CATEGORY_COLORS[category] ?? "#38bdf8") + "cc"),
                 scaleByDistance: new Cesium.NearFarScalar(8_000_000, 1.35, 60_000_000, 0.7),
               });
             }
@@ -449,7 +458,7 @@ export function SkyField({
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" aria-label={`3D globe showing ${name}`} />      <button
-        className="btn btn-secondary absolute right-3 top-3 z-10"
+        className="badge absolute bottom-3 right-3 z-10 cursor-pointer bg-[#0b1017cc] px-3 py-1.5 text-[var(--color-text-secondary)] backdrop-blur-sm hover:text-[var(--color-text-primary)]"
         onClick={resetCamera}
       >
         Reset camera
@@ -464,38 +473,56 @@ export function SkyField({
             </p>
           ) : null}
           {cloudStatus.state === "ready" ? (
-            <>
-              <p className="text-[11px] text-[var(--color-text-secondary)]">
-                ✓ {cloudStatus.parsed?.toLocaleString()} objects, live predictions (SGP4, real time) — click any dot to open it.
-              </p>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                {CATEGORY_LABELS.map((label, index) => (
-                  <span key={label} className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
-                    <span
-                      aria-hidden
-                      className="inline-block h-2 w-2 rounded-full"
-                      style={{ backgroundColor: CATEGORY_COLORS[index] }}
-                    />
-                    {label}
-                    {categoryCounts ? ` · ${(categoryCounts[index] ?? 0).toLocaleString()}` : ""}
+            cloudDetailsOpen ? (
+              <>
+                <button
+                  className="self-start text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                  aria-expanded="true"
+                  onClick={() => setCloudDetailsOpen(false)}
+                >
+                  ▾ Hide legend
+                </button>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {CATEGORY_LABELS.map((label, index) => (
+                    <span key={label} className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
+                      <span
+                        aria-hidden
+                        className="inline-block h-2 w-2 rounded-full"
+                        style={{ backgroundColor: CATEGORY_COLORS[index] }}
+                      />
+                      {label}
+                      {categoryCounts ? ` · ${(categoryCounts[index] ?? 0).toLocaleString()}` : ""}
+                    </span>
+                  ))}
+                  <span className="ml-auto flex items-center gap-1 text-[10px]">
+                    <button
+                      className={"badge px-1 " + (speed === 1 ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "text-[var(--color-text-secondary)]")}
+                      onClick={() => setSpeed(1)}
+                    >
+                      Real time
+                    </button>
+                    <button
+                      className={"badge px-1 " + (speed === 60 ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "text-[var(--color-text-secondary)]")}
+                      onClick={() => setSpeed(60)}
+                    >
+                      60×
+                    </button>
                   </span>
-                ))}
-                <span className="ml-auto flex items-center gap-1 text-[10px]">
-                  <button
-                    className={"badge px-1 " + (speed === 1 ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "text-[var(--color-text-secondary)]")}
-                    onClick={() => setSpeed(1)}
-                  >
-                    Real time
-                  </button>
-                  <button
-                    className={"badge px-1 " + (speed === 60 ? "border-[var(--color-accent)] text-[var(--color-accent)]" : "text-[var(--color-text-secondary)]")}
-                    onClick={() => setSpeed(60)}
-                  >
-                    60×
-                  </button>
-                </span>
-              </div>
-            </>
+                </div>
+              </>
+            ) : (
+              // At rest the cloud is one quiet line: a count and a promise.
+              // The legend and speed controls stay one click away.
+              <button
+                className="flex items-center gap-2 self-start text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                aria-expanded="false"
+                onClick={() => setCloudDetailsOpen(true)}
+              >
+                <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-[var(--color-status-good)]" />
+                {cloudStatus.parsed?.toLocaleString()} objects · live — click any dot to open it
+                <span aria-hidden className="text-[var(--color-text-muted)]">· legend ▴</span>
+              </button>
+            )
           ) : null}
           {cloudStatus.state === "stale" ? (
             <p className="text-[11px] text-[var(--color-status-warn)]">
