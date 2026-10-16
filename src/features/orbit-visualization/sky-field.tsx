@@ -97,6 +97,10 @@ export function SkyField({
   const metaRef = useRef<{ ids: string[]; categories: Int8Array } | null>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  // Viewer construction is retryable: a failed init (module load, imagery
+  // provider) is NOT evidence the machine lacks WebGL — that's the probe's
+  // job. Bumping `attempt` tears down and rebuilds the viewer.
+  const [attempt, setAttempt] = useState(0);
   const [cloudStatus, setCloudStatusState] = useState<CloudStatus>({ state: "idle" });
   const [speed, setSpeed] = useState(1);
   const [categoryCounts, setCategoryCounts] = useState<number[] | null>(null);
@@ -137,6 +141,8 @@ export function SkyField({
 
     (async () => {
       try {
+        setFailed(null);
+        setReady(false);
         const Cesium = (await import("cesium")) as CesiumModule;
         cesiumRef.current = Cesium;
 
@@ -177,8 +183,11 @@ export function SkyField({
         setReady(true);
       } catch (error) {
         if (!disposed) {
+          // Deliberately NOT onUnavailable: WebGL availability was already
+          // confirmed by the probe above, so a construction failure here is a
+          // runtime error (imagery, module load, ordering) — retryable, not a
+          // reason to demote the user to the 2D fallback.
           setFailed(error instanceof Error ? error.message : String(error));
-          onUnavailable?.();
         }
       }
     })();
@@ -193,7 +202,7 @@ export function SkyField({
       collectionRef.current = null;
       metaRef.current = null;
     };
-  }, []);
+  }, [attempt]);
 
   // The cloud: fetch the active catalog once, then stream real-time positions.
   useEffect(() => {
@@ -448,9 +457,16 @@ export function SkyField({
   if (failed) {
     return (
       <div className="panel flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-        <p className="text-[var(--color-status-warn)] text-[13px]">3D globe unavailable: WebGL could not start.</p>
+        <p className="text-[var(--color-status-warn)] text-[13px]">The 3D globe couldn&apos;t start this time.</p>
         <p className="text-[12px] text-[var(--color-text-muted)] max-w-sm">{failed}</p>
-        <p className="text-[12px] text-[var(--color-text-muted)]">Use the 2D ground track below — it shows the same computed data.</p>
+        <div className="flex items-center gap-2">
+          <button className="btn btn-primary px-3 py-1.5 text-[13px]" onClick={() => setAttempt((a) => a + 1)}>
+            Try again
+          </button>
+          <button className="btn btn-secondary px-3 py-1.5 text-[13px]" onClick={() => onUnavailable?.()}>
+            Use the 2D ground track
+          </button>
+        </div>
       </div>
     );
   }
