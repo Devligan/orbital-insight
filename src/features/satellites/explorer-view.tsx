@@ -44,6 +44,7 @@ const SkyField = dynamic(
 );
 
 const DEFAULT_SATELLITE = { satelliteNumber: "25544", name: "ISS (ZARYA)" };
+const NO_TRACK: [number, number][][] = [];
 
 /** Position window: 10 min before now → 6 h after, one sample every 5 min. */
 const WINDOW_LEAD_MS = 10 * 60_000;
@@ -245,6 +246,17 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
     });
   }
 
+  // Stable props for the (memoized) globe: this component re-renders every
+  // second for its readout, and fresh callbacks would re-register the
+  // globe's click handler each time.
+  const onGlobeUnavailable = useCallback(() => setGlobeUnavailable(true), []);
+  const onGlobeSelect = useCallback((satnum: string) => {
+    if (satnum) {
+      setWholeSky(true);
+      setSelectedId(satnum);
+    }
+  }, []);
+
   const simNow = simTimeAt(clock, wallNow);
   const live = isLive(clock, wallNow);
   const windowStartMs = positions[0] ? Date.parse(positions[0].time) : 0;
@@ -318,18 +330,13 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
                 {globeReady ? (
                   <SkyField
                     samples={positions}
-                    trackSegments={trackSegmentsPt ?? []}
+                    trackSegments={trackSegmentsPt ?? NO_TRACK}
                     name={loaded?.name ?? displayName}
                     satelliteNumber={loaded?.satelliteNumber ?? selectedId}
                     clock={clock}
-                    onUnavailable={() => setGlobeUnavailable(true)}
+                    onUnavailable={onGlobeUnavailable}
                     cloud={wholeSky}
-                    onSelectSatellite={(satnum) => {
-                      if (satnum) {
-                        setWholeSky(true);
-                        setSelectedId(satnum);
-                      }
-                    }}
+                    onSelectSatellite={onGlobeSelect}
                   />
                 ) : (
                   <Loading label="Loading 3D globe…" />

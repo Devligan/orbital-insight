@@ -20,17 +20,30 @@
  *  - Catalog/worker failures ⇒ an honest inline message over the globe; the
  *    tracked-object view keeps working (it is provider-backed and cached).
  *
- * Bounded GPU load: the viewer renders on request only (`requestRenderMode`);
- * cloud batches and entity updates each trigger one render, camera input
- * renders by itself. Cloud cadence ≈ 7 batches/s — a gentle, bounded render
- * loop, not a 60 fps churn.
+ * Bounded load: the viewer renders on request only (`requestRenderMode`).
+ * Camera input renders by itself; the clock redraws only as often as motion
+ * is visible at the current zoom (render-cadence.ts); whole-sky dots are
+ * moved along their velocities at each redraw between SGP4 sweeps
+ * (sky-motion.ts). Measured on an integrated laptop GPU (Iris Xe, production
+ * build, 10.6k-object cloud): idle redraws ~15/s → ~0.5/s (main-thread
+ * script ~18% → ~5%); the 1–3.7 s shader-compile freezes that hit the first
+ * drag now happen during load; wheel-zooming no longer waits on GPU depth
+ * readbacks (main thread pegged at 100% → 60–70%).
  */
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { EciSample } from "./sample-types";
-import { SkyCloud, CATEGORY_COLORS, CATEGORY_LABELS } from "@/features/sky/sky-cloud";
+import { SkyCloud, CATEGORY_COLORS, CATEGORY_LABELS, type SkySweep } from "@/features/sky/sky-cloud";
+import { MAX_EXTRAPOLATION_SIM_MS } from "@/features/sky/sky-motion";
 import { simTimeAt, type ViewClock } from "./view-clock";
 import { ecfKmToMeters } from "./cesium-units";
+import {
+  dotMoveVisible,
+  metersPerPixelAt,
+  pixelAngle,
+  simSecondsPerCloudUpdate,
+  simSecondsPerRedraw,
+} from "./render-cadence";
 
 /**
  * 3D models for followed objects, served from /public/models. Only objects
@@ -84,10 +97,16 @@ interface CesiumViewer {
     maximumRenderTimeChange: number;
     pick: (position: unknown) => { id?: unknown; primitive?: unknown } | undefined;
     canvas: HTMLCanvasElement;
+    preRender: CesiumEvent<(scene: unknown, time: unknown) => void>;
   };
   camera: {
     flyTo: (options: unknown) => void;
     setView: (options: unknown) => void;
+    changed: CesiumEvent<() => void>;
+    percentageChanged: number;
+    positionCartographic?: { height: number };
+    positionWC: { x: number; y: number; z: number };
+    frustum?: { fovy?: number };
   };
   clock: { currentTime: unknown; shouldAnimate: boolean; multiplier: number; clockStep: unknown; clockRange: unknown };
   trackedEntity: unknown;
@@ -95,8 +114,25 @@ interface CesiumViewer {
   isDestroyed?: () => boolean;
 }
 
+/** Cesium's Event: addEventListener returns the remover. */
+interface CesiumEvent<Listener> {
+  addEventListener: (listener: Listener) => () => void;
+}
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type CesiumModule = any;
+
+/** Simulated seconds between clock-driven redraws for the current camera (render-cadence.ts). */
+function redrawStepSeconds(viewer: CesiumViewer, rate: number): number {
+  const height = viewer.camera.positionCartographic?.height;
+  const fovy = viewer.camera.frustum?.fovy;
+  const metersPerPixel = metersPerPixelAt(
+    Number.isFinite(height) ? (height as number) : 20_000_000,
+    Number.isFinite(fovy) ? (fovy as number) : Math.PI / 3,
+    viewer.scene.canvas.clientHeight,
+  );
+  return simSecondsPerRedraw(metersPerPixel, rate);
+}
 
 /**
  * Mirror what the globe is actually showing onto its container as data
@@ -136,7 +172,9 @@ function ensureWidgetStylesheet(): Promise<void> {
   return loaded;
 }
 
-export function SkyField({
+// Memoized: the explorer re-renders every second (its time readout); the
+// globe only needs to when its own props change.
+export const SkyField = memo(function SkyField({
   samples,
   trackSegments,
   name,
@@ -160,6 +198,9 @@ export function SkyField({
   const cloudRef = useRef<SkyCloud | null>(null);
   const metaRef = useRef<{ ids: string[]; categories: Int8Array } | null>(null);
   const trackEntityIdsRef = useRef<string[]>([]);
+  /** Current clock rate and the redraw step it implies (read by camera/cloud listeners). */
+  const rateRef = useRef(clock.rate);
+  const redrawStepRef = useRef(2);
   // Camera locked to the followed satellite (Cesium trackedEntity).
   const [following, setFollowing] = useState(false);
   const followingRef = useRef(false);
@@ -261,6 +302,11 @@ export function SkyField({
           // longitude-splitting step, where date-line edge cases crash).
           scene3DOnly: true,
           maximumScreenSpaceError: 6,
+          // Plain sorted translucency: the only translucent things here are
+          // thin lines and dots, and order-independent translucency costs
+          // extra render passes every frame plus a set of shaders compiled
+          // (main thread blocked) the first time anything translucent draws.
+          orderIndependentTranslucency: false,
         });
         if (disposed) {
           viewer.destroy();
@@ -269,6 +315,29 @@ export function SkyField({
         // Real day/night shading from Cesium's sun model: the same "is it
         // dark where you are?" question the visibility verdicts answer.
         viewer.scene.globe.enableLighting = true;
+        // Fog only matters near the ground; this globe is seen from orbit.
+        viewer.scene.fog.enabled = false;
+        // Zoom without a GPU stall. Cesium's camera controls read the depth
+        // buffer back from the GPU on every wheel step (to zoom toward
+        // terrain or 3D tiles under the cursor), which blocks the main thread
+        // until the GPU finishes the frame — measured ~0.7 s of every 1 s of
+        // wheel-zooming on a laptop GPU. This globe is a smooth ellipsoid with
+        // no terrain or tiles, so the exact ray–ellipsoid intersection Cesium
+        // also computes is the right zoom target; without depth support
+        // reported, that is the one it uses.
+        Object.defineProperty(viewer.scene, "pickPositionSupported", { value: false });
+        // Exact picks expose a Cesium edge case: wheel-zoom turns the camera
+        // about cross(point under cursor, point at screen centre). With the
+        // cursor on the centre pixel both are the same point, the axis is
+        // zero, and Cesium throws — which stops the globe's rendering for
+        // good (reproduced in 2 of 4 runs). A zero axis means "no rotation".
+        const camera = viewer.camera as any;
+        const rotate = camera.rotate.bind(camera);
+        camera.rotate = (axis: any, angle?: number) => {
+          const length = Cesium.Cartesian3.magnitudeSquared(axis);
+          if (length === 0 || !Number.isFinite(length)) return;
+          rotate(axis, angle);
+        };
         viewerRef.current = viewer;
         setReady(true);
       } catch (error) {
@@ -302,6 +371,7 @@ export function SkyField({
 
     let disposed = false;
     let abort: AbortController | null = new AbortController();
+    let removePreRender: (() => void) | null = null;
     const setStatus = (status: CloudStatus) => {
       if (!disposed) setCloudStatusState(status);
     };
@@ -325,6 +395,65 @@ export function SkyField({
         if (disposed) return;
         setStatus(body.data.stale ? { state: "stale", parsed: body.data.count } : { state: "loading", parsed: body.data.count });
 
+        // Between SGP4 sweeps, every redraw moves each dot along its
+        // velocity to the instant Cesium is drawing (sky-motion.ts) — so the
+        // cloud and the followed satellite share one clock, frame by frame.
+        const points: any[] = [];
+        let sweep: SkySweep | null = null;
+        let freshSweep = false;
+        let appliedSimMs = Number.NaN;
+        let holding = false;
+        const scratch = new Cesium.Cartesian3();
+        removePreRender = viewer.scene.preRender.addEventListener((_scene, time) => {
+          if (!sweep || points.length === 0) return;
+          const simMs = Cesium.JulianDate.toDate(time).getTime();
+          const dtMs = simMs - sweep.tMs;
+          // The clock jumped (slider): this sweep is for another moment.
+          // Hold the dots until the worker's sweep at the new instant lands.
+          holding = Math.abs(dtMs) > MAX_EXTRAPOLATION_SIM_MS;
+          if (holding) return;
+          // Redraws (camera moves included) move the dots only once simulated
+          // time has advanced a cloud step: sub-pixel otherwise, and capped
+          // at 10 moves per wall second (render-cadence.ts).
+          const stepMs = simSecondsPerCloudUpdate(redrawStepRef.current, rateRef.current) * 1000;
+          if (!freshSweep && Math.abs(simMs - appliedSimMs) < stepMs) return;
+          freshSweep = false;
+          appliedSimMs = simMs;
+          const dt = dtMs / 1000;
+          const p = sweep.positions;
+          const v = sweep.velocities;
+          const eye = viewer.camera.positionWC;
+          const angle = pixelAngle(viewer.camera.frustum?.fovy ?? Math.PI / 3, viewer.scene.canvas.clientHeight);
+          for (let k = 0; k < points.length; k++) {
+            const point = points[k];
+            const o = k * 3;
+            scratch.x = (p[o] ?? Number.NaN) + (v[o] ?? 0) * dt;
+            scratch.y = (p[o + 1] ?? Number.NaN) + (v[o + 1] ?? 0) * dt;
+            scratch.z = (p[o + 2] ?? Number.NaN) + (v[o + 2] ?? 0) * dt;
+            // No SGP4 solution at this instant (NaN from the worker). Never
+            // hand Cesium a non-finite position: it poisons the collection's
+            // bounding volume and rendering stops.
+            if (!Number.isFinite(scratch.x + scratch.y + scratch.z)) {
+              if (point.show) point.show = false;
+              continue;
+            }
+            if (point.show) {
+              // Leave dots whose move would be under half a pixel from here.
+              const drawn = point.position;
+              const mx = scratch.x - drawn.x;
+              const my = scratch.y - drawn.y;
+              const mz = scratch.z - drawn.z;
+              const ex = scratch.x - eye.x;
+              const ey = scratch.y - eye.y;
+              const ez = scratch.z - eye.z;
+              if (!dotMoveVisible(mx * mx + my * my + mz * mz, ex * ex + ey * ey + ez * ez, angle)) continue;
+            } else {
+              point.show = true;
+            }
+            point.position = scratch;
+          }
+        });
+
         const sky = new SkyCloud({
           onReady: ({ parsed, failed: parseFailed, categories, ids }) => {
             metaRef.current = { ids, categories };
@@ -336,12 +465,12 @@ export function SkyField({
               }
             }
             setCategoryCounts(counts);
-            // One primitive per object; points stay hidden until their first
-            // position batch arrives (progressive "lit up" formation).
+            // One primitive per object; points stay hidden until the first
+            // sweep places them.
             const collection = new Cesium.PointPrimitiveCollection();
             for (let index = 0; index < ids.length; index++) {
               const category = (categories[index] ?? 0) as number;
-              collection.add({
+              points[index] = collection.add({
                 id: index,
                 position: Cesium.Cartesian3.fromDegrees(0, 0, 0),
                 show: false,
@@ -357,22 +486,14 @@ export function SkyField({
             setStatus({ state: body?.data?.stale ? "stale" : "ready", parsed, failed: parseFailed });
             viewer.scene.requestRender();
           },
-          onPositions: ({ idx, values }) => {
-            const collection = collectionRef.current;
-            if (!collection) return;
-            for (let row = 0; row < idx.length; row++) {
-              const objectIndex = idx[row]; // noUncheckedIndexedAccess
-              if (objectIndex === undefined) continue;
-              const point = collection.get(objectIndex);
-              if (!point) continue;
-              const lon = values[row * 3]; // noUncheckedIndexedAccess
-              const lat = values[row * 3 + 1];
-              const alt = values[row * 3 + 2];
-              if (lon === undefined || lat === undefined || alt === undefined) continue;
-              point.show = true;
-              point.position = Cesium.Cartesian3.fromDegrees(lon, lat, Math.max(alt, 0) * 1000);
-            }
-            viewer.scene.requestRender();
+          onSweep: (next) => {
+            const first = sweep === null;
+            sweep = next;
+            freshSweep = true;
+            // Draw now only if nothing else will soon: the first sweep, or
+            // the sweep for an instant the slider just jumped to. Otherwise
+            // the next clock-driven redraw picks it up.
+            if (first || holding || Number.isNaN(appliedSimMs)) viewer.scene.requestRender();
           },
           onError: (message) => {
             setStatus({ state: "error", message: `The whole-sky computer stopped: ${message}` });
@@ -394,6 +515,8 @@ export function SkyField({
       disposed = true;
       abort?.abort();
       abort = null;
+      removePreRender?.();
+      removePreRender = null;
       if (collectionRef.current) {
         try {
           viewer.scene.primitives.remove(collectionRef.current);
@@ -445,15 +568,31 @@ export function SkyField({
     viewer.clock.currentTime = Cesium.JulianDate.fromDate(new Date(simNow));
     viewer.clock.multiplier = clock.rate > 0 ? clock.rate : 1;
     viewer.clock.shouldAnimate = clock.rate > 0;
-    // requestRenderMode: redraw when simulated time has moved this many
-    // seconds — ~7 redraws per wall second at any rate (matching the cloud's
-    // cadence) instead of a 60 fps churn.
-    viewer.scene.maximumRenderTimeChange = Math.max(clock.rate, 1) * 0.15;
+    // requestRenderMode: redraw once simulated time has moved one redraw
+    // step — sized to the zoom and rate (render-cadence.ts).
+    rateRef.current = clock.rate;
+    redrawStepRef.current = redrawStepSeconds(viewer, clock.rate);
+    viewer.scene.maximumRenderTimeChange = redrawStepRef.current;
     cloudRef.current?.setClock(simNow, clock.rate);
     containerRef.current?.setAttribute("data-clock-rate", String(clock.rate));
     publishGlobeState(Cesium, viewer, containerRef.current);
     viewer.scene.requestRender();
   }, [ready, clock]);
+
+  // Zooming changes how far a moving dot travels per pixel: re-size the
+  // redraw step whenever the camera has moved appreciably.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !ready) return;
+    viewer.camera.percentageChanged = 0.1;
+    const update = () => {
+      redrawStepRef.current = redrawStepSeconds(viewer, rateRef.current);
+      viewer.scene.maximumRenderTimeChange = redrawStepRef.current;
+    };
+    const remove = viewer.camera.changed.addEventListener(update);
+    update();
+    return remove;
+  }, [ready]);
 
   // Satellite position + trail updates when samples change.
   useEffect(() => {
@@ -511,6 +650,12 @@ export function SkyField({
               minimumPixelSize: 72,
               maximumScale: 20_000,
               credits: model.credit,
+              // No dynamic environment map (reflections of a sky Cesium
+              // renders around the model). Building one compiled a batch of
+              // shaders mid-interaction — the single biggest freeze measured
+              // (~2 s on a laptop GPU) — and at 60× it was rebuilt every
+              // simulated hour. The sun still lights the model.
+              environmentMapOptions: { enabled: false },
             },
           }
         : {
@@ -564,6 +709,32 @@ export function SkyField({
     }
     publishGlobeState(Cesium, viewer, containerRef.current);
     viewer.scene.requestRender();
+
+    // A model loads (and compiles its shaders) only on frames Cesium draws,
+    // and the idle globe draws about once every 2 s — its one-time shader
+    // compile (0.7–1 s, main thread blocked) was measured landing on the
+    // user's first drag. Draw every frame until the model is ready and has
+    // been drawn, so that cost is paid up front, during load.
+    let pumpFrame = 0;
+    if (model) {
+      const startedAt = performance.now();
+      const sphere = new Cesium.BoundingSphere();
+      let framesSinceReady = 0;
+      let seenLoading = false;
+      const pump = () => {
+        if (viewer.isDestroyed?.()) return;
+        // FAILED also means "not registered yet" until Cesium's first update
+        // after the entity was added — only a model seen loading can fail.
+        const state = (viewer as any).dataSourceDisplay.getBoundingSphere(satelliteEntity, false, sphere);
+        if (state === Cesium.BoundingSphereState.PENDING) seenLoading = true;
+        if (state === Cesium.BoundingSphereState.DONE) framesSinceReady++;
+        viewer.scene.requestRender();
+        const settled = framesSinceReady > 3 || (seenLoading && state === Cesium.BoundingSphereState.FAILED);
+        if (!settled && performance.now() - startedAt < 15_000) pumpFrame = requestAnimationFrame(pump);
+      };
+      pumpFrame = requestAnimationFrame(pump);
+    }
+    return () => cancelAnimationFrame(pumpFrame);
   }, [ready, samples, name, satelliteNumber]);
 
   useEffect(() => {
@@ -737,4 +908,4 @@ export function SkyField({
       ) : null}
     </div>
   );
-}
+});

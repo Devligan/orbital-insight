@@ -7,8 +7,9 @@
  *
  * Staleness policy:
  *  - "live": fetched or cache-fresh within TTL (2 h).
- *  - "cached": past TTL but served while the provider fetch was attempted
- *    recently (< 7 days age) — user-facing responses say so.
+ *  - "cached": past TTL — answered at once while a background refresh runs
+ *    (< 1 day old), or served when the provider is rate-limiting
+ *    (< 7 days age) — user-facing responses say so.
  *  - "provider-unavailable-stale": served from cache after a provider
  *    failure; responses flag it, and UI offers a retry.
  *
@@ -23,6 +24,7 @@ import {
   ProviderError,
   type GpQuery,
   type HttpCelestrakClient,
+  type NamedElementSet,
 } from "@/integrations/celestrak/client";
 import {
   BoundedCache,
@@ -38,6 +40,17 @@ export const CATALOG_GROUPS = ["stations", "gps-ops", "galileo", "science"] as c
 
 const MAX_STALE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Past its TTL but younger than this, a cached record is answered at once
+ * (labelled "cached") while the provider refresh runs in the background.
+ * Waiting for the provider instead put its full timeout on the page's
+ * critical path whenever it was unreachable — measured 10.7 s for a cached
+ * ISS lookup once the client's outage breaker re-probed. Element sets a day
+ * old still predict a low-orbit pass to within seconds; older ones wait for
+ * the provider as before.
+ */
+const SERVE_WHILE_REFRESHING_MS = 24 * 60 * 60 * 1000;
+
 export type DataLineage = "live" | "cached" | "provider-unavailable-stale";
 
 export interface SatelliteRecordResult {
@@ -49,6 +62,8 @@ export class SatelliteService {
   private cache = new BoundedCache(ELEMENT_SET_TTL_MS);
   private names = new CatalogEntryCache();
   private groupsFetched = new Set<string>();
+  /** Background refreshes in flight, one per satellite. */
+  private refreshing = new Map<string, Promise<void>>();
 
   /**
    * @param hydrateStaticCatalog seed caches from the build-time catalog
@@ -131,7 +146,8 @@ export class SatelliteService {
 
   /**
    * Get one satellite with its element set.
-   * Order: cache (within TTL) → provider (single-number query) → stale fallback.
+   * Order: cache (within TTL) → cache under a day old, refreshed in the
+   * background → provider (single-number query) → stale fallback.
    * A fresh cache entry is served without a provider call regardless of
    * strategy; "fresh-first" refetches only when the entry passed its TTL.
    */
@@ -145,16 +161,14 @@ export class SatelliteService {
         const lineage: DataLineage = cached.fromSnapshot ? "cached" : lineageFor(cached.retrievedAt);
         return { record: toRecord(cached), lineage };
       }
+      if (age <= SERVE_WHILE_REFRESHING_MS) {
+        this.refreshInBackground(satelliteNumber);
+        return { record: toRecord(cached), lineage: "cached" };
+      }
     }
 
     try {
-      const entries = await this.client.fetchGpTle({ kind: "catnr", value: satelliteNumber });
-      const entry = entries.find((e) => e.elementSet.satelliteNumber === satelliteNumber);
-      if (!entry) {
-        throw new AppError("not-found", `No orbital data available for catalog identifier ${satelliteNumber}`);
-      }
-      this.cache.set({ name: entry.name, elementSet: entry.elementSet, retrievedAt: new Date() });
-      this.names.set({ satelliteNumber, name: entry.name });
+      const entry = await this.fetchOne(satelliteNumber);
       return { record: toRecord({ name: entry.name, elementSet: entry.elementSet, retrievedAt: new Date() }), lineage: "live" };
     } catch (error) {
       if (cached) {
@@ -172,6 +186,33 @@ export class SatelliteService {
       if (isProviderFailure(error)) throw error;
       throw new AppError("not-found", `No orbital data available for catalog identifier ${satelliteNumber}`);
     }
+  }
+
+  /** One provider lookup by catalog number; caches the answer. */
+  private async fetchOne(satelliteNumber: string): Promise<NamedElementSet> {
+    const entries = await this.client.fetchGpTle({ kind: "catnr", value: satelliteNumber });
+    const entry = entries.find((e) => e.elementSet.satelliteNumber === satelliteNumber);
+    if (!entry) {
+      throw new AppError("not-found", `No orbital data available for catalog identifier ${satelliteNumber}`);
+    }
+    this.cache.set({ name: entry.name, elementSet: entry.elementSet, retrievedAt: new Date() });
+    this.names.set({ satelliteNumber, name: entry.name });
+    return entry;
+  }
+
+  /** Refresh a cached record without anyone waiting on it; failures keep the cached copy. */
+  private refreshInBackground(satelliteNumber: string): void {
+    if (this.refreshing.has(satelliteNumber)) return;
+    const refresh = this.fetchOne(satelliteNumber)
+      .then(() => undefined)
+      .catch(() => undefined)
+      .finally(() => this.refreshing.delete(satelliteNumber));
+    this.refreshing.set(satelliteNumber, refresh);
+  }
+
+  /** Settles when background refreshes in flight are done (tests). */
+  async settled(): Promise<void> {
+    await Promise.all([...this.refreshing.values()]);
   }
 
   /** All cached catalog entries (for comparator previews). */

@@ -41,7 +41,7 @@ A production Next.js (App Router) app where a regular person can:
    directly** (not through output filters that mask status):
    `npx tsc --noEmit`, `npx eslint .` (0 errors; 15 pre-existing warnings
    are the accepted baseline — do not fix them casually, do not suppress
-   them), `npx vitest run` (currently 104 passed / 1 skipped), `npm run build`, `npx playwright test` (22 journeys). All must
+   them), `npx vitest run` (currently 145 passed / 1 skipped), `npm run build`, `npx playwright test` (23 journeys). All must
    be green before any commit. Never weaken assertions or add suppressions to
    pass.
 3. **Architecture discipline.** Routes are thin (`src/lib/http.ts` helpers:
@@ -108,10 +108,29 @@ A production Next.js (App Router) app where a regular person can:
   for `npm run build` *and* `npx playwright test` (next.config.ts reads it).
 - **Screenshots of the globe in headless Chromium** need
   `--use-angle=swiftshader --enable-unsafe-swiftshader` for WebGL. SwiftShader
-  renders on the CPU (~1 frame/s once the whole-sky cloud animates at its
-  ~7 renders/s), so screenshots with the cloud on can time out — especially
-  at 2× density or full-page. That's the test renderer, not the app; turn
-  the whole sky off to check layouts.
+  renders on the CPU (~1 frame/s), so screenshots with the cloud on can time
+  out — especially at 2× density or full-page. That's the test renderer, not
+  the app; turn the whole sky off to check layouts. For *performance* work,
+  headless Chromium on this machine can use the real GPU instead:
+  `--use-angle=d3d11 --enable-gpu --ignore-gpu-blocklist` (renderer string
+  reads "Intel(R) Iris(R) Xe"). Measure with a full-size cloud: the bundled
+  snapshot has ~125 TLEs, so replicate them to ~10.6k (rotated RAAN/mean
+  anomaly) as a test load only — never as app data.
+- **Globe performance knobs (2026-10-16), all in `sky-field.tsx`:** redraw
+  cadence sized to zoom/rate (`render-cadence.ts`); whole-sky dots moved
+  along SGP4 velocities between full sweeps (`sky-motion.ts`), ≤ 10 moves/s,
+  sub-half-pixel moves skipped; `pickPositionSupported` reported false so
+  wheel-zoom doesn't block on GPU depth readbacks (plus a guard for Cesium's
+  resulting zero-axis `camera.rotate`, which otherwise stops rendering — e2e
+  covers it); OIT and fog off; the model's dynamic environment map off; a
+  per-frame render pump until the ISS model is ready so its one-time shader
+  compile happens at load. Cesium compiles each shader on first draw, on the
+  main thread (ANGLE/D3D11 links are 0.1–1 s each) — anything new that
+  appears mid-interaction freezes the page once.
+- **Provider waits never block a page for cached data under a day old**
+  (`satellites.ts`): it is answered at once ("cached") and refreshed in the
+  background. With CelesTrak unreachable, each breaker re-probe used to cost
+  the unlucky visitor ~11–15 s.
 - **Provider politeness is now enforced in three places** after CelesTrak
   blocked this machine (2026-10-16): the whole-sky catalog persists to a disk
   snapshot (`SKY_CATALOG_SNAPSHOT_PATH`, default OS temp dir) and backs off

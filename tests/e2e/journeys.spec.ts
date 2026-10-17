@@ -88,6 +88,29 @@ test.describe("explorer journey", () => {
     await expect(globe).toHaveAttribute("data-clock-rate", "1");
     await expect(page.getByText("Live", { exact: true })).toBeVisible();
   });
+
+  test("wheel-zooming at the very centre of the globe never stops its rendering", async ({ page }) => {
+    // Zoom aims with exact ray–ellipsoid picks (no GPU depth readback), and
+    // with the cursor on the centre pixel Cesium's zoom rotated the camera
+    // about a zero-length axis, threw, and stopped rendering for good.
+    await page.goto("/");
+    const canvas = page.locator('[aria-label^="3D globe showing"] canvas');
+    await expect(canvas).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator('[aria-label^="3D globe showing"]')).toHaveAttribute("data-satellite-altitude-km", /\d+/, {
+      timeout: 60_000,
+    });
+    const box = await canvas.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    // A few steps suffice: the zero-axis case hit on the first one. (The
+    // test browser renders on the CPU at ~1 frame/s, so keep this short.)
+    for (let step = 0; step < 6; step++) {
+      await page.mouse.wheel(0, step < 4 ? -240 : 240);
+      await page.waitForTimeout(300);
+    }
+    await page.waitForTimeout(2_000);
+    await expect(page.locator(".cesium-widget-errorPanel")).toHaveCount(0);
+  });
 });
 
 test.describe("detail + search journey", () => {

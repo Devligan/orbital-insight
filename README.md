@@ -52,6 +52,7 @@ reflects its evidence-based verdicts.
 | Visual visibility + "You can actually see" headline | **Verified** | unit tests: sun ephemeris vs published solstice/equinox declinations, shadow/phase geometry, and visible-window edges checked against the light primitives (≤ 2 s) on the official Vanguard 1 TLE; selection/empty-state honesty tests; e2e asserts the headline list or its truthful empty state. Live smoke (2026-10-16, NYC): ISS morning pass emerging from Earth's shadow 36° up, a dawn pass lost to civil twilight at 21°, CSS night passes correctly eclipsed. Magnitudes follow the published standard-magnitude convention (1 000 km, 90° phase; Mallama 2020) and are estimated only from sourced per-object values (ISS −1.3, Molczan 2005; CSS 0.0, Heavens-Above), listed with caveats on `/methodology`; other objects read "brightness unknown". Unit tests pin the definition round-trip, the published phase adjustment and inverse-square scaling |
 | Observer-local pass times | **Verified** | server resolves the observer's IANA zone offline (tz-lookup; ~5% of random points, mostly remote/ocean, resolve to a different offset — documented on `/methodology`); unit tests pin cities incl. KSC and Baikonur; production check: NYC passes read in New York time from any device, Tokyo coordinates show Tokyo times with a "Tokyo time (GMT+9)" note |
 | Home-page performance | **Measured** (production build, 2026-10-16) | phone profile (4× CPU throttle, slow 4G): LCP 1.6 s, CLS 0.000, TBT 0.23 s, 0.24 MB JS up front — the 1.3 MB Cesium globe mounts only when ≥ 75% visible and the browser is idle (before this, tap → response took 4.4 s); tap on "Show me tonight's passes" → answer ≈ 0.75 s. Desktop: LCP 0.35 s, CLS 0.000. APIs 70–150 ms warm. GPU-bound numbers were measured with a software renderer and are pessimistic |
+| Globe interaction performance | **Measured** (production build, Intel Iris Xe laptop GPU, 10.6k-object cloud, 2026-10-16) | idle: ~0.5 globe redraws/s, main-thread script ~5% (was ~15 redraws/s, ~18%); first drag 60 fps with no long tasks — Cesium's one-time shader compiles (1–3.7 s, incl. the ISS model's lighting) now happen during load instead of mid-drag; wheel-zoom no longer stalls on GPU depth readbacks (main thread 100% → 60–70%, ~35–38 fps); Follow ISS ~45 fps; 60× moves every dot smoothly (was a ~1,100 km jump per dot per batch) at ~25 redraws/s. Unit tests pin the redraw cadence and the straight-line error between SGP4 sweeps; e2e wheel-zooms at the exact canvas centre (a Cesium zero-axis rotation once stopped rendering there) |
 | Pass compute budget guard | **Verified** | unit regression test (2160 sat-h rejected, 600 sat-h accepted) + e2e message assertion |
 | Orbital element comparison | **Verified** | service-level identity/delta regression tests + e2e journey on `/compare` (both default satellites load, delta chart renders, interpretation notes visible) |
 | Provider failure handling (honest outage UI) | **Verified** | observed live during a real CelesTrak 403 outage: API returned a typed 502 provider error; detail page rendered "Satellite data unavailable — shown honestly"; e2e journey asserts real-data-or-honest-failure, never fabricated data |
@@ -94,9 +95,12 @@ Orbital element sets come from CelesTrak's current GP interface
 - The client sleeps ≥ 2 s between outbound requests (politeness, since
   CelesTrak is a free service), times out at 15 s, and distinguishes empty
   responses, rate-limits, and schema violations as separate typed failures.
-- Reconstructed responses are cached server-side for 2 hours; after a
-  provider outage the last-known-good element set is served and explicitly
-  labelled `cached` / `provider-unavailable-stale` in the API and UI.
+- Reconstructed responses are cached server-side for 2 hours; a record past
+  that but under a day old is answered at once (labelled `cached`) while it is
+  refreshed in the background — an unreachable provider used to hold such
+  lookups for its full timeout (measured 10.7 s). After a provider outage the
+  last-known-good element set is served and explicitly labelled `cached` /
+  `provider-unavailable-stale` in the API and UI.
 - Only bounded curated groups are fetched (crewed stations, GNSS
   constellations, scientific satellites — a few hundred records total), never
   the full active catalog.

@@ -63,6 +63,39 @@ describe("SatelliteService", () => {
     expect(served.lineage).toBe("cached");
   });
 
+  it("answers a day-young cached record at once, even while the provider hangs, and refreshes it behind the scenes", async () => {
+    await service.get("00005");
+    const bounded = (service as unknown as { cache: { get: (n: string) => { retrievedAt: Date } | undefined } }).cache;
+    bounded.get("00005")!.retrievedAt = new Date(Date.now() - 5 * 60 * 60 * 1000);
+    // A provider that never answers (an unreachable host waiting out its timeout).
+    let release: () => void = () => undefined;
+    const hung = vi.fn(
+      () =>
+        new Promise<NamedElementSet[]>((resolve) => {
+          release = () => resolve([{ name: "VANGUARD 1", elementSet: parseTle(LINE1, LINE2) }]);
+        }),
+    );
+    Object.assign(client, { fetchGpTle: hung });
+
+    const served = await service.get("00005"); // resolves without the provider
+    expect(served.lineage).toBe("cached");
+    await service.get("00005"); // a second reader does not start a second refresh
+    expect(hung).toHaveBeenCalledTimes(1);
+
+    release();
+    await service.settled();
+    expect((await service.get("00005")).lineage).toBe("live");
+  });
+
+  it("still waits for the provider when the cached record is more than a day old", async () => {
+    await service.get("00005");
+    const bounded = (service as unknown as { cache: { get: (n: string) => { retrievedAt: Date } | undefined } }).cache;
+    bounded.get("00005")!.retrievedAt = new Date(Date.now() - 30 * 60 * 60 * 1000);
+    const served = await service.get("00005");
+    expect(served.lineage).toBe("live");
+    expect(calls()).toBe(2);
+  });
+
   it("reports not-found for an unknown object when nothing is cached", async () => {
     Object.assign(client, { fetchGpTle: async (): Promise<NamedElementSet[]> => [] });
     await expect(service.get("42424")).rejects.toMatchObject({ kind: "not-found" });

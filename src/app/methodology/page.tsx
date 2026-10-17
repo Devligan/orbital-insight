@@ -30,9 +30,12 @@ const SECTIONS = [
           truncated, never drawn as the sky.
         </li>
         <li>
-          Requests are cached server-side for 2 hours; when the provider is unreachable, previously fetched data is
-          served and clearly labelled &ldquo;cached&rdquo; or &ldquo;stale — provider unavailable&rdquo;. The
-          application never fabricates a response when the provider is down.
+          Requests are cached server-side for 2 hours. A record older than that but less than a day old is answered
+          at once, labelled &ldquo;cached&rdquo;, while a fresh copy is fetched in the background for the next
+          request — so an unreachable provider never holds the page up for its 15-second timeout. Older records wait
+          for the provider; when it is unreachable, previously fetched data is served and clearly labelled
+          &ldquo;cached&rdquo; or &ldquo;stale — provider unavailable&rdquo;. The application never fabricates a
+          response when the provider is down.
         </li>
         <li>
           CelesTrak states its data is free for public use with attribution and asks bulk consumers to cache politely;
@@ -199,6 +202,14 @@ const SECTIONS = [
           — the real station is about 109 m across — and its attitude is approximated as pointing along its
           direction of travel, close to how the ISS usually flies, because attitude is not part of an element set.
           Other objects are shown as dots: we only use models we can source.
+        </li>
+        <li>
+          <strong>Whole-sky dots between SGP4 runs.</strong> Your browser runs SGP4 for every whole-sky object at
+          once — every 5 seconds live, every quarter-second at 60× — and between those runs moves each dot in a
+          straight line along its computed velocity. Over that span a straight line strays from the curved orbit by
+          at most about a kilometre (checked against SGP4 itself in the tests), well under one pixel at globe scale.
+          To save work, a dot is redrawn only when it would move at least half a pixel on screen, so on the far side
+          of the Earth from the camera dots can lag their computed spot by that much.
         </li>
         <li>
           <strong>Manoeuvring objects</strong> (spacecraft with thrusters, de-orbit schedules, dodging debris) can
