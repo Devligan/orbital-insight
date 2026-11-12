@@ -1,34 +1,54 @@
 name: Refresh orbital data
 
-# The deployment ships a build-time snapshot of the curated catalog (search
-# and detail pages answer from it instantly, and it is the fallback when
-# CelesTrak is unreachable). A snapshot is only as fresh as the last deploy,
-# and past 7 days the app refuses to serve it — so a quiet repo would slowly
-# lose its fallback. A daily rebuild keeps it fresh: one polite fetch of four
-# small groups per day, from Vercel's build machines.
+# The deployment carries two build-time snapshots: the curated catalog
+# (src/server/search-index.static.json) and the whole active catalog
+# (data/sky-catalog.snapshot.json). The app serves them with their true age
+# and refuses them past a week, so they must be refreshed even when nobody
+# pushes. Vercel's own machines can't be relied on for it: CelesTrak has
+# answered them with HTTP 500 for the full-catalog query.
 #
-# Setup: Vercel → Project → Settings → Git → Deploy Hooks → create one for
-# `main`, then store its URL as the repository secret VERCEL_DEPLOY_HOOK_URL.
+# Every two days this job fetches both snapshots on a GitHub runner (each
+# script keeps the old copy if the provider refuses) and commits them if they
+# changed; the push to main redeploys production through Vercel's Git
+# integration. Two days keeps repository growth modest while the snapshots
+# stay well inside the app's freshness horizon.
 
 on:
   schedule:
-    - cron: "17 9 * * *" # daily, off the top of the hour
+    - cron: "17 9 */2 * *"
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
 
 jobs:
-  rebuild:
+  refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Trigger a production rebuild
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Fetch snapshots (polite: one request per group, spaced)
         env:
-          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          SEARCH_INDEX_FORCE_REFRESH: "1"
+          SKY_SNAPSHOT_FORCE_REFRESH: "1"
         run: |
-          if [ -z "$HOOK" ]; then
-            echo "::notice::VERCEL_DEPLOY_HOOK_URL is not set; skipping (see the setup note in this workflow)."
+          node scripts/build-search-index.mjs
+          node scripts/build-sky-snapshot.mjs
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- data src/server/search-index.static.json; then
+            echo "Snapshots unchanged (provider refused or nothing new)."
             exit 0
           fi
-          curl --fail --silent --show-error -X POST "$HOOK" > /dev/null
-          echo "Rebuild requested."
+          git config user.name "orbital-insight-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data src/server/search-index.static.json
+          git commit -m "Data: refresh orbital snapshots"
+          git push

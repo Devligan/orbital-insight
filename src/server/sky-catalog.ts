@@ -41,6 +41,21 @@ const FAILURE_BACKOFF_MS = 10 * 60 * 1000;
 /** Below this, a GROUP=active answer is a truncated feed, not the sky. */
 const MIN_ACTIVE_OBJECTS = 5_000;
 
+/**
+ * The deployment's own copy (scripts/build-sky-snapshot.mjs, refreshed at
+ * build). CelesTrak has answered Vercel's functions with HTTP 500 for this
+ * query while answering other networks, so a cold instance must be able to
+ * show the sky without it. Served for up to a week, always with its true age.
+ */
+function bundledSnapshotPath(): string | null {
+  const configured = process.env.SKY_CATALOG_BUNDLED_PATH;
+  if (configured === "off") return null;
+  return configured || path.join(process.cwd(), "data", "sky-catalog.snapshot.json");
+}
+const BUNDLED_MAX_STALE_MS = 7 * 24 * 60 * 60 * 1000;
+/** Younger than this, a copy past its TTL is answered at once while a refresh runs in the background. */
+const SERVE_WHILE_REFRESHING_MS = 24 * 60 * 60 * 1000;
+
 /** Snapshot location: SKY_CATALOG_SNAPSHOT_PATH, "off" to disable, else the OS temp dir. */
 function snapshotPath(): string | null {
   const configured = process.env.SKY_CATALOG_SNAPSHOT_PATH;
@@ -73,19 +88,21 @@ interface CacheState {
   /** One-time disk restore, shared by concurrent first callers. */
   restore: Promise<void> | null;
   lastFailure: { at: number; error: unknown } | null;
+  /** How long `result` may be served as stale: 48 h for fetched copies, a week for the bundled one. */
+  maxStaleMs: number;
 }
 
 // Module-level (per serverless instance) — the documented cache trade-off,
 // same as the bounded catalog cache.
-const state: CacheState = { result: null, inFlight: null, restore: null, lastFailure: null };
+const state: CacheState = { result: null, inFlight: null, restore: null, lastFailure: null, maxStaleMs: MAX_STALE_MS };
+
 
 function ageMs(result: SkyCatalogResult): number {
   return Date.now() - new Date(result.generatedAt).getTime();
 }
 
-async function restoreSnapshot(): Promise<void> {
-  const file = snapshotPath();
-  if (!file || state.result) return;
+/** A valid snapshot file within `maxStaleMs`, or null (missing, malformed, truncated or too old). */
+async function readSnapshotFile(file: string, maxStaleMs: number): Promise<SkyCatalogResult | null> {
   try {
     const parsed = JSON.parse(await readFile(file, "utf8")) as Partial<SkyCatalogResult>;
     const valid =
@@ -94,16 +111,36 @@ async function restoreSnapshot(): Promise<void> {
       Array.isArray(parsed.entries) &&
       parsed.entries.length >= MIN_ACTIVE_OBJECTS &&
       parsed.count === parsed.entries.length;
-    if (!valid) return;
+    if (!valid) return null;
     const restored: SkyCatalogResult = {
       generatedAt: parsed.generatedAt as string,
       stale: false,
       count: parsed.count as number,
       entries: parsed.entries as SkyCatalogEntry[],
     };
-    if (ageMs(restored) <= MAX_STALE_MS && !state.result) state.result = restored;
+    return ageMs(restored) <= maxStaleMs ? restored : null;
   } catch {
-    /* no snapshot yet, or unreadable: fall through to the provider */
+    return null; // absent or unreadable
+  }
+}
+
+/** Cold start: the newest of this instance's disk copy and the deployment's bundled copy. */
+async function restoreSnapshot(): Promise<void> {
+  if (state.result) return;
+  const file = snapshotPath();
+  const bundled = bundledSnapshotPath();
+  const candidates = await Promise.all([
+    file ? readSnapshotFile(file, MAX_STALE_MS).then((r) => (r ? { result: r, maxStaleMs: MAX_STALE_MS } : null)) : null,
+    bundled
+      ? readSnapshotFile(bundled, BUNDLED_MAX_STALE_MS).then((r) => (r ? { result: r, maxStaleMs: BUNDLED_MAX_STALE_MS } : null))
+      : null,
+  ]);
+  const newest = candidates
+    .filter((c): c is { result: SkyCatalogResult; maxStaleMs: number } => c !== null)
+    .sort((a, b) => ageMs(a.result) - ageMs(b.result))[0];
+  if (newest && !state.result) {
+    state.result = newest.result;
+    state.maxStaleMs = newest.maxStaleMs;
   }
 }
 
@@ -153,7 +190,7 @@ export async function getSkyCatalog(): Promise<SkyCatalogResult> {
   if (cached) {
     const age = ageMs(cached);
     if (age < SKY_CATALOG_TTL_MS) return cached;
-    if (age > MAX_STALE_MS) state.result = null;
+    if (age > state.maxStaleMs) state.result = null;
   }
 
   // Recently failed: don't ask the provider again yet.
@@ -166,6 +203,7 @@ export async function getSkyCatalog(): Promise<SkyCatalogResult> {
     state.inFlight = fetchFresh()
       .then((fresh) => {
         state.result = fresh;
+        state.maxStaleMs = MAX_STALE_MS;
         state.lastFailure = null;
         void persistSnapshot(fresh);
         return fresh;
@@ -181,6 +219,13 @@ export async function getSkyCatalog(): Promise<SkyCatalogResult> {
       .finally(() => {
         state.inFlight = null;
       });
+  }
+  // A copy under a day old answers now; the refresh above lands for the next
+  // caller. (An unreachable provider would otherwise hold every cold request
+  // for its timeout — the same trade-off satellites.ts makes.)
+  if (state.result && ageMs(state.result) < SERVE_WHILE_REFRESHING_MS) {
+    state.inFlight.catch(() => undefined);
+    return state.result;
   }
   return state.inFlight;
 }

@@ -23,6 +23,14 @@ const SECTIONS = [
           visitors.
         </li>
         <li>
+          Each deployment also carries its own copy of the whole active catalog, fetched when the site is built
+          (and refreshed every two days by a scheduled job). A server that starts cold answers from it at once
+          instead of depending on CelesTrak in that moment; CelesTrak has refused the full-catalog request from our
+          hosting provider&apos;s servers while answering other networks. The copy always shows its real fetch time,
+          is refreshed from CelesTrak in the background when it is more than 6 hours old, and is never served once
+          it is more than a week old.
+        </li>
+        <li>
           The whole-sky copy is also kept on the server&apos;s disk with its original fetch time, so a restart
           reuses it instead of downloading it again; it is served as &ldquo;stale&rdquo; for at most 48 hours after
           that fetch, then dropped. After a failed fetch the server waits 10 minutes before asking CelesTrak again

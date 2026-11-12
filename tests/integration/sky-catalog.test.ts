@@ -42,6 +42,8 @@ beforeEach(async () => {
   snapshotDir = mkdtempSync(path.join(tmpdir(), "sky-catalog-test-"));
   snapshotFile = path.join(snapshotDir, "sky-catalog.json");
   process.env.SKY_CATALOG_SNAPSHOT_PATH = snapshotFile;
+  // The repo's real bundled snapshot is opted out unless a test provides one.
+  process.env.SKY_CATALOG_BUNDLED_PATH = "off";
   vi.resetModules();
   vi.doMock("@/integrations/celestrak/client", () => {
     const mock = vi.fn();
@@ -54,7 +56,71 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
   delete process.env.SKY_CATALOG_SNAPSHOT_PATH;
+  delete process.env.SKY_CATALOG_BUNDLED_PATH;
   rmSync(snapshotDir, { recursive: true, force: true });
+});
+
+/** Writes a deployment-bundled snapshot `hoursOld` hours old and points the service at it. */
+function bundle(count: number, hoursOld: number): string {
+  const file = path.join(snapshotDir, "bundled.json");
+  const generatedAt = new Date(Date.now() - hoursOld * 3_600_000).toISOString();
+  const entries = makeNamed(count).map((n) => ({ i: n.elementSet.satelliteNumber, n: n.name, l1: n.elementSet.line1, l2: n.elementSet.line2 }));
+  writeFileSync(file, JSON.stringify({ generatedAt, source: "test", count, entries }));
+  process.env.SKY_CATALOG_BUNDLED_PATH = file;
+  return generatedAt;
+}
+
+describe("sky catalog service — the deployment's bundled snapshot", () => {
+  it("serves a fresh bundled copy without asking the provider", async () => {
+    const generatedAt = bundle(5_500, 2);
+    const { getSkyCatalog } = await import("@/server/sky-catalog");
+    const result = await getSkyCatalog();
+    expect(fetchGpTle).not.toHaveBeenCalled();
+    expect(result.count).toBe(5_500);
+    expect(result.generatedAt).toBe(generatedAt);
+    expect(result.stale).toBe(false);
+  });
+
+  it("answers at once with a day-old copy past its TTL and refreshes in the background", async () => {
+    bundle(5_500, 8);
+    const { getSkyCatalog } = await import("@/server/sky-catalog");
+    let release: (rows: NamedElementSet[]) => void = () => undefined;
+    fetchGpTle!.mockImplementation(() => new Promise((resolve) => (release = resolve)));
+    const first = await getSkyCatalog(); // must not wait on the pending provider call
+    expect(first.count).toBe(5_500);
+    expect(fetchGpTle).toHaveBeenCalledTimes(1);
+    release(makeNamed(5_600));
+    await new Promise((r) => setTimeout(r, 0));
+    const second = await getSkyCatalog();
+    expect(second.count).toBe(5_600);
+    expect(second.stale).toBe(false);
+  });
+
+  it("when the provider fails, serves an older bundled copy labelled stale with its true age", async () => {
+    const generatedAt = bundle(5_500, 30);
+    const { getSkyCatalog } = await import("@/server/sky-catalog");
+    fetchGpTle!.mockRejectedValue(new Error("CelesTrak returned HTTP 500"));
+    const result = await getSkyCatalog();
+    expect(result.stale).toBe(true);
+    expect(result.generatedAt).toBe(generatedAt);
+  });
+
+  it("refuses a bundled copy older than a week (typed failure, no ancient sky)", async () => {
+    bundle(5_500, 8 * 24);
+    const { getSkyCatalog } = await import("@/server/sky-catalog");
+    fetchGpTle!.mockRejectedValue(new Error("CelesTrak returned HTTP 500"));
+    await expect(getSkyCatalog()).rejects.toThrow("HTTP 500");
+  });
+
+  it("prefers the newer of the instance's disk copy and the bundled copy", async () => {
+    bundle(5_500, 20);
+    const diskEntries = makeNamed(5_700).map((n) => ({ i: n.elementSet.satelliteNumber, n: n.name, l1: n.elementSet.line1, l2: n.elementSet.line2 }));
+    writeFileSync(snapshotFile, JSON.stringify({ generatedAt: new Date(Date.now() - 3_600_000).toISOString(), stale: false, count: 5_700, entries: diskEntries }));
+    const { getSkyCatalog } = await import("@/server/sky-catalog");
+    const result = await getSkyCatalog();
+    expect(result.count).toBe(5_700);
+    expect(fetchGpTle).not.toHaveBeenCalled();
+  });
 });
 
 /** Let the fire-and-forget snapshot write land. */

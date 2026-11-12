@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   // CesiumJS ships large CommonJS worker bundles that must stay unbundled.
   serverExternalPackages: ["@cesium/engine"],
+  // The whole-sky route reads the deployment's own catalog snapshot from disk
+  // (src/server/sky-catalog.ts); file tracing can't see a runtime path.
+  outputFileTracingIncludes: {
+    "/api/sky/catalog": ["./data/sky-catalog.snapshot.json"],
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.alias = {
