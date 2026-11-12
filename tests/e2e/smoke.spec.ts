@@ -46,6 +46,14 @@ test.describe("deployment smoke", () => {
     expect(errors).toEqual([]);
   });
 
+  test("the atlas charts the catalog", async ({ page }) => {
+    const errors = collectPageErrors(page);
+    await page.goto("/atlas");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByTestId("atlas-plot")).toHaveAttribute("data-plotted", /^[1-9]\d{3,}$/, { timeout: 60_000 });
+    expect(errors).toEqual([]);
+  });
+
   test("methodology is reachable", async ({ page }) => {
     await page.goto("/methodology");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();

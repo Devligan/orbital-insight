@@ -16,6 +16,7 @@ import { CatalogSearch } from "@/components/catalog-search";
 
 const NAV = [
   { href: "/", label: "Sky" },
+  { href: "/atlas", label: "Atlas" },
   { href: "/passes", label: "Passes" },
   { href: "/compare", label: "Compare" },
   { href: "/watchlist", label: "Watchlist" },
