@@ -50,6 +50,33 @@ const SECTIONS = [
     ),
   },
   {
+    id: "atlas",
+    heading: "The atlas: constellations and orbit shapes",
+    body: (
+      <ul className="list-disc space-y-1 pl-5">
+        <li>
+          The <Link className="text-[var(--color-accent)] hover:underline" href="/atlas">atlas</Link> uses the same
+          whole-sky copy as the globe. Inclination, eccentricity and mean motion are read from each TLE&apos;s fixed
+          columns; perigee and apogee altitudes are Keplerian close forms (a = (μ/n²)<sup>1/3</sup>, WGS-72 μ, minus the
+          equatorial radius). Each dot sits at the mean of the two. These are approximations of the mean orbit, not
+          positions: they ignore the oblateness and drag terms SGP4 models.
+        </li>
+        <li>
+          Constellation membership comes from the provider&apos;s object names, by whole-word prefix: STARLINK,
+          ONEWEB, KUIPER (Amazon), QIANFAN, HULIANWANG (Guowang), IRIDIUM; navigation is NAVSTAR/GPS, GSATnnnn
+          (GALILEO …), BEIDOU, any name containing GLONASS, QZS and IRNSS. India&apos;s GSAT-n communications satellites
+          and COSMOS satellites that aren&apos;t GLONASS stay in &ldquo;everything else&rdquo;. Name rules are
+          transparent but not authoritative: anything they don&apos;t match is never guessed into a constellation.
+        </li>
+        <li>
+          Orbit regimes match the globe&apos;s colouring: eccentricity above 0.25 is highly elliptical; otherwise a
+          period under 129 minutes is low Earth orbit and 22–26 hours is the geostationary belt; the rest is medium
+          orbit.
+        </li>
+      </ul>
+    ),
+  },
+  {
     id: "elements",
     heading: "Orbital elements and their epoch",
     body: (

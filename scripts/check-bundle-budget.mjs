@@ -55,7 +55,7 @@ for (const [route, files] of Object.entries(pages)) {
   rows.push(`${ok ? "ok  " : "FAIL"} ${route.padEnd(40)} ${total.toFixed(1).padStart(6)} kB / ${budget} kB`);
 }
 
-console.log(["[bundle-budget] first-load JS per page (gzip):", ...rows].join("\n"));
+process.stdout.write(`${["[bundle-budget] first-load JS per page (gzip):", ...rows].join("\n")}\n`);
 if (process.env.GITHUB_STEP_SUMMARY) {
   const { appendFileSync } = await import("node:fs");
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n**Bundle budget**\n\n\`\`\`\n${rows.join("\n")}\n\`\`\`\n`);

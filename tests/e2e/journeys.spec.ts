@@ -370,6 +370,45 @@ test.describe("pass cards on phones", () => {
   });
 });
 
+test.describe("constellation atlas", () => {
+  test("charts the catalog, spotlights a constellation, and opens a dot's satellite", async ({ page }) => {
+    await page.goto("/atlas");
+    const plot = page.getByTestId("atlas-plot");
+    await expect(plot).toHaveAttribute("data-plotted", /^[1-9]\d{3,}$/, { timeout: 60_000 });
+    // Headline stats and the accessible table carry the same numbers as the plot.
+    await expect(page.getByText("active objects tracked")).toBeVisible();
+    await expect(page.getByRole("cell", { name: /Starlink/ })).toBeVisible();
+
+    // Spotlight Starlink: only spotlighted dots answer the pointer.
+    await page.getByRole("button", { name: /^Starlink/ }).click();
+    await expect(page.getByRole("button", { name: /^Starlink/ })).toHaveAttribute("aria-pressed", "true");
+
+    // Take a real Starlink from the same feed and click exactly where it must
+    // be drawn: inclination and mean altitude straight from its TLE line 2,
+    // mapped through the plot's published scales. (Data-driven on purpose —
+    // a hardcoded "550 km shell" went stale when SpaceX lowered the shell.)
+    const catalog = await (await page.request.get("/api/sky/catalog")).json();
+    const starlink = (catalog.data.entries as { n: string; l2: string }[]).find((e) => e.n.startsWith("STARLINK"))!;
+    const inclination = Number(starlink.l2.slice(8, 16));
+    const nRadPerSec = (Number(starlink.l2.slice(52, 63)) * 2 * Math.PI) / 86_400;
+    const meanAltitudeKm = Math.cbrt(398_600.7996 / nRadPerSec ** 2) - 6_378.135; // mean of perigee & apogee
+    await plot.scrollIntoViewIfNeeded(); // mouse.click doesn't scroll; the plot starts below the fold
+    const box = (await plot.boundingBox())!;
+    const [left, right, top, bottom] = ((await plot.getAttribute("data-margins")) ?? "").split(",").map(Number);
+    const xMax = Number(await plot.getAttribute("data-x-max"));
+    const [yMinLog, yMaxLog] = ((await plot.getAttribute("data-y-log-domain")) ?? "").split(",").map(Number);
+    const plotH = box.height - top! - bottom!;
+    const x = left! + (inclination / xMax) * (box.width - left! - right!);
+    const y = top! + plotH - ((Math.log10(meanAltitudeKm) - yMinLog!) / (yMaxLog! - yMinLog!)) * plotH;
+    await page.mouse.click(box.x + x, box.y + y);
+
+    const tooltip = page.getByRole("tooltip");
+    await expect(tooltip).toContainText("Starlink");
+    await tooltip.getByRole("link", { name: /Open details/ }).click();
+    await expect(page).toHaveURL(/\/satellites\/\d+$/);
+  });
+});
+
 test.describe("methodology page", () => {
   test("documents limitations and data sources", async ({ page }) => {
     await page.goto("/methodology");
