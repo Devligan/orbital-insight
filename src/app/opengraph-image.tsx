@@ -1,0 +1,88 @@
+import { ImageResponse } from "next/og";
+
+/** Link-preview card (LinkedIn, Slack, X): rendered once at build time. */
+
+export const alt = "Orbital Insight — real satellites, real orbits: tracking, pass prediction and close-approach screening";
+export const size = { width: 1200, height: 630 };
+export const contentType = "image/png";
+
+/** Deterministic pseudo-random dots: a stylised low-orbit shell, the same on every build. */
+function shellDots(count: number): { x: number; y: number; r: number; o: number; farSide: boolean }[] {
+  let seed = 7;
+  const random = () => ((seed = (seed * 16_807) % 2_147_483_647) / 2_147_483_647);
+  const dots = Array.from({ length: count }, () => {
+    const angle = random() * Math.PI * 2;
+    const shell = 1 + (random() - 0.5) * 0.06;
+    return {
+      x: 880 + Math.cos(angle) * 250 * shell,
+      y: 315 + Math.sin(angle) * 250 * shell * 0.38 + Math.sin(angle * 3) * 6,
+      r: random() < 0.15 ? 3 : 2,
+      o: 0.35 + random() * 0.6,
+      farSide: Math.sin(angle) < 0,
+    };
+  });
+  // The far half of the ring passes behind the planet (disc: centre 880,315, radius 120).
+  return dots.filter((d) => !(d.farSide && Math.hypot(d.x - 880, d.y - 315) < 122));
+}
+
+export default function OpengraphImage() {
+  const dots = shellDots(220);
+  return new ImageResponse(
+    (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          background: "radial-gradient(120% 90% at 75% 50%, #12233a 0%, #0b1017 60%)",
+          color: "#dbe4f0",
+          fontFamily: "sans-serif",
+          position: "relative",
+        }}
+      >
+        {/* Earth */}
+        <div
+          style={{
+            position: "absolute",
+            left: 760,
+            top: 195,
+            width: 240,
+            height: 240,
+            borderRadius: 120,
+            background: "radial-gradient(circle at 35% 30%, #2b6cb0 0%, #163a63 55%, #0c1e33 100%)",
+            boxShadow: "0 0 60px rgba(56,189,248,0.25)",
+          }}
+        />
+        {dots.map((d, i) => (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              left: d.x,
+              top: d.y,
+              width: d.r * 2,
+              height: d.r * 2,
+              borderRadius: d.r,
+              background: "#3987e5",
+              opacity: d.o,
+            }}
+          />
+        ))}
+        <div style={{ display: "flex", flexDirection: "column", padding: "80px 72px", width: 660 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 30, fontWeight: 700 }}>
+            <div style={{ width: 18, height: 18, borderRadius: 9, background: "#38bdf8" }} />
+            Orbital <span style={{ color: "#38bdf8" }}>Insight</span>
+          </div>
+          <div style={{ marginTop: 56, fontSize: 64, fontWeight: 700, lineHeight: 1.08, letterSpacing: -1.5 }}>
+            Real satellites. Real orbits.
+          </div>
+          <div style={{ marginTop: 28, fontSize: 28, lineHeight: 1.4, color: "#8fa3bd" }}>
+            Every active satellite on a live 3D globe, visible-pass prediction, and close-approach screening, computed
+            with SGP4 in your browser.
+          </div>
+        </div>
+      </div>
+    ),
+    size,
+  );
+}

@@ -492,7 +492,25 @@ function FunnelStep({ value, label, highlight = false }: { value: string; label:
   );
 }
 
-/** Separation vs time around the TCA (±10 min), computed on demand for just this pair. */
+/**
+ * Half-width of the profile window: long enough for the pair to drift ~10×
+ * the screening distance apart at their closing speed, so the closest
+ * approach and the threshold share a readable scale. (A fixed ±10 min spans
+ * ~8,000 km at 14 km/s and flattens a 4 km miss into the baseline.)
+ */
+function profileHalfWindowMs(relativeSpeedKmS: number, thresholdKm: number): number {
+  const seconds = (10 * thresholdKm) / Math.max(relativeSpeedKmS, 0.05);
+  return Math.min(Math.max(seconds, 10), 600) * 1000;
+}
+
+function offsetLabel(ms: number): string {
+  if (ms === 0) return "closest";
+  const sign = ms > 0 ? "+" : "−";
+  const seconds = Math.abs(ms) / 1000;
+  return seconds >= 120 ? `${sign}${Math.round(seconds / 60)} min` : `${sign}${Math.round(seconds)} s`;
+}
+
+/** Separation vs time around the TCA, computed on demand for just this pair. */
 function EncounterDetail({
   approach,
   targetRow,
@@ -504,11 +522,12 @@ function EncounterDetail({
   other: CatalogRow | undefined;
   thresholdKm: number;
 }) {
+  const halfWindowMs = profileHalfWindowMs(approach.relativeSpeedKmS, thresholdKm);
   const profile = useMemo(() => {
     const t = sgp4Body(targetRow.i, targetRow.n, targetRow.l1, targetRow.l2);
     const o = other ? sgp4Body(other.i, other.n, other.l1, other.l2) : null;
-    return t && o ? separationProfile(t, o, approach.tcaMs, 10 * 60_000, 5_000) : [];
-  }, [approach.tcaMs, targetRow, other]);
+    return t && o ? separationProfile(t, o, approach.tcaMs, halfWindowMs, halfWindowMs / 60) : [];
+  }, [approach.tcaMs, targetRow, other, halfWindowMs]);
 
   const W = 640;
   const H = 180;
@@ -516,13 +535,13 @@ function EncounterDetail({
   const finite = profile.filter((p) => Number.isFinite(p.km));
   if (finite.length < 2) return <p className="p-2 text-[13px]">The encounter profile couldn&apos;t be computed.</p>;
   const yMax = Math.max(...finite.map((p) => p.km), thresholdKm) * 1.05;
-  const x = (tMs: number) => M.left + ((tMs - approach.tcaMs + 600_000) / 1_200_000) * (W - M.left - M.right);
+  const x = (tMs: number) => M.left + ((tMs - approach.tcaMs + halfWindowMs) / (2 * halfWindowMs)) * (W - M.left - M.right);
   const y = (km: number) => M.top + (1 - km / yMax) * (H - M.top - M.bottom);
   const path = finite.map((p, i) => `${i ? "L" : "M"}${x(p.tMs).toFixed(1)},${y(p.km).toFixed(1)}`).join("");
 
   return (
     <div className="flex flex-col gap-3 p-2 md:flex-row md:items-center">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[640px]" role="img" aria-label={`Separation between ${targetRow.n} and ${approach.name} from 10 minutes before to 10 minutes after closest approach; minimum ${approach.missKm.toFixed(2)} km.`}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[640px]" role="img" aria-label={`Separation between ${targetRow.n} and ${approach.name} from ${offsetLabel(-halfWindowMs).slice(1)} before to ${offsetLabel(halfWindowMs).slice(1)} after closest approach; minimum ${approach.missKm.toFixed(2)} km.`}>
         {[0, 0.5, 1].map((f) => (
           <g key={f}>
             <line x1={M.left} x2={W - M.right} y1={y(yMax * f)} y2={y(yMax * f)} stroke="#1e2a3a" />
@@ -538,9 +557,16 @@ function EncounterDetail({
         <line x1={x(approach.tcaMs)} x2={x(approach.tcaMs)} y1={M.top} y2={H - M.bottom} stroke="#2a3a50" />
         <path d={path} fill="none" stroke="#38bdf8" strokeWidth={2} strokeLinejoin="round" />
         <circle cx={x(approach.tcaMs)} cy={y(approach.missKm)} r={4} fill="#38bdf8" stroke="#0d1420" strokeWidth={2} />
-        {[-10, -5, 0, 5, 10].map((m) => (
-          <text key={m} x={x(approach.tcaMs + m * 60_000)} y={H - 8} fill="#5d7291" fontSize={11} textAnchor="middle">
-            {m === 0 ? "closest" : `${m > 0 ? "+" : ""}${m} min`}
+        {[-1, -0.5, 0, 0.5, 1].map((f, i, all) => (
+          <text
+            key={f}
+            x={x(approach.tcaMs + f * halfWindowMs)}
+            y={H - 8}
+            fill="#5d7291"
+            fontSize={11}
+            textAnchor={i === 0 ? "start" : i === all.length - 1 ? "end" : "middle"}
+          >
+            {offsetLabel(f * halfWindowMs)}
           </text>
         ))}
       </svg>

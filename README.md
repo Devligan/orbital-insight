@@ -1,241 +1,146 @@
 # Orbital Insight
 
-A production-quality satellite analysis platform: live orbital element data
-from CelesTrak, SGP4 propagation validated against the official reference
-suite, an interactive 3D globe + 2D ground tracks, observer pass predictions,
-and orbital element comparison — free-tier deployable, no sign-in required
-for the core demo.
+[![CI](https://github.com/Devligan/orbital-insight/actions/workflows/ci.yml/badge.svg)](https://github.com/Devligan/orbital-insight/actions/workflows/ci.yml)
 
-**State of this repository:** complete and **deployed** to production on
-Vercel: **https://orbital-insight-drab.vercel.app** (deployed 2026-10-14,
-Next.js 15.5.27 including the published security patches). Automated tests
-passing (see [Testing](#testing) for the exact commands used and their real
-output counts); production smoke-test receipts are recorded in
-[`docs/engineering-audit.md`](docs/engineering-audit.md) §H.
+**Real satellites, real orbits, in the browser.** Every active satellite in the public catalog (~15,900 objects)
+propagated with SGP4 on a live 3D globe; *"can I actually see it tonight?"* pass prediction with sunlight and
+sky darkness modelled; a constellation atlas of who is in orbit and where; and **close-approach screening** of any
+satellite against the whole catalog, computed on your device.
 
-## Feature map
+**Live:** https://orbital-insight-drab.vercel.app · no sign-in, no API keys
 
-| Route | What it does |
+![The explorer: every active satellite on the globe, with the ISS followed in real time](docs/images/home.jpg)
+
+| Constellation atlas | Close-approach screening |
 | --- | --- |
-| `/` | Explorer: 3D globe (Cesium, no token required — OpenStreetMap imagery), curated examples (ISS default), a live **"what's above you right now"** widget (geolocation + manual coordinates, computed on the server each minute), bounded time slider, provenance badges, browser-local watchlist toggle |
-| `/satellites/[id]` | Full detail: parsed TLE, element epoch, retrieval timestamp, approximate characteristics, 24 h ground track, source links |
-| `/passes` | Observer pass predictions (rise / max elevation / set + azimuths), bounded to 25 satellites × 30 days, CSV export |
-| `/compare` | Element-set + propagated-position comparison between two objects, with explicit interpretation notes |
-| `/watchlist` | Demo watchlist persisted in browser localStorage (labelled as local) |
-| `/methodology` | Data sources, coordinate frames, propagation limits, validation approach, unsupported use cases |
+| ![Every active satellite by inclination and altitude: Starlink's shells, the sun-synchronous band, navigation constellations, the geostationary belt](docs/images/atlas.png) | ![ISS screened against 15,880 objects: filter funnel, approaches with radial / in-track / cross-track miss components, and an encounter profile](docs/images/conjunctions.png) |
 
-## Technology
+## What's interesting under the hood
 
-- **Next.js 15 (App Router) + React 19 + TypeScript strict + Tailwind CSS v4**
-- **satellite.js 7** as the SGP4 implementation (adapter-isolated; see `src/integrations/sgp4`)
-- **CesiumJS 1.x** lazily loaded only on the explorer; OpenStreetMap raster imagery (no Ion token, no paid imagery)
-- **Recharts** for the comparison delta chart
-- **Zod 4** for runtime contracts (provider responses, API boundaries)
-- **Vitest 5** (unit + integration) and **Playwright 1.x** (e2e)
-- **Supabase (optional at runtime)** for orbital snapshots and authenticated watchlists, with RLS migrations
+**Conjunction screening in a Web Worker** ([`src/domain/conjunction/screening.ts`](src/domain/conjunction/screening.ts))
+A filter chain after Hoots, Crawford & Roehrich (1984). First a perigee/apogee radius filter. Then a 60 s sampled sweep
+in which a local minimum provably brackets each approach: separation can't shrink faster than 16 km/s, so minima
+further out than *threshold + 16 km/s × step* are discarded unrefined. Golden-section search pins the time of
+closest approach to under a millisecond, and the miss vector is resolved into the target's radial / in-track /
+cross-track frame. The same speed bound drives **conservative time skipping**: from separation *d*, nothing can get
+within the threshold for *(d − threshold) / 16 km/s*, so the sweep jumps ahead. Screening the ISS dropped from
+11.5 M propagations in 10 s to 2.4 M in ~2.5 s, with identical results. A unit test proves the skipping and
+brute-force sweeps agree. Tests use an exact oracle: two-body orbits engineered to meet at a known instant and
+distance. Docked modules, which share one element set and have no separation minimum, are classified co-orbiting
+instead of vanishing or flooding the list.
 
-## Feature verification matrix
+**SGP4 validated against the official reference** ([`tests/unit/propagation.test.ts`](tests/unit/propagation.test.ts))
+The integration regenerates all **700 published rows** of the `SGP4-VER.TLE` verification suite (33 element sets,
+including the deep-space and edge cases) and demands |Δ| < 2 × 10⁻⁷ on every TEME component, the tolerance the
+upstream harness uses.
 
-An independent engineering audit was performed (see
-[`docs/engineering-audit.md`](docs/engineering-audit.md)); the matrix below
-reflects its evidence-based verdicts.
+**15,900 objects at interactive frame rates** ([`src/features/sky`](src/features/sky))
+A worker propagates the whole catalog and hands positions and velocities back as transferred `Float32Array`s.
+Between SGP4 sweeps each dot is dead-reckoned along its velocity (error bound unit-tested), redraw cadence follows
+zoom and time rate, and Cesium's one-time shader compiles are forced during load, not mid-drag. Idle CPU went from
+~18% to ~5%. The 1.3 MB globe mounts only when visible, and a CI bundle-budget gate keeps it off the critical path.
 
-| Feature | Status | Evidence |
-| --- | --- | --- |
-| Satellite search & selection | **Verified** | search answers from the build-time catalog snapshot — cold server measured **0.68 s** (previously ~7.7 s); provider refreshes quietly in the background; e2e journeys include a provider-independent assertion. For non-catalog objects the normal typed provider errors apply |
-| Satellite details / epoch / provenance | **Verified** | e2e + live HTTP smoke (epoch = fetch-day value) |
-| 3D globe (orbit, satellite, ground track) | **Partially verified** | e2e loads the globe in Chromium with WebGL and reads the satellite's altitude back from Cesium (ISS must sit 350–460 km up — until 2026-10-16 km samples went in as metres, placing it inside the Earth); NASA ISS 3D model + "Follow" camera checked in production screenshots; pixel-level rendering is not asserted |
-| 2D WebGL fallback (swap-in on globe failure) | **Verified** | e2e journey forces every WebGL context request to fail in real Chromium and asserts the computed 2D ground track swaps in — engagement is instant (a WebGL probe runs before the multi-MB Cesium module loads) and persists for the session |
-| Ground track (antimeridian handling) | **Verified** | unit tests (dateline split, wrap conventions) + API ground-track smoke |
-| Time controls (live / slider / 60× fast-forward) | **Verified** | one shared clock drives the satellite, its model, and every whole-sky dot (unit-tested); e2e drags the slider 24 steps and reads Cesium's own clock back (≈ +2 h, paused), then "Back to live". The old readout-only check passed while the slider moved nothing on the globe |
-| Pass predictions (rise/max/set + azimuths) | **Verified** | unit tests incl. truncation semantics; live HTTP smoke (ISS × Florida ≈ 42.1° apex) |
-| Visual visibility + "You can actually see" headline | **Verified** | unit tests: sun ephemeris vs published solstice/equinox declinations, shadow/phase geometry, and visible-window edges checked against the light primitives (≤ 2 s) on the official Vanguard 1 TLE; selection/empty-state honesty tests; e2e asserts the headline list or its truthful empty state. Live smoke (2026-10-16, NYC): ISS morning pass emerging from Earth's shadow 36° up, a dawn pass lost to civil twilight at 21°, CSS night passes correctly eclipsed. Magnitudes follow the published standard-magnitude convention (1 000 km, 90° phase; Mallama 2020) and are estimated only from sourced per-object values (ISS −1.3, Molczan 2005; CSS 0.0, Heavens-Above), listed with caveats on `/methodology`; other objects read "brightness unknown". Unit tests pin the definition round-trip, the published phase adjustment and inverse-square scaling |
-| Observer-local pass times | **Verified** | server resolves the observer's IANA zone offline (tz-lookup; ~5% of random points, mostly remote/ocean, resolve to a different offset — documented on `/methodology`); unit tests pin cities incl. KSC and Baikonur; production check: NYC passes read in New York time from any device, Tokyo coordinates show Tokyo times with a "Tokyo time (GMT+9)" note |
-| Home-page performance | **Measured** (production build, 2026-10-16) | phone profile (4× CPU throttle, slow 4G): LCP 1.6 s, CLS 0.000, TBT 0.23 s, 0.24 MB JS up front — the 1.3 MB Cesium globe mounts only when ≥ 75% visible and the browser is idle (before this, tap → response took 4.4 s); tap on "Show me tonight's passes" → answer ≈ 0.75 s. Desktop: LCP 0.35 s, CLS 0.000. APIs 70–150 ms warm. GPU-bound numbers were measured with a software renderer and are pessimistic |
-| Globe interaction performance | **Measured** (production build, Intel Iris Xe laptop GPU, 10.6k-object cloud, 2026-10-16) | idle: ~0.5 globe redraws/s, main-thread script ~5% (was ~15 redraws/s, ~18%); first drag 60 fps with no long tasks — Cesium's one-time shader compiles (1–3.7 s, incl. the ISS model's lighting) now happen during load instead of mid-drag; wheel-zoom no longer stalls on GPU depth readbacks (main thread 100% → 60–70%, ~35–38 fps); Follow ISS ~45 fps; 60× moves every dot smoothly (was a ~1,100 km jump per dot per batch) at ~25 redraws/s. Unit tests pin the redraw cadence and the straight-line error between SGP4 sweeps; e2e wheel-zooms at the exact canvas centre (a Cesium zero-axis rotation once stopped rendering there) |
-| Pass compute budget guard | **Verified** | unit regression test (2160 sat-h rejected, 600 sat-h accepted) + e2e message assertion |
-| Orbital element comparison | **Verified** | service-level identity/delta regression tests + e2e journey on `/compare` (both default satellites load, delta chart renders, interpretation notes visible) |
-| Provider failure handling (honest outage UI) | **Verified** | observed live during a real CelesTrak 403 outage: API returned a typed 502 provider error; detail page rendered "Satellite data unavailable — shown honestly"; e2e journey asserts real-data-or-honest-failure, never fabricated data |
-| Snapshot comparison (requires Supabase) | **Not verified** | persistence + deduplicating writes implemented with migrations; no live Supabase instance was configured in this environment — nothing could assert it end-to-end |
-| What's above you right now (live overhead panel) | **Verified** | new `/api/overhead` reuses the validated SGP4 + look-angle chain (unit tests: selection, horizon filtering, compass, skip honesty); e2e journey (manual coordinates → real panel: named objects or an honest empty state); production receipt: 200, **0.50 s**, honest empty at a time when nothing was above 15° |
-| Watchlist (browser-local persistence) | **Verified** | e2e (save → navigate → list shows the entry) |
-| CSV export | **Verified** | e2e download event, `.csv` filename, non-empty file path |
-| Methodology & limitations page | **Verified** | e2e content assertions |
-| First-load without sign-in / no secrets client-side | **Verified** | e2e opens the explorer with zero configuration; dependency audit (secret sweep) found none |
-| Read-only mode without Supabase | **Verified** | entire test suite + e2e ran with no environment variables configured |
+**Visibility, not just geometry** ([`src/domain/light`](src/domain/light))
+A pass counts only if the satellite is sunlit (Earth's shadow cylinder) while the observer's sky is past civil
+twilight. Brightness is estimated only from sourced standard magnitudes (Mallama 2020 convention); everything else
+reads "brightness unknown" rather than an invented number.
+
+**Honesty as a contract** ([`/methodology`](https://orbital-insight-drab.vercel.app/methodology))
+Every response carries data lineage (`live` / `cached` / `provider-unavailable-stale`). Provider failures are typed
+failures, never fabricated orbits, and every approximation and limit is documented on the methodology page.
 
 ## Architecture
 
-See [`docs/architecture.md`](docs/architecture.md) — the short version:
-
+```mermaid
+flowchart LR
+  subgraph Browser
+    UI["Next.js pages (React 19)"]
+    SKY["Sky worker<br/>SGP4 × 15.9k, zero-copy sweeps"]
+    SCR["Screening worker<br/>conjunction filter chain"]
+    GLOBE["CesiumJS globe<br/>(lazy, mounts when visible)"]
+    UI --> SKY & SCR & GLOBE
+  end
+  subgraph Vercel
+    CDN[("CDN<br/>s-maxage + SWR")]
+    API["Route handlers<br/>validate → service → respond"]
+    SVC["Services<br/>satellites · sky catalog · passes · overhead"]
+    DOM["Pure domain<br/>orbit · passes · light · conjunction · catalog"]
+    SNAP[("Build-time snapshot")]
+    CT["CelesTrak client<br/>≥2 s spacing · 15 s timeout · typed failures"]
+    API --> SVC --> DOM
+    SNAP --> SVC
+    SVC --> CT
+  end
+  UI -- "/api/*" --> CDN --> API
+  CT --> CEL[("CelesTrak GP data")]
 ```
-src/app/            routes + route handlers (thin: validate → service → respond)
-src/features/       feature UI + client workflows  (satellites, orbit-visualization, passes, comparisons, watchlist)
-src/domain/orbit    pure orbital domain: parsing, propagation, coordinates, ground track, characteristics
-src/domain/passes   pass-prediction engine (30 s sweep → bisection → ternary apex)
-src/integrations/   celestrak client · sgp4 adapter (only module importing satellite.js)
-src/server/         application services: satellites, analysis, catalog cache, detail loader, persistence
-src/contracts/      zod schemas shared across boundaries
-supabase/migrations RLS-protected schema
+
+- **Dependency direction is one-way:** routes → services → pure domain. The domain never imports React, HTTP or a
+  database, and only `src/integrations/sgp4` touches `satellite.js`.
+- **Provider politeness is designed in:** one shared fetch of the active catalog per 6 h per instance, a CDN window
+  of 3 h in front of it, disk snapshot restore, 10 min back-off after failures, and refusal of truncated feeds.
+- Details: [`docs/architecture.md`](docs/architecture.md).
+
+## Delivery pipeline
+
+```mermaid
+flowchart LR
+  PR["Pull request"] --> CI["CI: types · lint · 190 unit/integration tests<br/>production build · bundle budget · 31 e2e journeys"]
+  PR --> PREV["Vercel preview"] --> SMOKE["Smoke suite against the preview URL"]
+  MAIN["Merge to main"] --> PROD["Vercel production"] --> CHECKS["Smoke suite + Lighthouse"]
+  CRON["Daily schedule"] --> HOOK["Deploy hook → fresh data snapshot"]
 ```
 
-Key boundaries: the orbital domain never imports React/HTTP/DB; only the
-adapted integrations touch external libraries; every privilege stays
-server-side; the app degrades to a read-only demo without Supabase
-credentials (and tells the user so).
+Workflows live in [`.github/workflows`](.github/workflows). The smoke suite's headline assertion is "no uncaught
+page errors", added after a minifier-mangled Cesium chunk once reached production while every other check was green.
+Dependabot groups routine bumps; Cesium minors are held for deliberate upgrades with production screenshots.
 
-## Data sources
+## Features
 
-Orbital element sets come from CelesTrak's current GP interface
-(`https://celestrak.org/NORAD/elements/gp.php?CATNR=…&FORMAT=tle`). Notes:
+| Route | What it does |
+| --- | --- |
+| `/` | Hero answer to "what's flying over me tonight?" (visible passes only, local times, compass words) next to the live globe: every active satellite, follow the ISS with NASA's 3D model, time slider and 60× fast-forward, shareable links |
+| `/atlas` | All active satellites by inclination and altitude, a 10 km altitude histogram that shows each constellation shell, and a constellation table |
+| `/conjunctions` | Close-approach screening of any satellite against the active catalog: TCA, miss distance (RIC), closing speed, encounter profile |
+| `/satellites/[id]` | Element set, epoch and provenance, approximate orbit characteristics, 24 h ground track |
+| `/passes` | Pass predictions for any location (rise / peak / set, azimuths, visibility verdict), CSV export |
+| `/compare` | Two element sets compared, with propagated-position deltas over time |
+| `/watchlist` | Browser-local watchlist (no account) |
+| `/methodology` | Data sources, frames, validation, every approximation and limit |
 
-- **Parameter names are case-sensitive** (`CATNR`, `GROUP`, `NAME`); unknown
-  identifiers answer `404 "No GP data found"` and are surfaced as HTTP 404
-  **not-found**, never as fake data.
-- The client sleeps ≥ 2 s between outbound requests (politeness, since
-  CelesTrak is a free service), times out at 15 s, and distinguishes empty
-  responses, rate-limits, and schema violations as separate typed failures.
-- Reconstructed responses are cached server-side for 2 hours; a record past
-  that but under a day old is answered at once (labelled `cached`) while it is
-  refreshed in the background — an unreachable provider used to hold such
-  lookups for its full timeout (measured 10.7 s). After a provider outage the
-  last-known-good element set is served and explicitly labelled `cached` /
-  `provider-unavailable-stale` in the API and UI.
-- Only bounded curated groups are fetched (crewed stations, GNSS
-  constellations, scientific satellites — a few hundred records total), never
-  the full active catalog.
+## Stack
 
-## Orbital calculation methodology (summary)
+Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS 4 · satellite.js 7 (SGP4) · CesiumJS ·
+Zod 4 at every boundary · Vitest · Playwright · GitHub Actions · Vercel. Supabase persistence is optional; the app
+runs fully without it.
 
-Full details, including honest limitations and unsupported use cases, live on
-the `/methodology` page. In brief:
-
-- Positions are **SGP4 predictions** in TEME (km, km/s), converted to ECEF via
-  GMST and to geodetic coordinates on the same WGS-72 ellipsoid the model
-  uses. All timestamps are UTC.
-- Elements carry their published epoch; data older than 36 h is flagged (a
-  conservative operational warning, not an asserted accuracy cutoff).
-- Ground tracks are sampled at bounded rates and **split at the antimeridian**
-  so plots never draw false lines across the globe.
-- Pass prediction sweeps elevation every 30 s, refines rise/set crossings by
-  bisection to < 1 s and the apex by ternary search; passes already in
-  progress at window start are marked **truncated** rather than invented.
-- Approximate characteristics (period, semi-major axis, perigee/apogee) are
-  Keplerian close-forms from the element set, labelled as approximations.
-
-## Local setup
+## Run it
 
 ```bash
 npm install
-cp .env.example .env.local        # optional — Supabase only
-npm run predev                    # copies Cesium runtime assets into public/cesium
-npm run dev                       # http://localhost:3000
+npm run dev          # http://localhost:3000, no environment variables needed
+npm run verify       # typecheck → lint → tests → production build → bundle budget → e2e
 ```
 
-The core explorer runs with **zero environment configuration**: no API keys,
-no database. Supabase persistence (snapshots, authenticated watchlists)
-activates when `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (+ anon key for
-user watchlists) are set.
+| Command | What it runs |
+| --- | --- |
+| `npm test` | Vitest unit + integration (190; the one skip is an opt-in live-provider check: `RUN_LIVE_TESTS=1`) |
+| `npm run test:e2e` | Playwright journeys against `next start` (production build first) |
+| `npm run test:smoke` | The deployment smoke suite; point it anywhere with `E2E_BASE_URL=https://…` |
+| `npm run check:bundle` | First-load JS per page (gzip) against budgets |
 
-### Database migrations
+Tip: if a `next dev` server shares the checkout, build and test with `NEXT_DIST_DIR=.next-prod` so the two don't
+overwrite each other's output.
 
-```bash
-supabase db push   # applies supabase/migrations/*.sql
-```
+## Evidence
 
-- `0001_snapshots.sql` — `orbital_snapshots`, unique on `(satellite_number,
-  epoch)` so repeated page views never duplicate history; RLS-closed, written
-  only via the service role.
-- `0002_watchlists.sql` — `watchlist_items`, unique on `(user_id,
-  satellite_number)`, full RLS policy set for owner-only access.
+- [`docs/verification.md`](docs/verification.md): the feature-by-feature verification matrix (what was checked, how,
+  measured numbers)
+- [`docs/engineering-audit.md`](docs/engineering-audit.md): an independent audit with findings and fixes
+- [`docs/architecture.md`](docs/architecture.md): module boundaries and key decisions
 
-## Testing
+## Data and limits
 
-All results below are from the actual runs in this workspace; nothing is
-projected or fabricated.
-
-### Unit + integration (Vitest)
-
-```bash
-npm test
-# Test Files  10 passed | 1 skipped (11)
-#      Tests  57 passed | 1 skipped (58)   ← the skip is the optional live-provider check
-```
-
-Covers:
-- **SGP4 numerical validation** against the official verification data
-  (`SGP4-VER.TLE` + `tcppver.out`, mirrored from the python-sgp4 project):
-  the suite regenerates all **700 published output rows** across 33 element
-  sets and demands **|Δ| < 2e-7** on every TEME field (km / km/s) — the same
-  tolerance the upstream reference harness uses.
-- TLE parse/checksum validation (including derived, re-checksummed fixtures).
-- Ground-track antimeridian splitting.
-- Pass-finder behaviour: ordering, apex bounds, truncation semantics,
-  threshold sensitivity, failure reporting.
-- CelesTrak client against mocked HTTP: malformed bodies, rate-limits,
-  timeouts, network failures, validated TLE triplets.
-- Satellite service: caching, stale-serve labelling, not-found behaviour.
-- API error → HTTP status mapping and request-bounds enforcement.
-
-### Optional live provider check
-
-```bash
-RUN_LIVE_TESTS=1 npx vitest run tests/integration/celestrak-live.test.ts
-# ✓ fetches the ISS element set over the real network
-```
-
-Skipped by default so the standard suite never requires network access.
-
-### End-to-end (Playwright, production build)
-
-```bash
-npm run build
-npx playwright test
-# 16 journeys in the suite (~30 s locally, server lifecycle handled)
-```
-
-Journeys verified in a real Chromium session against `next start`: open the
-app without signing in → load a real satellite with its epoch/characteristics
-→ move the prediction time → search + navigate to a detail page → calculate
-passes for a typed location → export CSV → budget-guard rejection → watchlist
-save → comparison page → WebGL-forced 2D fallback → methodology content.
-
-Six of the fourteen journeys depend on the live provider. During this
-workspace's final verification the provider was unavailable two ways —
-first HTTP 403 (throttled), later connection-unreachable — and the app
-answered each time with a typed 502 and honest UI instead of fake data;
-those six journeys could not re-run until the provider answers again.
-Receipts are recorded in `docs/engineering-audit.md` §G1. The suite
-contains a provider-state-agnostic journey asserting the honest contract:
-the detail page shows **real data or a specific, named failure — never
-fabricated data** — and it passed during the actual outage.
-
-## Deployment
-
-Target platform is **Vercel Hobby** (free tier):
-
-```bash
-npm i -g vercel
-vercel            # link the project
-vercel deploy --prod
-```
-
-Free-tier considerations actually implemented (see
-`docs/architecture.md` §6 for the full list): no background workers, no cron
-(in-memory freshness on request), bounded sampling windows and result sizes,
-provider throttling + caching, lazy Cesium bundle (~102 kB shared JS + Cesium
-on the explorer only), no secrets client-side. If you deploy, set
-`SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` in the
-Vercel project env only if you want persistence features.
-
-## Known limitations
-
-- Historical *snapshot* comparison requires a configured Supabase instance;
-  in demo mode `/compare` works on live/cached element sets only, which is
-  stated in the UI.
-- Position accuracy claims are deliberately avoided: the UI shows element
-  age and provenance and links to provider guidance instead of asserting
-  numbers that depend on each object's fit quality.
-- The in-memory catalog cache is per server instance (typical serverless
-  cold/warm behaviour), not a global cache — an accepted free-tier trade-off.
-```
+Orbital elements come from [CelesTrak](https://celestrak.org/) (public GP data, attributed, cached politely).
+Positions are SGP4 predictions from public element sets: kilometre-level accuracy, no covariance. That makes this
+a tool for exploring and screening, **not for navigation, safety, or collision-avoidance decisions**.
