@@ -77,6 +77,12 @@ const SECTIONS = [
           transparent but not authoritative: anything they don&apos;t match is never guessed into a constellation.
         </li>
         <li>
+          Launch years come from each element set&apos;s international designator (line 1, columns 10–11: 57–99 means
+          1957–1999, 00–56 means 2000–2056). The launch chart counts satellites that are <em>still active</em>, by the
+          year they launched. It is not a count of launches per year: retired, failed and re-entered satellites aren&apos;t
+          in the active catalog.
+        </li>
+        <li>
           Orbit regimes match the globe&apos;s colouring: eccentricity above 0.25 is highly elliptical; otherwise a
           period under 129 minutes is low Earth orbit and 22–26 hours is the geostationary belt; the rest is medium
           orbit.

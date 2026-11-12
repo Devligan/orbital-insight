@@ -91,6 +91,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link href="/methodology" className="text-[var(--color-accent)] hover:underline">
             How this works
           </Link>
+          <Link href="/engineering" className="text-[var(--color-accent)] hover:underline">
+            How it&apos;s built
+          </Link>
           <span className="ml-auto">Not for navigation, safety, or collision avoidance.</span>
         </div>
       </footer>
