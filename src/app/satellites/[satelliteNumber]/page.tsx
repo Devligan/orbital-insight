@@ -76,6 +76,12 @@ export default async function SatelliteDetailPage({ params }: { params: Promise<
         </div>
 
         <WatchSaveButton satelliteNumber={record.catalog.satelliteNumber} name={record.catalog.name} />
+        <Link
+          href={`/conjunctions?id=${record.catalog.satelliteNumber}`}
+          className="btn btn-secondary mt-2 w-full text-[14px]"
+        >
+          Screen for close approaches →
+        </Link>
 
         <div className="mt-auto flex flex-col gap-1 border-t border-[var(--color-border-hairline)] pt-2 text-[11px] text-[var(--color-text-muted)]">
           <p>Source orbital elements (TLE, columns per CelesTrak GP format):</p>

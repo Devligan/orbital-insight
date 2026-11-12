@@ -54,6 +54,13 @@ test.describe("deployment smoke", () => {
     expect(errors).toEqual([]);
   });
 
+  test("close-approach screening completes in the browser", async ({ page }) => {
+    const errors = collectPageErrors(page);
+    await page.goto("/conjunctions?id=25544");
+    await expect(page.getByTestId("screening-funnel")).toBeVisible({ timeout: 120_000 });
+    expect(errors).toEqual([]);
+  });
+
   test("methodology is reachable", async ({ page }) => {
     await page.goto("/methodology");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();

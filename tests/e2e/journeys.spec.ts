@@ -409,6 +409,36 @@ test.describe("constellation atlas", () => {
   });
 });
 
+test.describe("close-approach screening", () => {
+  test("screens the ISS against the catalog and opens an encounter profile", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(String(error)));
+    // Entry point from a satellite's detail page.
+    await page.goto("/satellites/25544");
+    await page.getByRole("link", { name: /Screen for close approaches/ }).click();
+    await expect(page).toHaveURL(/\/conjunctions\?id=25544$/);
+
+    // The worker reports the funnel; CI runners are slower than laptops.
+    const funnel = page.getByTestId("screening-funnel");
+    await expect(funnel).toBeVisible({ timeout: 120_000 });
+    await expect(funnel).toContainText("active objects");
+    await expect(page.getByText(/SGP4 propagations in/)).toBeVisible();
+
+    // Real data decides whether anything comes close: either a table whose
+    // first row expands into the profile, or the honest empty state.
+    const table = page.getByTestId("approaches-table");
+    if (await table.isVisible()) {
+      await table.locator("tbody tr").first().click();
+      await expect(page.getByRole("img", { name: /Separation between ISS/ })).toBeVisible();
+    } else {
+      await expect(page.getByTestId("no-approaches")).toBeVisible();
+    }
+    // Docked modules share the ISS's element set: never reported as approaches.
+    await expect(table.getByText("ISS (ZVEZDA)")).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe("methodology page", () => {
   test("documents limitations and data sources", async ({ page }) => {
     await page.goto("/methodology");

@@ -77,6 +77,46 @@ const SECTIONS = [
     ),
   },
   {
+    id: "conjunctions",
+    heading: "Close-approach screening",
+    body: (
+      <ul className="list-disc space-y-1 pl-5">
+        <li>
+          <Link className="text-[var(--color-accent)] hover:underline" href="/conjunctions">Close approaches</Link> runs
+          in a Web Worker in your browser against the same whole-sky copy, following the classic filter chain of
+          Hoots, Crawford &amp; Roehrich (1984). <strong>Radius filter:</strong> objects whose perigee–apogee range
+          can&apos;t come within the screening distance of the target&apos;s (plus a 30 km pad for the gap between
+          mean-element and SGP4 radii) are dropped, typically 95–98% of the catalog.
+        </li>
+        <li>
+          <strong>Sweep:</strong> survivors and the target are propagated with SGP4 every 60 s. A local minimum of the
+          sampled separation brackets each approach. Between samples two objects close by at most their relative
+          speed (bounded by 16 km/s, a head-on meeting in low orbit) times the step, so minima sampled further out than
+          the screening distance plus that bound are provably not approaches and are skipped. The same bound lets the
+          sweep jump ahead: from a separation d, nothing can come within the screening distance for (d − screening
+          distance) ÷ 16 km/s, so those samples are never computed. A unit test checks that this finds exactly the
+          approaches the full sweep finds.
+        </li>
+        <li>
+          <strong>Refinement:</strong> golden-section search narrows each bracket to under a millisecond to find the
+          time of closest approach. The miss vector is resolved into the target&apos;s radial / in-track / cross-track
+          frame. Unit tests check this against exact two-body orbits built to meet at a known instant and distance, and
+          against real station element sets.
+        </li>
+        <li>
+          Pairs closing slower than 50 m/s, or staying inside the screening distance for the whole window, are
+          co-orbiting (docked modules share one element set; visiting vehicles fly with the station) and are listed
+          apart from approaches.
+        </li>
+        <li>
+          Limits: the active feed has no debris or rocket bodies; TLE positions are uncertain at the kilometre level
+          and carry no covariance, so there is no collision probability here. Operators screen with precision
+          ephemerides and covariance (conjunction data messages), and that is what drives real avoidance manoeuvres.
+        </li>
+      </ul>
+    ),
+  },
+  {
     id: "elements",
     heading: "Orbital elements and their epoch",
     body: (
