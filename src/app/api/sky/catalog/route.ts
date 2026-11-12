@@ -24,7 +24,12 @@ export async function GET(): Promise<Response> {
         headers: {
           // Large payload; gzip/br handles it (~10k TLEs compress ~4:1).
           "Content-Type": "application/json",
-          "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=7200",
+          // The CDN answers for 3 h and revalidates in the background for a
+          // day after. Every cache miss can land on a cold serverless instance
+          // that must re-download the whole catalog from CelesTrak, so the CDN
+          // window, not the per-instance 6 h TTL, is what bounds provider load.
+          // Typed 502 failures carry no cache header and are never cached.
+          "Cache-Control": "public, s-maxage=10800, stale-while-revalidate=86400",
         },
       },
     );

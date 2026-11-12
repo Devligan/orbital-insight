@@ -42,6 +42,9 @@ database.** This makes orbital math independently executable and testable
 | `src/app/(pages)` | Pages and layouts; render server-fetched or client-fetched data |
 | `src/features/**` | Feature-specific UI and client workflow code |
 | `src/components/ui` | Shared design-system primitives (buttons, panels, tables, badges) |
+| `src/domain/catalog` | Constellation atlas: Keplerian orbit shape from TLE columns, name-rule constellation membership, summaries and histograms |
+| `src/domain/conjunction` | Close-approach screening (radius filter → sampled sweep with time skipping → golden-section TCA → RIC frame); propagator-agnostic, driven by SGP4 in a Web Worker |
+| `src/integrations/sgp4/bulk.ts` | Allocation-free SGP4 hot path for browser workers (no server-only imports) |
 | `src/domain/orbit` | Orbital element parsing, SGP4 invocation via adapter, coordinate conversions (TEME→ECF→geodetic), ground-track sampling with dateline handling, orbital characteristics |
 | `src/domain/passes` | Observer geometry, pass prediction (rise/max-elevation/set), pass interval search |
 | `src/integrations/sgp4` | The only module that imports `satellite.js`. Owns unit/coordinate conventions for the library (TEME frames, km, minutes-from-epoch) |
