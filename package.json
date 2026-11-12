@@ -13,7 +13,13 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:smoke": "playwright test tests/e2e/smoke.spec.ts",
+    "check:bundle": "node scripts/check-bundle-budget.mjs",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run build && npm run check:bundle && npm run test:e2e"
+  },
+  "engines": {
+    "node": ">=22"
   },
   "dependencies": {
     "@photostructure/tz-lookup": "11.7.0",
