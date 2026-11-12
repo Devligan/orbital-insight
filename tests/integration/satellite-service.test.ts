@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SatelliteService } from "@/server/satellites";
 import { ProviderError, type HttpCelestrakClient, type NamedElementSet } from "@/integrations/celestrak/client";
 import { parseTle } from "@/domain/orbit/tle";
+import { staticCatalogGeneratedAt } from "@/server/search-index";
 import { vanguardTle } from "../helpers/tles";
 
 const { line1: LINE1, line2: LINE2 } = vanguardTle();
@@ -143,17 +144,44 @@ describe("SatelliteService — build-time seeded catalog", () => {
   });
 
   it("serves seeded cached record when the provider is unreachable but data exists", async () => {
-    const unreachable = {
-      fetchGpTle: async (): Promise<NamedElementSet[]> => {
-        throw new ProviderError("network", "Could not reach CelesTrak");
-      },
-    } as unknown as HttpCelestrakClient;
-    const seeded = new SatelliteService(unreachable, true);
+    // Pin "now" to a few days after the committed snapshot was generated. The
+    // snapshot is a checked-in file, so reading the real clock made this test
+    // a time bomb: it began failing once the file was > 7 days old.
+    const generatedAt = staticCatalogGeneratedAt();
+    expect(generatedAt).not.toBeNull();
+    vi.useFakeTimers({ toFake: ["Date"], now: generatedAt!.getTime() + 3 * 24 * 60 * 60 * 1000 });
+    try {
+      const unreachable = {
+        fetchGpTle: async (): Promise<NamedElementSet[]> => {
+          throw new ProviderError("network", "Could not reach CelesTrak");
+        },
+      } as unknown as HttpCelestrakClient;
+      const seeded = new SatelliteService(unreachable, true);
 
-    const served = await seeded.get("25544");
-    // Snapshot data is real previously-fetched provider data from the build:
-    // honest label is "cached", never "live" (this instance did not fetch it).
-    expect(served.lineage).toBe("cached");
-    expect(served.record.catalog.name).toContain("ISS");
+      const served = await seeded.get("25544");
+      // Snapshot data is real previously-fetched provider data from the build:
+      // honest label is "cached", never "live" (this instance did not fetch it).
+      expect(served.lineage).toBe("cached");
+      expect(served.record.catalog.name).toContain("ISS");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("refuses a snapshot past the stale horizon rather than serving week-old orbits", async () => {
+    const generatedAt = staticCatalogGeneratedAt();
+    vi.useFakeTimers({ toFake: ["Date"], now: generatedAt!.getTime() + 8 * 24 * 60 * 60 * 1000 });
+    try {
+      const unreachable = {
+        fetchGpTle: async (): Promise<NamedElementSet[]> => {
+          throw new ProviderError("network", "Could not reach CelesTrak");
+        },
+      } as unknown as HttpCelestrakClient;
+      const seeded = new SatelliteService(unreachable, true);
+
+      await expect(seeded.get("25544")).rejects.toMatchObject({ kind: "provider" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

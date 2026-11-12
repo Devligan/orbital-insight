@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+
 /**
  * E2E tests run against the production build (`next build && next start`)
  * so the flow under test matches deployment. Requires the build to succeed.
@@ -15,9 +17,21 @@ export default defineConfig({
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3777",
     trace: "retain-on-failure",
     acceptDownloads: true,
+    // Deployed previews behind Vercel Deployment Protection (post-deploy.yml).
+    ...(bypassSecret
+      ? { extraHTTPHeaders: { "x-vercel-protection-bypass": bypassSecret, "x-vercel-set-bypass-cookie": "true" } }
+      : {}),
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        // CI runners have no GPU: SwiftShader gives Chromium a software WebGL
+        // so the globe journeys exercise Cesium instead of the 2D fallback.
+        launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
+      },
+    },
   ],
   webServer: process.env.E2E_BASE_URL
     ? undefined

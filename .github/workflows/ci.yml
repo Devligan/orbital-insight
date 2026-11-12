@@ -1,0 +1,90 @@
+name: CI
+
+# Every pull request and every push to main runs the same gates the README
+# documents: types, lint, unit + integration tests, a production build, and
+# the end-to-end journeys against that build. Vercel's Git integration builds
+# its own preview/production deployment in parallel; `post-deploy.yml` then
+# smoke-tests whatever Vercel deployed.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  quality:
+    name: Types · lint · unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit + integration tests
+        run: npx vitest run --reporter=default --reporter=junit --outputFile.junit=reports/vitest.xml
+      - name: Test summary
+        if: always()
+        run: |
+          node -e '
+            const fs = require("fs");
+            if (!fs.existsSync("reports/vitest.xml")) process.exit(0);
+            const x = fs.readFileSync("reports/vitest.xml", "utf8");
+            const a = (k) => Number((x.match(new RegExp(`<testsuites[^>]*\\b${k}="(\\d+)"`)) || [])[1] || 0);
+            const line = `**Vitest:** ${a("tests") - a("failures") - a("errors") - a("skipped")} passed · ${a("failures") + a("errors")} failed · ${a("skipped")} skipped`;
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, line + "\n");
+          '
+      - name: Dependency audit (runtime, critical)
+        run: npm audit --omit=dev --audit-level=critical
+
+  e2e:
+    name: Production build · e2e journeys
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Production build
+        run: npm run build
+      - name: Bundle budget
+        run: node scripts/check-bundle-budget.mjs
+      - name: End-to-end journeys
+        run: npx playwright test
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14

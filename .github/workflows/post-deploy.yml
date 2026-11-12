@@ -1,0 +1,68 @@
+name: Post-deploy checks
+
+# Vercel's Git integration reports each deployment back to GitHub as a
+# deployment status. When one succeeds — a PR preview or production — this
+# workflow smoke-tests that exact URL and runs Lighthouse against it, so a
+# deployment that builds but doesn't work (the globe once shipped broken only
+# in production minified output) is caught on the PR, not by a visitor.
+#
+# Previews behind Vercel Deployment Protection need the project's
+# "Protection Bypass for Automation" secret stored as the repository secret
+# VERCEL_AUTOMATION_BYPASS_SECRET; production needs nothing.
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  smoke:
+    if: github.event.deployment_status.state == 'success'
+    name: Smoke test · ${{ github.event.deployment.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      E2E_BASE_URL: ${{ github.event.deployment_status.environment_url }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Smoke journeys against the deployment
+        run: npx playwright test tests/e2e/smoke.spec.ts
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
+  # Production only: previews sit behind Deployment Protection, and a bypass
+  # secret in a Lighthouse URL would end up in the publicly stored report.
+  lighthouse:
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'
+    name: Lighthouse · production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v12
+        with:
+          urls: |
+            ${{ github.event.deployment_status.environment_url }}/
+            ${{ github.event.deployment_status.environment_url }}/atlas
+            ${{ github.event.deployment_status.environment_url }}/methodology
+          configPath: ./lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
