@@ -41,9 +41,11 @@ A production Next.js (App Router) app where a regular person can:
    directly** (not through output filters that mask status):
    `npx tsc --noEmit`, `npx eslint .` (0 errors; 15 pre-existing warnings
    are the accepted baseline — do not fix them casually, do not suppress
-   them), `npx vitest run` (currently 145 passed / 1 skipped), `npm run build`, `npx playwright test` (23 journeys). All must
-   be green before any commit. Never weaken assertions or add suppressions to
-   pass.
+   them), `npx vitest run` (189 passed / 1 skipped as of 2026-11-12),
+   `npm run build`, `npm run check:bundle`, `npx playwright test` (31: 25
+   journeys + 6 deployment smoke tests). `npm run verify` chains them all.
+   All must be green before any commit. Never weaken assertions or add
+   suppressions to pass. CI (`.github/workflows/ci.yml`) runs the same gates.
 3. **Architecture discipline.** Routes are thin (`src/lib/http.ts` helpers:
    `handleRoute/parseSearch/parseBody`, typed AppError → status mapping).
    Domain modules (`src/domain/**`) are pure and unit-tested; `satellite.js`
@@ -93,6 +95,39 @@ A production Next.js (App Router) app where a regular person can:
   reminder: the WebGL-less journey (mocked GPU-off probe) expects the 2D
   fallback to engage when the probe fails — keep that path distinct from
   runtime viewer-construction errors.
+
+## Update — 2026-11-12 session
+
+- **Workflow:** feature branches merged into `main` with `--no-ff` (one
+  branch per concern: `ci/pipeline`, `feature/atlas`,
+  `feature/conjunctions`, `polish/discoverability`). Commit messages carry
+  the gate results.
+- **CI/CD** (`.github/workflows/`): `ci.yml` (gates on every PR/push),
+  `post-deploy.yml` (smoke suite against each Vercel deployment URL;
+  Lighthouse on production), `refresh-data.yml` (daily deploy hook so the
+  build-time snapshot never passes its 7-day horizon), Dependabot.
+  **Not yet live:** the repo had no GitHub remote and creating one was
+  blocked by the permission classifier — the owner must create/push it and
+  connect Vercel's Git integration. Until then production stays on the
+  2026-10-14 build (broken globe).
+- **/atlas** (`src/domain/catalog/atlas.ts`, `src/features/atlas/`): scatter
+  of the active catalog by inclination × log altitude, altitude histogram,
+  constellation table. Constellations come from name rules (documented on
+  /methodology#atlas). Three validated categorical hues + neutral; don't add
+  a fourth colour to the scatter (all-pairs CVD fails).
+- **/conjunctions** (`src/domain/conjunction/screening.ts`,
+  `src/features/conjunctions/`): screening in a Web Worker; radius filter →
+  60 s sweep with provable gate → time skipping → golden-section TCA → RIC.
+  The skipping/brute-force equivalence test must stay. Bulk SGP4 for the
+  browser lives in `src/integrations/sgp4/bulk.ts`: `adapter.ts` imports
+  AppError → `node:crypto`, which breaks client bundles.
+- **Tests that must stay data-driven:** the atlas e2e picks a real Starlink
+  from the feed (a hardcoded "550 km shell" went stale when SpaceX lowered
+  it); conjunction quick picks resolve from the live catalog (a hardcoded
+  Starlink id had deorbited).
+- **Open:** site has no author credit yet (ask the owner how they want to
+  be named); "Orbital Insight" collides with a real company's name — owner's
+  call; the alert/digest loop (priority 2 below) is still unbuilt.
 
 ## Known environmental realities
 
