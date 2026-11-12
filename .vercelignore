@@ -1,0 +1,15 @@
+# CLI deploys upload the working directory. Never ship local secrets or
+# local build/test output; Vercel builds from source and runs the prebuild.
+.env*
+!.env.example
+.next
+.next-prod
+node_modules
+test-results
+playwright-report
+.freebuff
+*.tsbuildinfo
+public/cesium/Workers
+public/cesium/Assets
+public/cesium/Widgets
+public/cesium/ThirdParty
