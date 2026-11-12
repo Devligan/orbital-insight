@@ -103,6 +103,8 @@ export interface AtlasPoint {
   /** Mean of perigee and apogee altitudes — the y position on the atlas. */
   meanAltitudeKm: number;
   regime: OrbitRegime;
+  /** From line 1's international designator; null when absent or not supplied. */
+  launchYear: number | null;
 }
 
 /**
@@ -122,7 +124,7 @@ export function regimeOf(periodMinutes: number, eccentricity: number): OrbitRegi
  * Columns (1-based, line 2): inclination 9–16, eccentricity 27–33 (implied
  * leading decimal point), mean motion 53–63 rev/day.
  */
-export function atlasPoint(id: string, name: string, line2: string): AtlasPoint | null {
+export function atlasPoint(id: string, name: string, line2: string, line1 = ""): AtlasPoint | null {
   if (line2.length < 63 || line2[0] !== "2") return null;
   const inclinationDeg = Number(line2.slice(8, 16));
   const eccentricity = Number(`0.${line2.slice(26, 33).trim()}`);
@@ -148,6 +150,7 @@ export function atlasPoint(id: string, name: string, line2: string): AtlasPoint 
     apogeeKm,
     meanAltitudeKm: (perigeeKm + apogeeKm) / 2,
     regime: regimeOf(periodMinutes, eccentricity),
+    launchYear: launchYearOf(line1),
   };
 }
 
@@ -234,6 +237,59 @@ export function constellationProfiles(points: readonly AtlasPoint[]): Constellat
     profiles.push({ id, count: list.length, share: list.length / points.length, medianAltitudeKm: median, inclinations });
   }
   return profiles.sort((a, b) => Number(a.id === "other") - Number(b.id === "other") || b.count - a.count);
+}
+
+/**
+ * Launch year from TLE line 1's international designator (columns 10–11, a
+ * two-digit year: 57–99 → 1957–1999, 00–56 → 2000–2056, the convention since
+ * Sputnik). Null when the designator is blank, as it is for some objects.
+ */
+export function launchYearOf(line1: string): number | null {
+  const yy = line1.slice(9, 11);
+  if (!/^\d\d$/.test(yy)) return null;
+  const n = Number(yy);
+  return n >= 57 ? 1900 + n : 2000 + n;
+}
+
+export interface LaunchYearBin {
+  /** First year of the bin; the first bin collects everything before `fromYear`. */
+  year: number;
+  label: string;
+  counts: Record<AtlasGroup, number>;
+  total: number;
+}
+
+/**
+ * Active objects per launch year, stacked by colour group: one bin per year
+ * from `fromYear` to `toYear`, plus a leading "before" bin, so nothing is
+ * silently dropped. Objects without a launch year are counted in `unknown`.
+ */
+export function launchHistory(
+  points: readonly { launchYear: number | null; constellation: ConstellationId }[],
+  { fromYear, toYear }: { fromYear: number; toYear: number },
+): { bins: LaunchYearBin[]; unknown: number } {
+  if (!(toYear >= fromYear)) throw new RangeError("launchHistory: need toYear >= fromYear");
+  const empty = () => ({ starlink: 0, broadband: 0, navigation: 0, other: 0 });
+  const bins: LaunchYearBin[] = [
+    { year: fromYear - 1, label: `before ${fromYear}`, counts: empty(), total: 0 },
+    ...Array.from({ length: toYear - fromYear + 1 }, (_, k) => ({
+      year: fromYear + k,
+      label: String(fromYear + k),
+      counts: empty(),
+      total: 0,
+    })),
+  ];
+  let unknown = 0;
+  for (const point of points) {
+    if (point.launchYear === null || point.launchYear > toYear) {
+      unknown += 1;
+      continue;
+    }
+    const bin = bins[Math.max(0, point.launchYear - fromYear + 1)]!;
+    bin.counts[constellationRule(point.constellation).group] += 1;
+    bin.total += 1;
+  }
+  return { bins, unknown };
 }
 
 export interface AltitudeBin {

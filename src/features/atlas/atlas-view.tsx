@@ -12,12 +12,13 @@ import {
 } from "@/domain/catalog/atlas";
 import { ErrorState, Loading } from "@/components/ui/primitives";
 import { AltitudeHistogram } from "./altitude-histogram";
+import { LaunchHistory } from "./launch-history";
 import { OrbitScatter } from "./orbit-scatter";
 import { GROUP_COLORS } from "./palette";
 
 interface CatalogResponse {
   ok: boolean;
-  data?: { generatedAt: string; stale: boolean; count: number; entries: { i: string; n: string; l2: string }[] };
+  data?: { generatedAt: string; stale: boolean; count: number; entries: { i: string; n: string; l1: string; l2: string }[] };
   error?: { message: string };
 }
 
@@ -53,7 +54,7 @@ export function AtlasView() {
         }
         const points: AtlasPoint[] = [];
         for (const entry of body.data.entries) {
-          const point = atlasPoint(entry.i, entry.n, entry.l2);
+          const point = atlasPoint(entry.i, entry.n, entry.l2, entry.l1);
           if (point) points.push(point);
         }
         setLoad({
@@ -74,6 +75,14 @@ export function AtlasView() {
   const points = load.state === "ready" ? load.points : null;
   const summary = useMemo(() => (points ? summarize(points) : null), [points]);
   const profiles = useMemo(() => (points ? constellationProfiles(points) : []), [points]);
+  /** Share of objects with a known launch year that launched in the last five calendar years (incl. this one). */
+  const recentShare = useMemo(() => {
+    if (load.state !== "ready") return null;
+    const year = load.generatedAt.getUTCFullYear();
+    const dated = load.points.filter((p) => p.launchYear !== null);
+    if (dated.length === 0) return null;
+    return dated.filter((p) => p.launchYear! > year - 5).length / dated.length;
+  }, [load]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-10">
@@ -166,6 +175,27 @@ export function AtlasView() {
             </p>
             <div className="mt-3">
               <AltitudeHistogram points={load.points} />
+            </div>
+            <Legend />
+          </section>
+
+          <section className="panel mt-6 p-4" aria-labelledby="launch-title">
+            <h2 id="launch-title" className="text-[17px] font-semibold">
+              The launch boom
+            </h2>
+            <p className="mt-1 max-w-3xl text-[13px] text-[var(--color-text-secondary)]">
+              Today&apos;s active satellites by the year they went up.{" "}
+              {recentShare !== null ? (
+                <>
+                  <strong className="text-[var(--color-text-primary)]">{percent(recentShare)}</strong> of them launched in
+                  the last five years.
+                </>
+              ) : null}{" "}
+              Older years look thin partly because satellites retire and re-enter; this counts what is still flying, and{" "}
+              {load.generatedAt.getUTCFullYear()} is the year so far.
+            </p>
+            <div className="mt-3">
+              <LaunchHistory points={load.points} asOfYear={load.generatedAt.getUTCFullYear()} />
             </div>
             <Legend />
           </section>

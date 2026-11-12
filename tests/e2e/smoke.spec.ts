@@ -61,8 +61,10 @@ test.describe("deployment smoke", () => {
     expect(errors).toEqual([]);
   });
 
-  test("methodology is reachable", async ({ page }) => {
+  test("methodology and the engineering page are reachable", async ({ page }) => {
     await page.goto("/methodology");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await page.goto("/engineering");
+    await expect(page.getByRole("heading", { level: 1, name: /How it's built/ })).toBeVisible();
   });
 });

@@ -4,6 +4,8 @@ import {
   atlasPoint,
   constellationOf,
   constellationProfiles,
+  launchHistory,
+  launchYearOf,
   orbitalPlanes,
   regimeOf,
   summarize,
@@ -103,6 +105,41 @@ describe("constellationOf — name rules", () => {
     "",
   ])("%j is not guessed into a constellation", (name) => {
     expect(constellationOf(name)).toBe("other");
+  });
+});
+
+describe("launch years", () => {
+  it("reads the international designator's two-digit year across the 1957 pivot", () => {
+    expect(launchYearOf("1 25544U 98067A   26316.43260916  .00008191  00000+0  15481-3 0  9999")).toBe(1998);
+    expect(launchYearOf("1 68837U 26093A   26316.17460339  .00008107  00000+0  15334-3 0  9997")).toBe(2026);
+    expect(launchYearOf("1 00005U 58002B   00179.78495062  .00000023  00000-0  28098-4 0  4753")).toBe(1958);
+    expect(launchYearOf("1 99999U          26316.00000000  .00000000  00000-0  00000-0 0  9990")).toBeNull();
+    expect(launchYearOf("")).toBeNull();
+  });
+
+  it("carries the year onto atlas points when line 1 is supplied", () => {
+    const iss = atlasPoint("25544", "ISS (ZARYA)", ISS_LINE2, "1 25544U 98067A   26316.43260916  .00008191  00000+0  15481-3 0  9999")!;
+    expect(iss.launchYear).toBe(1998);
+    expect(atlasPoint("25544", "ISS (ZARYA)", ISS_LINE2)!.launchYear).toBeNull();
+  });
+
+  it("bins by year with a leading 'before' bin; unknown and future years are counted, not dropped", () => {
+    const points = [
+      { launchYear: 1998, constellation: "station" as const },
+      { launchYear: 2019, constellation: "starlink" as const },
+      { launchYear: 2026, constellation: "starlink" as const },
+      { launchYear: 2026, constellation: "kuiper" as const },
+      { launchYear: null, constellation: "other" as const },
+      { launchYear: 2031, constellation: "other" as const },
+    ];
+    const { bins, unknown } = launchHistory(points, { fromYear: 2000, toYear: 2026 });
+    expect(bins).toHaveLength(28);
+    expect(bins[0]).toMatchObject({ label: "before 2000", total: 1 });
+    expect(bins.find((b) => b.year === 2019)!.counts.starlink).toBe(1);
+    expect(bins.find((b) => b.year === 2026)!.counts).toEqual({ starlink: 1, broadband: 1, navigation: 0, other: 0 });
+    expect(unknown).toBe(2);
+    expect(bins.reduce((sum, b) => sum + b.total, 0) + unknown).toBe(points.length);
+    expect(() => launchHistory(points, { fromYear: 2026, toYear: 2000 })).toThrow(RangeError);
   });
 });
 

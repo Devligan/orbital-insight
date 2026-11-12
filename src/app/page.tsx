@@ -46,9 +46,9 @@ const DESTINATIONS = [
     body: "Rise, peak and set for any satellite from any spot on Earth, with sunlight and sky darkness modelled. Exports to CSV.",
   },
   {
-    href: "/methodology",
-    title: "How it works",
-    body: "Data sources, SGP4 validation against the official test suite, every approximation and limit, stated plainly.",
+    href: "/engineering",
+    title: "How it's built",
+    body: "SGP4 checked against the official test suite, the screening algorithm, the delivery pipeline, and the bugs that shaped it.",
   },
 ] as const;
 
