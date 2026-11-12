@@ -65,7 +65,7 @@ flowchart LR
     API["Route handlers<br/>validate → service → respond"]
     SVC["Services<br/>satellites · sky catalog · passes · overhead"]
     DOM["Pure domain<br/>orbit · passes · light · conjunction · catalog"]
-    SNAP[("Build-time snapshot")]
+    SNAP[("Build-time snapshots<br/>curated + whole sky")]
     CT["CelesTrak client<br/>≥2 s spacing · 15 s timeout · typed failures"]
     API --> SVC --> DOM
     SNAP --> SVC
@@ -77,6 +77,10 @@ flowchart LR
 
 - **Dependency direction is one-way:** routes → services → pure domain. The domain never imports React, HTTP or a
   database, and only `src/integrations/sgp4` touches `satellite.js`.
+- **No request-time dependency on the provider:** each deployment ships a build-time snapshot of the whole active
+  catalog (refreshed every two days by a scheduled job). Cold servers answer from it at once, with its real age, and
+  refresh from CelesTrak in the background. This was added after CelesTrak was found refusing the full-catalog
+  query from Vercel's servers while serving other networks.
 - **Provider politeness is designed in:** one shared fetch of the active catalog per 6 h per instance, a CDN window
   of 3 h in front of it, disk snapshot restore, 10 min back-off after failures, and refusal of truncated feeds.
 - Details: [`docs/architecture.md`](docs/architecture.md).
@@ -88,7 +92,7 @@ flowchart LR
   PR["Pull request"] --> CI["CI: types · lint · 190 unit/integration tests<br/>production build · bundle budget · 31 e2e journeys"]
   PR --> PREV["Vercel preview"] --> SMOKE["Smoke suite against the preview URL"]
   MAIN["Merge to main"] --> PROD["Vercel production"] --> CHECKS["Smoke suite + Lighthouse"]
-  CRON["Daily schedule"] --> HOOK["Deploy hook → fresh data snapshot"]
+  CRON["Every 2 days"] --> DATA["Runner fetches snapshots → commit → redeploy"]
 ```
 
 Workflows live in [`.github/workflows`](.github/workflows). The smoke suite's headline assertion is "no uncaught

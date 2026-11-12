@@ -3,3 +3,6 @@
 *.jpg binary
 *.glb binary
 *.TLE text eol=lf
+# Generated orbital snapshots: no line diffs, collapsed in GitHub reviews.
+data/*.json -diff linguist-generated=true
+src/server/search-index.static.json linguist-generated=true
