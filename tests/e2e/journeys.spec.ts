@@ -355,10 +355,12 @@ test.describe("location-first + shareable moments", () => {
     }
   });
 
-  test("a visible pass shows where to look on a sky chart and goes into the calendar", async ({ page }) => {
-    // Whether a real pass is visible depends on the date, so this pins the
-    // UI half with a contract-shaped response; the physics behind it is
-    // unit-tested (visible-window, sky-chart, pass-calendar).
+  /**
+   * Whether a real pass is visible depends on the date, so these pin the UI
+   * half with a contract-shaped response; the physics behind it is
+   * unit-tested (visible-window, sky-chart, pass-calendar).
+   */
+  async function mockVisibleIssPass(page: import("@playwright/test").Page) {
     const now = Date.now();
     const at = (seconds: number) => new Date(now + 30 * 60_000 + seconds * 1000).toISOString();
     const skyTrack = Array.from({ length: 24 }, (_, i) => {
@@ -413,6 +415,19 @@ test.describe("location-first + shareable moments", () => {
         },
       }),
     );
+  }
+
+  /** An hourly cloud forecast from an hour ago for a day, every hour at `pct`. */
+  function cloudForecastJson(pct: number) {
+    const hour = 3_600_000;
+    const first = Math.floor(Date.now() / hour) * hour - hour;
+    const time = Array.from({ length: 26 }, (_, i) => (first + i * hour) / 1000);
+    return { hourly: { time, cloud_cover: time.map(() => pct) } };
+  }
+
+  test("a visible pass shows where to look on a sky chart and goes into the calendar", async ({ page }) => {
+    await mockVisibleIssPass(page);
+    await page.route("https://api.open-meteo.com/v1/forecast**", (route) => route.fulfill({ json: cloudForecastJson(90) }));
     await page.context().grantPermissions(["geolocation"]);
     await page.context().setGeolocation({ latitude: 40.7, longitude: -74 });
     await page.goto("/");
@@ -437,6 +452,23 @@ test.describe("location-first + shareable moments", () => {
     expect(ics).toContain("SUMMARY:ISS visible — look SW");
     expect(ics).toContain("TRIGGER:-PT10M");
     expect(ics).toContain("LOCATION:40.7°N\\, 74.0°W");
+
+    // The cloud forecast labels the pass without removing it.
+    await expect(row.getByTestId("tonight-cloud")).toHaveText("Overcast forecast · 90% cloud, likely hidden");
+    await expect(row.getByTestId("tonight-cloud")).toHaveAttribute("data-sky", "overcast");
+  });
+
+  test("a cloud-forecast outage is labelled and never hides the passes", async ({ page }) => {
+    await mockVisibleIssPass(page);
+    await page.route("https://api.open-meteo.com/v1/forecast**", (route) => route.fulfill({ status: 503, body: "" }));
+    await page.context().grantPermissions(["geolocation"]);
+    await page.context().setGeolocation({ latitude: 40.7, longitude: -74 });
+    await page.goto("/");
+    await page.getByRole("button", { name: /Show me tonight's passes/i }).click();
+    const row = page.locator('[data-testid="tonight-visible-pass"]').first();
+    await expect(row).toBeVisible({ timeout: 60_000 });
+    await expect(row.getByText("cloud forecast unavailable right now")).toBeVisible();
+    await expect(row.getByTestId("tonight-cloud")).toHaveCount(0);
   });
 
   test("the URL names the viewed object and instant, and reopening reproduces it", async ({ page }) => {

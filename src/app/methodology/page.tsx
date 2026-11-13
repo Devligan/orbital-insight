@@ -224,8 +224,23 @@ const SECTIONS = [
           <strong>Passes ≠ visibility.</strong> A predicted pass is orbital geometry relative to your coordinates.
           Visual-visibility judgements model <em>sunlight geometry</em> — the satellite must be lit (cylindrical
           shadow test) and the observer&apos;s sky must be past civil twilight (sun below −6°) — plus, where a
-          published value exists, a phase-corrected apparent-magnitude estimate. Clouds, weather, light pollution,
-          and eyesight are not modeled, so this still is not an observing forecast.
+          published value exists, a phase-corrected apparent-magnitude estimate. Light pollution and eyesight are
+          not modeled, so this still is not an observing forecast.
+        </li>
+        <li>
+          <strong>Clouds are forecast, shown beside the verdict, never folded into it.</strong> Each visible pass on
+          the home page carries the forecast total cloud cover for its midpoint, from{" "}
+          <a className="text-[var(--color-accent)] hover:underline" href="https://open-meteo.com/en/docs" target="_blank" rel="noreferrer">
+            Open-Meteo
+          </a>{" "}
+          (CC BY 4.0). Open-Meteo blends global models (ECMWF IFS, NOAA GFS, DWD ICON) with higher-resolution regional
+          ones where they exist. Cover is forecast at whole hours, so a pass&apos;s value is interpolated between the
+          two hours around it, and a pass outside the forecast reads &ldquo;beyond the cloud forecast&rdquo;, never a
+          guess. The words use 20 / 50 / 80 % cut-offs (clear / partly / mostly cloudy / overcast), loosely the
+          meteorological okta bands. Only overcast is called &ldquo;likely hidden&rdquo;: a satellite is a point of
+          light and can shine through a gap. This is a model grid cell, not your patch of sky. The pass stays listed
+          whatever the forecast says, because a forecast is the thing most likely to be wrong here. Your browser asks
+          Open-Meteo directly, sending your spot rounded to about 1 km, which is still finer than any model grid cell.
         </li>
         <li>
           <strong>Brightness: only from published standard magnitudes.</strong> The standard magnitude is an

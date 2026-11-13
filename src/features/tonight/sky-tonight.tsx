@@ -29,6 +29,8 @@ import { PassCard } from "@/features/pass-prediction/pass-cards";
 import { SkyChart } from "@/features/pass-prediction/sky-chart";
 import { brightnessWord, observerClock, observerZoneNote } from "@/features/pass-prediction/sky-words";
 import { downloadFile } from "@/lib/download";
+import { fetchCloudForecast, type CloudForecast } from "@/integrations/open-meteo/forecast";
+import { cloudOutlookFor, cloudPhrase } from "./cloud-outlook";
 import { passEventFileName, visiblePassesIcs } from "./pass-calendar";
 import { countdownTo, noneVisibleReason, skyPath, summarizeTonight, timeUntil, type VisiblePass } from "./visible-tonight";
 
@@ -58,6 +60,13 @@ const TONIGHT_TARGETS = [
 const OVERHEAD_REFRESH_MS = 60_000;
 const PASSES_REFRESH_MS = 10 * 60_000;
 const CLOCK_TICK_MS = 30_000;
+/** Forecast models update hourly at best; half-hourly re-asks keep a left-open tab honest. */
+const CLOUDS_REFRESH_MS = 30 * 60_000;
+
+type CloudState =
+  | { kind: "loading" }
+  | { kind: "ready"; forecast: CloudForecast; spot: string }
+  | { kind: "unavailable"; spot: string };
 
 /** "ISS" from "ISS (ZARYA)" — the name people actually say. */
 function shortLabel(satelliteNumber: string, fallbackName: string): string {
@@ -96,16 +105,45 @@ function SectionTitle({ children, sub }: { children: React.ReactNode; sub?: Reac
   );
 }
 
+/** Cloud cover for one pass: a forecast line, or why there isn't one. */
+function CloudLine({ clouds, item }: { clouds: CloudState; item: VisiblePass }) {
+  if (clouds.kind === "loading") return null;
+  if (clouds.kind === "unavailable") {
+    return <p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">cloud forecast unavailable right now</p>;
+  }
+  const outlook = cloudOutlookFor(
+    clouds.forecast,
+    Date.parse(item.window.start.timeIso),
+    Date.parse(item.window.end.timeIso),
+  );
+  if (!outlook) {
+    return <p className="mt-0.5 text-[12px] text-[var(--color-text-muted)]">beyond the cloud forecast</p>;
+  }
+  const tone =
+    outlook.sky === "clear"
+      ? "text-[var(--color-status-good)]"
+      : outlook.sky === "partly-cloudy"
+        ? "text-[var(--color-text-secondary)]"
+        : "text-[var(--color-status-warn)]";
+  return (
+    <p className={`mt-0.5 text-[12px] ${tone}`} data-testid="tonight-cloud" data-sky={outlook.sky}>
+      {cloudPhrase(outlook)}
+    </p>
+  );
+}
+
 function VisiblePassRow({
   item,
   nowMs,
   timeZone,
   spot,
+  clouds,
 }: {
   item: VisiblePass;
   nowMs: number;
   timeZone: string | null;
   spot: string;
+  clouds: CloudState;
 }) {
   const { window } = item;
   const startMs = Date.parse(window.start.timeIso);
@@ -142,6 +180,7 @@ function VisiblePassRow({
               <span className="ml-2 text-[var(--color-status-warn)]">older orbit data — times may drift</span>
             ) : null}
           </p>
+          <CloudLine clouds={clouds} item={item} />
         </div>
         <SkyChart pass={item.pass} size={96} />
       </div>
@@ -169,7 +208,17 @@ function VisiblePassRow({
   );
 }
 
-function VisibleTonight({ data, nowMs, spot }: { data: PassesData; nowMs: number; spot: string }) {
+function VisibleTonight({
+  data,
+  nowMs,
+  spot,
+  clouds,
+}: {
+  data: PassesData;
+  nowMs: number;
+  spot: string;
+  clouds: CloudState;
+}) {
   const summary = summarizeTonight(data.results, nowMs, shortLabel);
   const zoneNote = observerZoneNote(
     data.observerTimeZone,
@@ -205,6 +254,7 @@ function VisibleTonight({ data, nowMs, spot }: { data: PassesData; nowMs: number
                 nowMs={nowMs}
                 timeZone={data.observerTimeZone}
                 spot={spot}
+                clouds={clouds}
               />
             ))}
           </ul>
@@ -250,6 +300,7 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
   const [passesError, setPassesError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
+  const [clouds, setClouds] = useState<CloudState>({ kind: "loading" });
   // Responses for a spot the user has since left are dropped on arrival.
   const spotRef = useRef<string | null>(null);
 
@@ -298,30 +349,50 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
     }
   }, []);
 
+  // Clouds are a nicety on top of the passes: a failure is labelled on each
+  // pass and never holds the list up. A refresh that fails keeps the forecast
+  // already shown rather than erasing it.
+  const loadClouds = useCallback(async (obLat: number, obLon: number, spot: string, signal: AbortSignal) => {
+    try {
+      const forecast = await fetchCloudForecast(obLat, obLon, { signal });
+      if (spotRef.current === spot) setClouds({ kind: "ready", forecast, spot });
+    } catch {
+      if (spotRef.current === spot && !signal.aborted) {
+        setClouds((current) => (current.kind === "ready" && current.spot === spot ? current : { kind: "unavailable", spot }));
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (lat === undefined || lon === undefined) return;
     const spot = `${lat},${lon}`;
     spotRef.current = spot;
+    const cloudRequests = new AbortController();
     const first = setTimeout(() => {
       void loadOverhead(lat, lon, spot);
       void loadPasses(lat, lon, spot);
+      void loadClouds(lat, lon, spot, cloudRequests.signal);
     }, 0);
     const overheadTimer = setInterval(() => void loadOverhead(lat, lon, spot), OVERHEAD_REFRESH_MS);
     const passesTimer = setInterval(() => void loadPasses(lat, lon, spot), PASSES_REFRESH_MS);
+    const cloudsTimer = setInterval(() => void loadClouds(lat, lon, spot, cloudRequests.signal), CLOUDS_REFRESH_MS);
     const clock = setInterval(() => setNowMs(Date.now()), CLOCK_TICK_MS);
     return () => {
       clearTimeout(first);
       clearInterval(overheadTimer);
       clearInterval(passesTimer);
+      clearInterval(cloudsTimer);
       clearInterval(clock);
+      cloudRequests.abort();
     };
-  }, [lat, lon, loadOverhead, loadPasses]);
+  }, [lat, lon, loadOverhead, loadPasses, loadClouds]);
 
   function changeSpot() {
     spotRef.current = null;
     setPasses(null);
     setOverhead(null);
     setPassesError(null);
+    setClouds({ kind: "loading" });
     clear();
   }
 
@@ -356,7 +427,13 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
 
           {/* The headline: passes a person can actually see. */}
           {passes !== null ? (
-            <VisibleTonight data={passes} nowMs={nowMs} spot={spotName(observer)} />
+            <VisibleTonight
+              data={passes}
+              nowMs={nowMs}
+              spot={spotName(observer)}
+              // Another spot's forecast never labels this spot's passes.
+              clouds={clouds.kind !== "loading" && clouds.spot !== `${observer.lat},${observer.lon}` ? { kind: "loading" } : clouds}
+            />
           ) : passesError && !busy ? (
             <p className="text-[13px] text-[var(--color-status-warn)]">{passesError}</p>
           ) : null}
@@ -431,8 +508,13 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
             <p className="text-[11px] leading-relaxed text-[var(--color-text-muted)]">
               Predicted from published orbits ({new Date(passes.windowStart).toLocaleDateString()}), next 24 h.
               Visible means the station is sunlit while your sky is past civil twilight (sun below −6°) and it is at
-              least 10° up. Clouds, light pollution, and your horizon aren&apos;t modeled; brightness estimates are
-              rough (attitude, solar arrays). Sky charts: the centre is straight up and the rim your horizon, with
+              least 10° up. Cloud cover is a weather-model forecast for your area (
+              <a href="https://open-meteo.com/" target="_blank" rel="noreferrer" className="hover:underline">
+                weather data by Open-Meteo.com
+              </a>
+              , CC BY 4.0), not a look at your patch of sky, and it doesn&apos;t change the verdict. Light pollution and
+              your horizon aren&apos;t modeled; brightness estimates are rough (attitude, solar arrays). Sky charts: the
+              centre is straight up and the rim your horizon, with
               east on the left — hold one overhead with N to the north. The bright line is the part you can see; a
               ring marks where it slips into Earth&apos;s shadow.{" "}
               <Link href="/methodology" className="hover:underline">
