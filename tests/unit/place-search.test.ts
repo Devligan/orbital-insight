@@ -65,6 +65,16 @@ describe("parsePlaceResponse", () => {
     expect(placeLabel(singapore!)).toBe("Singapore, Singapore");
   });
 
+  it.each([
+    ["a body that isn't an object", "nope"],
+    ["results that aren't a list", { results: { id: 1 } }],
+    ["an entry without a name", { results: [{ id: 1, latitude: 1, longitude: 2 }] }],
+    ["a country that isn't text", { results: [{ id: 1, name: "X", latitude: 1, longitude: 2, country: 7 }] }],
+    ["a string latitude", { results: [{ id: 1, name: "X", latitude: "1", longitude: 2 }] }],
+  ])("rejects %s", (_why, body) => {
+    expect(() => parsePlaceResponse(body)).toThrow(PlaceSearchError);
+  });
+
   it("rejects out-of-range coordinates instead of passing them on", () => {
     expect(() => parsePlaceResponse({ results: [{ id: 1, name: "Nowhere", latitude: 123, longitude: 0 }] })).toThrow(
       PlaceSearchError,
