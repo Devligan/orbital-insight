@@ -131,3 +131,47 @@ describe("visible window", () => {
     }
   });
 });
+
+describe("sky track (the sky chart's path)", () => {
+  const angleGap = (a: number, b: number) => Math.abs((((a - b) % 360) + 540) % 360 - 180);
+
+  it("runs rise → set along the pass, uniform in time, never above the apex or below the threshold", () => {
+    expect(cases.length).toBeGreaterThan(0);
+    for (const { pass, visibility } of cases) {
+      const track = visibility.skyTrack;
+      expect(track.length).toBe(24);
+      const step = (track[1] as (typeof track)[number]).timeMs - (track[0] as (typeof track)[number]).timeMs;
+      for (let i = 1; i < track.length; i++) {
+        expect(Math.abs((track[i] as (typeof track)[number]).timeMs - (track[i - 1] as (typeof track)[number]).timeMs - step)).toBeLessThanOrEqual(1);
+      }
+      for (const point of track) {
+        // 0.1° slack: the wire rounds look angles to a tenth of a degree.
+        expect(point.elevationDeg).toBeGreaterThanOrEqual(10 - 0.1);
+        expect(point.elevationDeg).toBeLessThanOrEqual(pass.maxElevationDeg + 0.1);
+      }
+      const first = track[0] as (typeof track)[number];
+      const last = track[track.length - 1] as (typeof track)[number];
+      if (pass.rise) {
+        expect(Math.abs(first.timeMs - pass.rise.getTime())).toBeLessThanOrEqual(1);
+        expect(first.elevationDeg).toBeCloseTo(10, 0);
+        expect(angleGap(first.azimuthDeg, pass.azimuthAtRiseDeg as number)).toBeLessThan(0.2);
+      }
+      if (pass.set) {
+        expect(Math.abs(last.timeMs - pass.set.getTime())).toBeLessThanOrEqual(1);
+        expect(angleGap(last.azimuthDeg, pass.azimuthAtSetDeg as number)).toBeLessThan(0.2);
+      }
+    }
+  });
+
+  it("passes through the visible window: every track point inside it is a visible instant", () => {
+    for (const { observer, visibility } of visible) {
+      const w = visibility.visibleWindow;
+      if (!w) continue;
+      for (const point of visibility.skyTrack) {
+        if (point.timeMs > w.start.timeMs && point.timeMs < w.end.timeMs) {
+          expect(visibleAt(observer, new Date(point.timeMs))).toBe(true);
+        }
+      }
+    }
+  });
+});

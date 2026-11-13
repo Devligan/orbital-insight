@@ -436,6 +436,7 @@ function toPassEntryDto(sat: PassSearchEntry, passes: PassResult[]): PassResultD
                   endsInShadow: pass.visibility.visibleWindow.endsInShadow,
                 }
               : null,
+            skyTrack: pass.visibility.skyTrack.map(toMomentDto),
           }
         : undefined,
     })),

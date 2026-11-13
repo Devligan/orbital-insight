@@ -42,6 +42,7 @@ function pass(riseMin: number, opts: { visible?: [number, number]; reason?: "sat
             endsInShadow: opts.endsInShadow ?? false,
           }
         : null,
+      skyTrack: [],
     },
   };
 }

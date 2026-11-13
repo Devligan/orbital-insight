@@ -155,6 +155,8 @@ export const passResultSchema = z.object({
               endsInShadow: z.boolean(),
             })
             .nullable(),
+          /** The pass's path across the sky, rise → set, uniform in time (the sky chart). */
+          skyTrack: z.array(visibleMomentSchema),
         })
         .optional(),
     }),

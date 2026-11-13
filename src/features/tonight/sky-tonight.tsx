@@ -25,7 +25,10 @@ import Link from "next/link";
 import type { PassResultDto } from "@/contracts/orbital";
 import type { ObserverLocationState } from "@/features/observer/use-observer-location";
 import { PassCard } from "@/features/pass-prediction/pass-cards";
+import { SkyChart } from "@/features/pass-prediction/sky-chart";
 import { brightnessWord, observerClock, observerZoneNote } from "@/features/pass-prediction/sky-words";
+import { downloadFile } from "@/lib/download";
+import { passEventFileName, visiblePassesIcs } from "./pass-calendar";
 import { countdownTo, noneVisibleReason, skyPath, summarizeTonight, timeUntil, type VisiblePass } from "./visible-tonight";
 
 interface OverheadEntry {
@@ -87,45 +90,80 @@ function SectionTitle({ children, sub }: { children: React.ReactNode; sub?: Reac
   );
 }
 
-function VisiblePassRow({ item, nowMs, timeZone }: { item: VisiblePass; nowMs: number; timeZone: string | null }) {
+function VisiblePassRow({
+  item,
+  nowMs,
+  timeZone,
+  spot,
+}: {
+  item: VisiblePass;
+  nowMs: number;
+  timeZone: string | null;
+  spot: string;
+}) {
   const { window } = item;
   const startMs = Date.parse(window.start.timeIso);
   const minutes = Math.max(1, Math.round((Date.parse(window.end.timeIso) - startMs) / 60_000));
   const countdown = countdownTo(window.start.timeIso, window.end.timeIso, nowMs);
   const soon = countdown === "visible now" || startMs - nowMs < 30 * 60_000;
+
+  function addToCalendar() {
+    const ics = visiblePassesIcs([item], { nowMs: Date.now(), origin: globalThis.location.origin, spot });
+    downloadFile(ics, passEventFileName(item), "text/calendar;charset=utf-8");
+  }
+
   return (
     <li className="panel p-3.5" data-testid="tonight-visible-pass">
-      <div className="flex items-center justify-between gap-3">
-        <Link href={`/satellites/${item.satelliteNumber}`} className="text-[15px] font-semibold hover:underline">
-          {item.label}
-        </Link>
-        <span className={"badge shrink-0 " + (soon ? "badge-good" : "text-[var(--color-text-secondary)]")}>{countdown}</span>
+      {/* When, how bright, and the chart side by side; the words for where to look run full width below. */}
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <Link href={`/satellites/${item.satelliteNumber}`} className="text-[15px] font-semibold hover:underline">
+              {item.label}
+            </Link>
+            <span className={"badge shrink-0 " + (soon ? "badge-good" : "text-[var(--color-text-secondary)]")}>{countdown}</span>
+          </div>
+          <p className="mt-1 text-[18px] font-semibold leading-tight tabular-nums text-[var(--color-text-primary)] sm:text-[20px]">
+            <span className="whitespace-nowrap">{observerClock(window.start.timeIso, timeZone)}</span>{" "}
+            <span className="whitespace-nowrap">– {observerClock(window.end.timeIso, timeZone, false)}</span>
+            <span className="ml-2 whitespace-nowrap text-[13px] font-normal text-[var(--color-text-muted)]">{minutes} min</span>
+          </p>
+          <p className="mt-1.5 text-[12px] text-[var(--color-text-muted)]">
+            {item.magnitude !== null
+              ? `≈ magnitude ${item.magnitude.toFixed(1)} · ${brightnessWord(item.magnitude)}`
+              : "brightness unknown (no published standard magnitude)"}
+            {item.lineage === "provider-unavailable-stale" ? (
+              <span className="ml-2 text-[var(--color-status-warn)]">older orbit data — times may drift</span>
+            ) : null}
+          </p>
+        </div>
+        <SkyChart pass={item.pass} size={96} />
       </div>
-      <p className="mt-1 text-[20px] font-semibold leading-tight tabular-nums text-[var(--color-text-primary)]">
-        {observerClock(window.start.timeIso, timeZone)} – {observerClock(window.end.timeIso, timeZone, false)}
-        <span className="ml-2 text-[13px] font-normal text-[var(--color-text-muted)]">{minutes} min</span>
-      </p>
-      <ol className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-[var(--color-text-secondary)]">
+      <ol className="mt-2 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
         {skyPath(item.pass, window).map((step, i) => (
-          <li key={step} className="flex items-center gap-1.5">
-            {i > 0 ? <span aria-hidden className="text-[var(--color-text-muted)]">→</span> : null}
-            <span>{step}</span>
+          <li key={step} className="inline">
+            {i > 0 ? (
+              <span aria-hidden className="mx-1.5 text-[var(--color-text-muted)]">
+                →
+              </span>
+            ) : null}
+            {step}
           </li>
         ))}
       </ol>
-      <p className="mt-1.5 text-[12px] text-[var(--color-text-muted)]">
-        {item.magnitude !== null
-          ? `≈ magnitude ${item.magnitude.toFixed(1)} · ${brightnessWord(item.magnitude)}`
-          : "brightness unknown (no published standard magnitude)"}
-        {item.lineage === "provider-unavailable-stale" ? (
-          <span className="ml-2 text-[var(--color-status-warn)]">older orbit data — times may drift</span>
-        ) : null}
-      </p>
+      <button
+        type="button"
+        onClick={addToCalendar}
+        className="mt-1.5 text-[12px] font-medium text-[var(--color-accent)] hover:underline"
+        data-testid="tonight-add-to-calendar"
+      >
+        Add to calendar · 10-min reminder
+      </button>
     </li>
   );
 }
 
-function VisibleTonight({ data, nowMs }: { data: PassesData; nowMs: number }) {
+function VisibleTonight({ data, nowMs, spot }: { data: PassesData; nowMs: number; spot: string }) {
   const summary = summarizeTonight(data.results, nowMs, shortLabel);
   const zoneNote = observerZoneNote(
     data.observerTimeZone,
@@ -160,6 +198,7 @@ function VisibleTonight({ data, nowMs }: { data: PassesData; nowMs: number }) {
                 item={item}
                 nowMs={nowMs}
                 timeZone={data.observerTimeZone}
+                spot={spot}
               />
             ))}
           </ul>
@@ -334,7 +373,7 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
 
           {/* The headline: passes a person can actually see. */}
           {passes !== null ? (
-            <VisibleTonight data={passes} nowMs={nowMs} />
+            <VisibleTonight data={passes} nowMs={nowMs} spot={formatSpot(observer.lat, observer.lon)} />
           ) : passesError && !busy ? (
             <p className="text-[13px] text-[var(--color-status-warn)]">{passesError}</p>
           ) : null}
@@ -410,7 +449,9 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
               Predicted from published orbits ({new Date(passes.windowStart).toLocaleDateString()}), next 24 h.
               Visible means the station is sunlit while your sky is past civil twilight (sun below −6°) and it is at
               least 10° up. Clouds, light pollution, and your horizon aren&apos;t modeled; brightness estimates are
-              rough (attitude, solar arrays).{" "}
+              rough (attitude, solar arrays). Sky charts: the centre is straight up and the rim your horizon, with
+              east on the left — hold one overhead with N to the north. The bright line is the part you can see; a
+              ring marks where it slips into Earth&apos;s shadow.{" "}
               <Link href="/methodology" className="hover:underline">
                 How this works
               </Link>

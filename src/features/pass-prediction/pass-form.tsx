@@ -13,7 +13,9 @@ import Link from "next/link";
 import { useWatchlist } from "@/features/watchlist/local-store";
 import { PassCard, type PassCardData as PassEntry } from "@/features/pass-prediction/pass-cards";
 import { observerClock, observerZoneNote } from "@/features/pass-prediction/sky-words";
+import { SkyChart } from "@/features/pass-prediction/sky-chart";
 import { Badge, EmptyState, ErrorState, Loading, Panel, PanelHeader } from "@/components/ui/primitives";
+import { downloadFile } from "@/lib/download";
 import { formatUtc } from "@/lib/units";
 
 interface PassSatelliteResult {
@@ -217,6 +219,7 @@ export function PassPredictionsForm() {
                     <table className="table-technical">
                       <thead>
                         <tr>
+                          <th>Sky</th>
                           <th>Peak (local)</th>
                           <th>Rise (UTC)</th>
                           <th>Rise az</th>
@@ -230,6 +233,9 @@ export function PassPredictionsForm() {
                       <tbody>
                         {sat.passes.map((pass, i) => (
                           <tr key={`${sat.satelliteNumber}-${i}`}>
+                            <td className="!py-1">
+                              <SkyChart pass={pass} size={44} />
+                            </td>
                             <td>{observerClock(pass.maxTime, results.observerTimeZone)}</td>
                             <td>{pass.riseTime ? formatUtc(new Date(pass.riseTime)) : "before window"}</td>
                             <td>{pass.azimuthAtRiseDeg !== null ? `${pass.azimuthAtRiseDeg.toFixed(1)}°` : "—"}</td>
@@ -293,13 +299,7 @@ function exportCsv(
     }
   }
   const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `passes_${results.windowStart.slice(0, 10)}_${inputs.latitude}N${inputs.longitude}E.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadFile(csv, `passes_${results.windowStart.slice(0, 10)}_${inputs.latitude}N${inputs.longitude}E.csv`, "text/csv;charset=utf-8");
 }
 
 function csvEscape(value: string): string {

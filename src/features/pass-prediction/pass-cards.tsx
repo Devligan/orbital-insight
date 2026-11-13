@@ -8,9 +8,11 @@
  * numbers render as a card per pass so nothing needs horizontal scrolling.
  * Used by the /passes results table (small screens) and the explorer's
  * "tonight from my location" panel. Times read on the observer's wall clock
- * (zone from the server), not the viewing device's.
+ * (zone from the server), not the viewing device's. Each card carries the
+ * pass's sky chart — where to look, drawn rather than described.
  */
 
+import { SkyChart } from "./sky-chart";
 import { brightnessWord, compassPoint, observerClock, type PassCardData } from "./sky-words";
 
 export { brightnessWord, compassPoint, type PassCardData };
@@ -53,40 +55,46 @@ export function PassCard({ pass, timeZone }: { pass: PassCardData; timeZone: str
   const visible = pass.visibility?.fromGround === true;
   const line = visibilityLine(pass);
   return (
-    <div className="rounded-lg border border-[var(--color-border-hairline)] bg-[var(--color-bg-inset)] px-3 py-2.5" data-testid="pass-card">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-        <span className="text-[15px] font-semibold tabular-nums text-[var(--color-text-primary)]">
-          {observerClock(pass.maxTime, timeZone)}
-        </span>
-        <span className="text-[12px] text-[var(--color-text-secondary)]">
-          peaks {pass.maxElevationDeg.toFixed(0)}° up in the {compassPoint(pass.azimuthAtMaxDeg)}
-        </span>
+    <div
+      className="flex items-start gap-3 rounded-lg border border-[var(--color-border-hairline)] bg-[var(--color-bg-inset)] px-3 py-2.5"
+      data-testid="pass-card"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+          <span className="text-[15px] font-semibold tabular-nums text-[var(--color-text-primary)]">
+            {observerClock(pass.maxTime, timeZone)}
+          </span>
+          <span className="text-[12px] text-[var(--color-text-secondary)]">
+            peaks {pass.maxElevationDeg.toFixed(0)}° up in the {compassPoint(pass.azimuthAtMaxDeg)}
+          </span>
+        </div>
+        <div className="mt-0.5 flex flex-wrap justify-between gap-x-3 text-[12px] tabular-nums text-[var(--color-text-muted)]">
+          <span>
+            rises {pass.riseTime ? observerClock(pass.riseTime, timeZone, false) : "already up"}
+            {pass.azimuthAtRiseDeg !== null ? ` · ${compassPoint(pass.azimuthAtRiseDeg)}` : ""}
+          </span>
+          <span>
+            sets {pass.setTime ? observerClock(pass.setTime, timeZone, false) : "after the window"}
+            {pass.azimuthAtSetDeg !== null ? ` · ${compassPoint(pass.azimuthAtSetDeg)}` : ""}
+          </span>
+        </div>
+        {pass.truncated !== "none" ? (
+          <p className="mt-1 text-[11px] text-[var(--color-status-warn)]">partially outside the prediction window</p>
+        ) : null}
+        {line ? (
+          <p className="mt-1.5 flex items-start gap-1.5 text-[12px] text-[var(--color-text-secondary)]">
+            <span
+              aria-hidden
+              className={
+                "mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full " +
+                (visible ? "bg-[var(--color-status-good)]" : "bg-[var(--color-border-strong)]")
+              }
+            />
+            <span>{line}</span>
+          </p>
+        ) : null}
       </div>
-      <div className="mt-0.5 flex flex-wrap justify-between gap-x-3 text-[12px] tabular-nums text-[var(--color-text-muted)]">
-        <span>
-          rises {pass.riseTime ? observerClock(pass.riseTime, timeZone, false) : "already up"}
-          {pass.azimuthAtRiseDeg !== null ? ` · ${compassPoint(pass.azimuthAtRiseDeg)}` : ""}
-        </span>
-        <span>
-          sets {pass.setTime ? observerClock(pass.setTime, timeZone, false) : "after the window"}
-          {pass.azimuthAtSetDeg !== null ? ` · ${compassPoint(pass.azimuthAtSetDeg)}` : ""}
-        </span>
-      </div>
-      {pass.truncated !== "none" ? (
-        <p className="mt-1 text-[11px] text-[var(--color-status-warn)]">partially outside the prediction window</p>
-      ) : null}
-      {line ? (
-        <p className="mt-1.5 flex items-start gap-1.5 text-[12px] text-[var(--color-text-secondary)]">
-          <span
-            aria-hidden
-            className={
-              "mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full " +
-              (visible ? "bg-[var(--color-status-good)]" : "bg-[var(--color-border-strong)]")
-            }
-          />
-          <span>{line}</span>
-        </p>
-      ) : null}
+      <SkyChart pass={pass} size={84} />
     </div>
   );
 }
