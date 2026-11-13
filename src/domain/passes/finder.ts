@@ -16,7 +16,7 @@
  */
 
 import { AppError } from "@/lib/errors";
-import { normalizeAngle2Pi, type Degrees } from "@/lib/units";
+import type { Degrees } from "@/lib/units";
 import { ecfToLookAngle, temeToEcf, type ObserverLocation } from "@/domain/orbit/coordinates";
 import { propagateState } from "@/integrations/sgp4/adapter";
 import type { CompiledElementSet } from "@/domain/orbit/propagation";
@@ -87,48 +87,33 @@ function passesForSatellite(sat: CompiledElementSet, params: PassSearchParams): 
     const passes: PassResult[] = [];
 
     let current = params.windowStart;
-    let currentElev = lookAt(sat, params.observer, current).elevationDeg;
-    let above = currentElev >= minElev;
-    // Boundary bookkeeping: last time below, first time above for the open pass.
-    let lastBelowOrStart: Date = current;
-    let firstAbove: Date = above ? current : current; // set when a pass opens or at window start
+    let above = lookAt(sat, params.observer, current).elevationDeg >= minElev;
+    // First coarse instant above threshold of the open pass. The window start
+    // when the satellite is already up, which closePass reads as "rise unknown".
+    let firstAbove: Date = current;
 
     while (current.getTime() < params.windowEnd.getTime()) {
       const next = new Date(Math.min(current.getTime() + stepMs, params.windowEnd.getTime()));
       const nextElev = lookAt(sat, params.observer, next).elevationDeg;
 
       if (!above && nextElev >= minElev) {
-        // Crossing up: [lastBelowOrStart, next] brackets the rise.
+        // Crossing up: [next − step, next] brackets the rise (closePass bisects it).
         above = true;
         firstAbove = next;
-        lastBelowOrStart = current;
       } else if (above && nextElev < minElev) {
         // Crossing down: [current (last above), next (first below)] brackets the set.
-        const boundary: PassBoundaryDates = {
-          firstAbove: firstAbove.getTime() === current.getTime() ? current : firstAbove,
-          lastAbove: current,
-          firstBelow: next,
-        };
-        passes.push(closePass(sat, params, boundary, minElev));
+        passes.push(closePass(sat, params, { firstAbove, lastAbove: current, firstBelow: next }, minElev));
         above = false;
-        lastBelowOrStart = current;
       }
 
       current = next;
-      currentElev = nextElev;
     }
-    void currentElev;
 
     if (above) {
-      // Window ended while above threshold: pass apex is inside, rise/set may be truncated.
-      const boundary: PassBoundaryDates = {
-        firstAbove: above ? firstAbove : current,
-        lastAbove: current,
-        firstBelow: params.windowEnd,
-      };
-      const pass = closePass(sat, params, { ...boundary, firstAbove: above ? firstAbove : params.windowStart }, minElev);
-      pass.truncated = firstAbove.getTime() === params.windowStart.getTime() ? "both" : "rise";
-      passes.push(pass);
+      // The window ended mid-pass. closePass sees the set beyond the window
+      // (and the rise before it, when the pass was already up at the start)
+      // and labels the truncation itself: "set", or "both".
+      passes.push(closePass(sat, params, { firstAbove, lastAbove: current, firstBelow: params.windowEnd }, minElev));
     }
 
     return { satelliteNumber: sat.elementSet.satelliteNumber, name: "", passes };

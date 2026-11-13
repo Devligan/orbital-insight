@@ -100,7 +100,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  PR["Pull request"] --> CI["CI: types · lint · 228 unit/integration tests · runtime audit<br/>production build · bundle budget · 33 e2e journeys"]
+  PR["Pull request"] --> CI["CI: types · lint (zero warnings) · 233 unit/integration tests · runtime audit<br/>production build · bundle budget · 33 e2e journeys"]
   PR --> PREV["Vercel preview"] --> SMOKE["Smoke suite against the preview URL"]
   MAIN["Merge to main"] --> PROD["Vercel production"] --> CHECKS["Smoke suite + Lighthouse"]
   CRON["Every 2 days"] --> DATA["Runner fetches snapshots → commit → redeploy"]
@@ -143,7 +143,7 @@ npm run verify       # typecheck → lint → tests → production build → bun
 
 | Command | What it runs |
 | --- | --- |
-| `npm test` | Vitest unit + integration (228; the one skip is an opt-in live-provider check: `RUN_LIVE_TESTS=1`) |
+| `npm test` | Vitest unit + integration (233; the one skip is an opt-in live-provider check: `RUN_LIVE_TESTS=1`) |
 | `npm run test:e2e` | Playwright journeys against `next start` (production build first) |
 | `npm run test:smoke` | The deployment smoke suite; point it anywhere with `E2E_BASE_URL=https://…` |
 | `npm run check:bundle` | First-load JS per page (gzip) against budgets |

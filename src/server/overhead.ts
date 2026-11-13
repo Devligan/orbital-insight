@@ -134,9 +134,13 @@ export async function computeOverhead(
       skipped += 1;
     }
   }
+  // `skipped` covers both failure kinds: records that wouldn't load (here)
+  // and element sets that wouldn't propagate (inside computeOverheadFor).
+  const computed = computeOverheadFor(observer, candidates, asOf, minElevationDeg);
   return {
     observer,
     asOf: asOf.toISOString(),
-    ...computeOverheadFor(observer, candidates, asOf, minElevationDeg),
+    visible: computed.visible,
+    skipped: skipped + computed.skipped,
   };
 }

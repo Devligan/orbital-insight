@@ -11,6 +11,11 @@ const eslintConfig = [
       "no-console": ["warn", { allow: ["warn", "error"] }],
     },
   },
+  // Build scripts are CLIs: their progress lines on stdout are the interface.
+  {
+    files: ["scripts/**/*.mjs"],
+    rules: { "no-console": "off" },
+  },
 ];
 
 export default eslintConfig;

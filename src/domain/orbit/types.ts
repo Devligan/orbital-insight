@@ -7,7 +7,7 @@
  * TEME→ECF→geodetic conversions happen only in the coordinate module.
  */
 
-import type { Degrees, Kilometers, KilometersPerSecond, Radians } from "@/lib/units";
+import type { Degrees, Kilometers, KilometersPerSecond } from "@/lib/units";
 
 /** NORAD satellite catalog number, as printed in TLE columns 3–7. */
 export type SatelliteNumber = string;

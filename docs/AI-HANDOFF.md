@@ -39,9 +39,10 @@ A production Next.js (App Router) app where a regular person can:
    accurate — if you change any approximation, update it.
 2. **The quality gates run after every change, with exit codes captured
    directly** (not through output filters that mask status):
-   `npx tsc --noEmit`, `npx eslint .` (0 errors; 15 pre-existing warnings
-   are the accepted baseline — do not fix them casually, do not suppress
-   them), `npx vitest run` (227 passed / 1 skipped as of 2026-11-13),
+   `npx tsc --noEmit`, `npm run lint` (`--max-warnings 0`: zero warnings
+   is enforced since 2026-11-13. Two of the old "baseline" warnings were
+   hiding real bugs, so read any new one, never suppress it),
+   `npx vitest run` (232 passed / 1 skipped as of 2026-11-13),
    `npm run build`, `npm run check:bundle`, `npx playwright test` (33: 27
    journeys + 6 deployment smoke tests). `npm run verify` chains them all.
    All must be green before any commit. Never weaken assertions or add
