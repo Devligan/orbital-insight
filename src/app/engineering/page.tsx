@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AUTHOR_NAME, AUTHOR_URL, REPO_URL } from "@/lib/site";
 
 export const metadata = {
   title: "How it's built — Orbital Insight",
@@ -6,13 +7,13 @@ export const metadata = {
     "The engineering behind Orbital Insight: SGP4 validated against the official reference suite, client-side conjunction screening, a CI/CD pipeline that smoke-tests every deployment, and the bugs that shaped it.",
 };
 
-const REPO_URL = process.env.NEXT_PUBLIC_REPO_URL ?? "https://github.com/Devligan/orbital-insight";
+
 
 const NUMBERS = [
   { value: "~16,000", label: "satellites propagated with SGP4 in your browser, live" },
   { value: "700 / 700", label: "rows of the official SGP4 test suite reproduced within 2 × 10⁻⁷" },
   { value: "~2.5 s", label: "to screen the ISS against every active satellite for 24 h" },
-  { value: "220+", label: "automated tests, from orbital maths to real-browser journeys" },
+  { value: "320+", label: "automated tests, from orbital maths to real-browser journeys" },
 ] as const;
 
 const STORIES = [
@@ -56,10 +57,18 @@ const STORIES = [
       "Time is pinned relative to the snapshot, and the opposite edge (past the horizon, the service must refuse) got its own test.",
     evidence: "tests/integration/satellite-service.test.ts.",
   },
+  {
+    title: "A 27 kB validator for a 1 kB answer",
+    problem:
+      "Town search and the cloud forecast validated their small responses with Zod in the browser. The home page's JavaScript jumped from 122 kB to 150 kB, a hair under its budget, and every visitor would have paid for it.",
+    decision:
+      "The server keeps Zod; the two browser clients check the same rules by hand with three small guards. The budget gate stays as the alarm.",
+    evidence: "Home back to 126 kB; CI's bundle-budget step fails any page over its limit, and the rejection tests still cover every malformed shape.",
+  },
 ] as const;
 
 const PIPELINE = [
-  ["Pull request", "Types, lint, 190+ unit and integration tests, production build, bundle-size budget, 30+ browser journeys"],
+  ["Pull request", "Types, zero-warning lint, 280+ unit and integration tests, production build, bundle-size budget, 35+ browser journeys"],
   ["Preview deployment", "Vercel builds the branch; the smoke suite runs against the preview URL"],
   ["Merge to main", "Production deploys; smoke suite and Lighthouse run against production"],
   ["Every two days", "A runner refreshes the bundled orbital data and commits it, which redeploys"],
@@ -73,6 +82,13 @@ export default function EngineeringPage() {
         <p className="lede mt-2 max-w-2xl text-[16px]">
           Real orbital data, maths checked against published references, every limitation stated, and nothing shipped
           without passing the same gates every time.
+        </p>
+        <p className="mt-3 text-[14px] text-[var(--color-text-secondary)]" data-testid="author-credit">
+          Designed and built by{" "}
+          <a href={AUTHOR_URL} className="font-semibold text-[var(--color-text-primary)] hover:underline">
+            {AUTHOR_NAME}
+          </a>
+          .
         </p>
         <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[14px]">
           <a href={REPO_URL} className="text-[var(--color-accent)] hover:underline">
@@ -121,8 +137,14 @@ export default function EngineeringPage() {
           />
           <Arrow />
           <ArchColumn
-            title="CelesTrak"
-            items={[["Public GP data", "Asked politely: ≥ 2 s between requests, 15 s timeout, back-off after failures"]]}
+            title="Public data"
+            items={[
+              ["CelesTrak GP data", "Asked by the server, politely: ≥ 2 s between requests, 15 s timeout, back-off after failures"],
+              [
+                "Open-Meteo",
+                "Town search and cloud forecasts, asked by your browser directly: its free tier is limited per IP, which a shared server address would exhaust",
+              ],
+            ]}
           />
         </div>
       </section>
