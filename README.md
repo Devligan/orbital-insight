@@ -100,7 +100,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  PR["Pull request"] --> CI["CI: types · lint · 217 unit/integration tests<br/>production build · bundle budget · 32 e2e journeys"]
+  PR["Pull request"] --> CI["CI: types · lint · 228 unit/integration tests · runtime audit<br/>production build · bundle budget · 33 e2e journeys"]
   PR --> PREV["Vercel preview"] --> SMOKE["Smoke suite against the preview URL"]
   MAIN["Merge to main"] --> PROD["Vercel production"] --> CHECKS["Smoke suite + Lighthouse"]
   CRON["Every 2 days"] --> DATA["Runner fetches snapshots → commit → redeploy"]
@@ -109,6 +109,10 @@ flowchart LR
 Workflows live in [`.github/workflows`](.github/workflows). The smoke suite's headline assertion is "no uncaught
 page errors", added after a minifier-mangled Cesium chunk once reached production while every other check was green.
 Dependabot groups routine bumps; Cesium minors are held for deliberate upgrades with production screenshots.
+The pipeline's own config is tested too ([`tests/unit/workflows.test.ts`](tests/unit/workflows.test.ts)): an
+unquoted `: ` in a step name once made the data-refresh workflow unparseable, and GitHub silently never schedules
+an invalid workflow. Layout stability has an e2e guard: `/atlas` once measured CLS 0.85 under Lighthouse, and is
+now held at 0 while its 1.6 MB catalog loads.
 
 ## Features
 
@@ -139,7 +143,7 @@ npm run verify       # typecheck → lint → tests → production build → bun
 
 | Command | What it runs |
 | --- | --- |
-| `npm test` | Vitest unit + integration (217; the one skip is an opt-in live-provider check: `RUN_LIVE_TESTS=1`) |
+| `npm test` | Vitest unit + integration (228; the one skip is an opt-in live-provider check: `RUN_LIVE_TESTS=1`) |
 | `npm run test:e2e` | Playwright journeys against `next start` (production build first) |
 | `npm run test:smoke` | The deployment smoke suite; point it anywhere with `E2E_BASE_URL=https://…` |
 | `npm run check:bundle` | First-load JS per page (gzip) against budgets |
