@@ -504,7 +504,7 @@ test.describe("phone layout", () => {
     // A single unbreakable line (TLE text, a wide table) inside an `auto`
     // grid column once pushed the whole detail page off-screen on phones.
     await page.setViewportSize({ width: 390, height: 844 });
-    for (const path of ["/", "/identify", "/passes", "/satellites/25544", "/compare", "/watchlist", "/methodology", "/engineering"]) {
+    for (const path of ["/", "/identify", "/passes", "/satellites/25544", "/compare", "/watchlist", "/methodology", "/about"]) {
       await page.goto(path);
       await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {
         /* long-lived requests (catalog, imagery) may keep the network busy; layout is settled by now */
@@ -692,13 +692,15 @@ test.describe("methodology page", () => {
     await expect(page.getByText(/Not for collision avoidance/i)).toBeVisible();
   });
 
-  test("every page credits its author, and /engineering says who built it", async ({ page }) => {
+  test("every page credits its author, /about says who made it, and the old /engineering link lands there", async ({ page }) => {
     await page.goto("/methodology");
     const footer = page.locator("footer");
     await expect(footer.getByRole("link", { name: "Devligan" })).toHaveAttribute("href", "https://github.com/Devligan");
     await expect(footer.getByRole("link", { name: "source" })).toHaveAttribute("href", /github\.com\/Devligan\/orbital-insight/);
     await page.goto("/engineering");
-    await expect(page.getByTestId("author-credit")).toHaveText("Designed and built by Devligan.");
+    await expect(page).toHaveURL(/\/about$/);
+    await expect(page.getByTestId("author-credit")).toContainText("Made by Devligan.");
+    await expect(page.getByTestId("author-credit").getByRole("link", { name: "Devligan" })).toHaveAttribute("href", "https://github.com/Devligan");
   });
 });
 

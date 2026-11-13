@@ -35,22 +35,22 @@ const DESTINATIONS = [
   {
     href: "/atlas",
     title: "Who's in orbit",
-    body: "Every active satellite charted by height and tilt. Starlink's shells, the sun-synchronous band and the geostationary ring, at a glance.",
+    body: "Every active satellite placed by how high and how tilted its orbit is. Starlink's shells and the geostationary ring jump right out.",
   },
   {
     href: "/conjunctions",
     title: "Close approaches",
-    body: "Screen any satellite against the whole catalog in your browser: time of closest approach, miss distance, closing speed.",
+    body: "Pick a satellite and find everything that will pass within a few kilometres of it over the next days, and how fast.",
   },
   {
     href: "/passes",
     title: "Pass predictions",
-    body: "Rise, peak and set for any satellite from any spot on Earth, with sunlight and sky darkness modelled. Exports to CSV.",
+    body: "Every pass of any satellite over any place, visible or not, with a chart of where it crosses your sky.",
   },
   {
-    href: "/engineering",
-    title: "How it's built",
-    body: "SGP4 checked against the official test suite, the screening algorithm, the delivery pipeline, and the bugs that shaped it.",
+    href: "/about",
+    title: "About this sky",
+    body: "What happens when you open the site, why most passes can't be seen, and the public data it's all built on.",
   },
 ] as const;
 

@@ -36,6 +36,10 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
+  // The old "How it's built" page became /about; keep its links working.
+  async redirects() {
+    return [{ source: "/engineering", destination: "/about", permanent: true }];
+  },
   eslint: {
     // Lint is a separate explicit step (`npm run lint`).
     ignoreDuringBuilds: true,

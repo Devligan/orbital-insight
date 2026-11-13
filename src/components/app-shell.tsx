@@ -134,16 +134,16 @@ export function AppShell({ children }: { children: ReactNode }) {
               </span>
             </span>
             <span>
-              Orbital elements from CelesTrak, propagated with SGP4. Predictions, never live telemetry. Not for
-              navigation, safety or collision avoidance.
+              Real orbits from CelesTrak, worked out in your browser. Predictions rather than live tracking, so please
+              don&apos;t navigate by them.
             </span>
           </div>
           <nav aria-label="About" className="flex gap-5 sm:flex-col sm:items-end sm:gap-1.5">
             <Link href="/methodology" className="hover:text-[var(--color-text-primary)]">
               How this works
             </Link>
-            <Link href="/engineering" className="hover:text-[var(--color-text-primary)]">
-              How it&apos;s built
+            <Link href="/about" className="hover:text-[var(--color-text-primary)]">
+              About
             </Link>
           </nav>
         </div>
