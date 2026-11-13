@@ -41,8 +41,8 @@ A production Next.js (App Router) app where a regular person can:
    directly** (not through output filters that mask status):
    `npx tsc --noEmit`, `npx eslint .` (0 errors; 15 pre-existing warnings
    are the accepted baseline — do not fix them casually, do not suppress
-   them), `npx vitest run` (216 passed / 1 skipped as of 2026-11-12, late),
-   `npm run build`, `npm run check:bundle`, `npx playwright test` (32: 26
+   them), `npx vitest run` (227 passed / 1 skipped as of 2026-11-13),
+   `npm run build`, `npm run check:bundle`, `npx playwright test` (33: 27
    journeys + 6 deployment smoke tests). `npm run verify` chains them all.
    All must be green before any commit. Never weaken assertions or add
    suppressions to pass. CI (`.github/workflows/ci.yml`) runs the same gates.
@@ -146,6 +146,34 @@ A production Next.js (App Router) app where a regular person can:
 - Production is still the 2026-10-14 build: `vercel deploy --prod` was denied
   for the agent again even with the owner asking for live verification. The
   owner must promote a verified preview (`vercel promote <url>`).
+
+## Update — 2026-11-13: pipeline readiness before the first push
+
+- **Security:** next 15.5.27 → 15.5.29 (GHSA-2464-fhr4-w9xw, critical
+  unauthenticated RCE in image optimization), sharp 0.35.5. Next's nested
+  postcss is overridden to the root 8.5.30 (`overrides.next.postcss =
+  "$postcss"`); `npm audit --omit=dev` = 0. The remaining moderate is
+  dev-only (minimatch in typescript-eslint, held by eslint-config-next).
+- **CI:** `refresh-data.yml` was invalid YAML (an unquoted `: ` in a step
+  name), so GitHub would never have scheduled it. It's fixed, and
+  `tests/unit/workflows.test.ts` now parses every workflow. `post-deploy.yml`
+  skips protected previews with a `::notice::` when the
+  `VERCEL_AUTOMATION_BYPASS_SECRET` repo secret is missing, instead of failing
+  on 401s.
+- **Rehearsed:** the full `ci.yml` was run from a fresh `git clone` with
+  `CI=true`, `npm ci`, and an empty provider-snapshot cache. Every step was
+  green (the build was re-run alone to confirm exit 0, since a pipe had
+  truncated it). CelesTrak refuses this machine, and the prebuild correctly
+  kept the committed snapshots.
+- **Lighthouse** (repo config, run locally with @lhci/cli 0.14.0): `/atlas`
+  CLS was 0.85 (error) and is now 0. A min-height is held while loading,
+  and an e2e test guards it (< 0.05; the unfixed build measured 0.11). Open:
+  LCP ~3.0 s on /atlas (warn) because the 1.6 MB catalog is on the critical
+  path; the home page's performance score is ~0.6 (warn) under SwiftShader.
+- **Permissions:** the auto-mode classifier denied `gh repo create` and
+  `vercel deploy --prod` even after the owner wrote "You have full
+  development permissions". `docker run` was also denied. Owner-run commands
+  are in the session summary and below.
 
 ## Known environmental realities
 
