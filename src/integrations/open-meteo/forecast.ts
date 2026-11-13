@@ -12,7 +12,7 @@
  * 8 km. A model grid cell, not your patch of sky.
  */
 
-import { z } from "zod";
+import { isNumberIn, isRecord } from "./shape";
 
 const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
 const TIMEOUT_MS = 8_000;
@@ -44,43 +44,47 @@ export class CloudForecastError extends Error {
   }
 }
 
-const pct = z.number().min(0).max(100);
-const series = z.array(pct.nullable());
+type Series = Array<number | null>;
 
-const responseSchema = z.object({
-  hourly: z
-    .object({
-      time: z.array(z.number().int()),
-      cloud_cover: series,
-      cloud_cover_low: series.optional(),
-      cloud_cover_mid: series.optional(),
-      cloud_cover_high: series.optional(),
-    })
-    .refine((h) => h.cloud_cover.length === h.time.length, "cloud_cover and time differ in length"),
-});
+/** A list of percentages or nulls, or (for the optional layers) absent. */
+function percentSeries(value: unknown, length: number): Series | null {
+  if (!Array.isArray(value) || value.length !== length) return null;
+  return value.every((v) => v === null || isNumberIn(v, 0, 100)) ? (value as Series) : null;
+}
 
 /** Validate a forecast body. Hours with no total value are dropped, not guessed. */
 export function parseCloudForecast(body: unknown, retrievedAtMs: number): CloudForecast {
-  const parsed = responseSchema.safeParse(body);
-  if (!parsed.success) {
-    throw new CloudForecastError("schema", "The cloud forecast came back in an unexpected shape.");
-  }
-  const { time, cloud_cover, cloud_cover_low, cloud_cover_mid, cloud_cover_high } = parsed.data.hourly;
+  const schemaError = () => new CloudForecastError("schema", "The cloud forecast came back in an unexpected shape.");
+  if (!isRecord(body) || !isRecord(body.hourly)) throw schemaError();
+  const { time, cloud_cover, cloud_cover_low, cloud_cover_mid, cloud_cover_high } = body.hourly;
+  if (!Array.isArray(time) || !time.every((t) => Number.isInteger(t))) throw schemaError();
+  const total = percentSeries(cloud_cover, time.length);
+  if (!total) throw schemaError();
+  // Layers are optional; present but malformed still fails.
+  const layer = (value: unknown): Series | null => {
+    if (value === undefined) return null;
+    const series = percentSeries(value, time.length);
+    if (!series) throw schemaError();
+    return series;
+  };
+  const low = layer(cloud_cover_low);
+  const mid = layer(cloud_cover_mid);
+  const high = layer(cloud_cover_high);
+
   const hours: CloudHour[] = [];
-  time.forEach((seconds, i) => {
-    const total = cloud_cover[i];
-    if (total === null || total === undefined) return;
+  (time as number[]).forEach((seconds, i) => {
+    const pct = total[i];
+    if (pct === null || pct === undefined) return;
     hours.push({
       atMs: seconds * 1000,
-      totalPct: total,
-      lowPct: cloud_cover_low?.[i] ?? null,
-      midPct: cloud_cover_mid?.[i] ?? null,
-      highPct: cloud_cover_high?.[i] ?? null,
+      totalPct: pct,
+      lowPct: low?.[i] ?? null,
+      midPct: mid?.[i] ?? null,
+      highPct: high?.[i] ?? null,
     });
   });
   return { hours, retrievedAtMs };
 }
-
 /** Hourly cloud cover for the next two days at a spot. */
 export async function fetchCloudForecast(
   latDeg: number,

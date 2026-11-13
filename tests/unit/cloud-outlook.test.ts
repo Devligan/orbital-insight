@@ -35,6 +35,9 @@ describe("parseCloudForecast", () => {
     ["no hourly block", {}],
     ["percent out of range", { hourly: { time: [1], cloud_cover: [140] } }],
     ["series of different lengths", { hourly: { time: [1, 2], cloud_cover: [10] } }],
+    ["fractional times", { hourly: { time: [1.5], cloud_cover: [10] } }],
+    ["a malformed optional layer", { hourly: { time: [1], cloud_cover: [10], cloud_cover_low: ["low"] } }],
+    ["a string percentage", { hourly: { time: [1], cloud_cover: ["10"] } }],
   ])("rejects %s", (_why, body) => {
     expect(() => parseCloudForecast(body, 0)).toThrow(CloudForecastError);
   });
