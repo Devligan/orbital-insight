@@ -10,9 +10,10 @@ export function WatchSaveButton({ satelliteNumber, name }: { satelliteNumber: st
     <button
       className={saved ? "btn btn-secondary" : "btn btn-primary"}
       aria-pressed={saved}
+      title="Saved in this browser only"
       onClick={() => (saved ? watchlist.remove(satelliteNumber) : watchlist.add(satelliteNumber, name))}
     >
-      {saved ? "★ In watchlist (saved in this browser)" : "☆ Save to watchlist (this browser)"}
+      {saved ? "★ In your watchlist" : "☆ Save to watchlist"}
     </button>
   );
 }

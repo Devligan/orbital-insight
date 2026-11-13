@@ -1,34 +1,31 @@
 import Link from "next/link";
-import { Suspense } from "react";
 import { ExplorerView } from "@/features/satellites/explorer-view";
-import { Loading } from "@/components/ui/primitives";
 
 /**
- * Home / Explorer - opens directly into a usable satellite explorer with the
+ * Home / Explorer: opens directly into a usable satellite explorer with the
  * ISS as the default real-data example. No marketing gate, no sign-in.
  *
- * Suspense boundary: the explorer reads share-link query params
- * (?cat=&t=) via useSearchParams, which must be wrapped for prerendering.
+ * A shared link's ?cat= and ?t= are read here on the server and passed down,
+ * so the page is rendered as real HTML (the hero, the tonight panel) rather
+ * than a client-only shell that says "Loading" until JavaScript runs.
  */
-export default function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cat?: string | string[]; t?: string | string[] }>;
+}) {
+  const { cat, t } = await searchParams;
   return (
     <>
-      {/* The fallback reserves a full screen: a one-line placeholder let the
-          footer paint in view and then jump (CLS 0.108 on phones). */}
-      <Suspense
-        fallback={
-          <div className="min-h-[calc(100svh-56px)]">
-            <Loading label="Loading explorer…" />
-          </div>
-        }
-      >
-        <ExplorerView initialSatellite={{ satelliteNumber: "25544", name: "ISS (ZARYA)" }} />
-      </Suspense>
+      <ExplorerView
+        initialSatellite={{ satelliteNumber: "25544", name: "ISS (ZARYA)" }}
+        initialCat={typeof cat === "string" ? cat : null}
+        initialTime={typeof t === "string" ? t : null}
+      />
       <MoreToExplore />
     </>
   );
 }
-
 const DESTINATIONS = [
   {
     href: "/identify",

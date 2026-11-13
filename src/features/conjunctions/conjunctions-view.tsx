@@ -2,7 +2,7 @@
 
 import { PAGE, PageHeader } from "@/components/ui/page-header";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { separationProfile, type CloseApproach, type ScreeningResult } from "@/domain/conjunction/screening";
 import { ErrorState, Loading } from "@/components/ui/primitives";
@@ -65,11 +65,10 @@ function utcLabel(ms: number): string {
   return new Date(ms).toISOString().replace("T", " ").slice(0, 19) + " UTC";
 }
 
-export function ConjunctionsView() {
-  const router = useRouter();
+/** `initialId` comes from the page's ?id= on the server, so the first render is real HTML. */
+export function ConjunctionsView({ initialId }: { initialId?: string | null }) {
   const pathname = usePathname();
-  const params = useSearchParams();
-  const targetId = params.get("id")?.replace(/\D/g, "") || DEFAULT_ID;
+  const [targetId, setTargetId] = useState(() => initialId?.replace(/\D/g, "") || DEFAULT_ID);
   const [hours, setHours] = useState<number>(24);
   const [thresholdKm, setThresholdKm] = useState<number>(25);
   const [catalog, setCatalog] = useState<CatalogState>({ state: "loading" });
@@ -159,7 +158,9 @@ export function ConjunctionsView() {
 
   const choose = (id: string) => {
     setQuery("");
-    router.replace(`${pathname}?id=${id}`, { scroll: false });
+    setTargetId(id);
+    // Keep the URL shareable without a server round trip (Next.js syncs its router with history.replaceState).
+    window.history.replaceState(null, "", `${pathname}?id=${id}`);
   };
 
   const targetName = target?.n ?? `#${targetId}`;

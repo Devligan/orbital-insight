@@ -13,7 +13,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import type { EciSample } from "@/features/orbit-visualization/sample-types";
 import type { PositionsResponse, GroundTrackResponse } from "@/features/orbit-visualization/position-group";
 import { toEciSamples, toTrackSegments } from "@/features/orbit-visualization/position-group";
@@ -88,19 +88,27 @@ const CURATED: { satelliteNumber: string; name: string; group?: string }[] = [
   { satelliteNumber: "43873", name: "STARLINK-30423" },
 ];
 
-export function ExplorerView({ initialSatellite }: { initialSatellite?: { satelliteNumber: string; name: string } | null }) {
-  const searchParams = useSearchParams();
+export function ExplorerView({
+  initialSatellite,
+  initialCat = null,
+  initialTime = null,
+}: {
+  initialSatellite?: { satelliteNumber: string; name: string } | null;
+  /** ?cat= and ?t= from a shared link, read on the server so the first render is real HTML. */
+  initialCat?: string | null;
+  initialTime?: string | null;
+}) {
   const router = useRouter();
   const observerLocation = useObserverLocation();
   const watchlist = useWatchlist();
 
   // A link that names a catalog object (?cat=…) opens straight on it - shared
   // moments land where they point, instead of resetting to the default ISS.
-  const rawCat = searchParams.get("cat");
+  const rawCat = initialCat;
   const urlTime = useMemo(() => {
-    const value = Number(searchParams.get("t"));
+    const value = Number(initialTime);
     return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
-  }, [searchParams]);
+  }, [initialTime]);
   const initial = useMemo(() => {
     if (rawCat && /^[0-9]{1,5}$/.test(rawCat)) {
       return { satelliteNumber: rawCat, name: CURATED.find((c) => c.satelliteNumber === rawCat)?.name ?? `NORAD ${rawCat}` };

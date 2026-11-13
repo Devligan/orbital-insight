@@ -29,6 +29,17 @@ test.describe("deployment smoke", () => {
     expect(errors).toEqual([]);
   });
 
+  test("pages arrive as real HTML, not a loading shell", async ({ request }) => {
+    // The home hero and the screening page were once client-only (they read the
+    // URL with a client hook), so the server sent "Loading…" and nothing else:
+    // invisible to link previews and search engines, blank until JavaScript ran.
+    const home = await (await request.get("/")).text();
+    expect(home).toContain("flying over you tonight");
+    expect(home).not.toContain("Loading explorer");
+    const screening = await (await request.get("/conjunctions?id=25544")).text();
+    expect(screening).toContain("Close approaches");
+  });
+
   test("the whole-sky catalog API serves the full active catalog", async ({ request }) => {
     const response = await request.get("/api/sky/catalog");
     expect(response.status()).toBe(200);
