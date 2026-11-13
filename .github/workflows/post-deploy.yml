@@ -69,7 +69,7 @@ jobs:
           echo "::error::${PRODUCTION_URL} never served ${COMMIT} within 5 minutes"
           exit 1
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.target.outputs.run == 'true'
       - uses: actions/setup-node@v4
         if: steps.target.outputs.run == 'true'
@@ -115,7 +115,7 @@ jobs:
           done
           echo "::error::${PRODUCTION_URL} never served ${COMMIT} within 5 minutes"
           exit 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Lighthouse CI
         uses: treosh/lighthouse-ci-action@v12
         with:
