@@ -8,15 +8,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { computeOverheadFor, selectCandidates, type OverheadCandidate } from "@/server/overhead";
+import { computeOverhead, computeOverheadFor, selectCandidates, type OverheadCandidate } from "@/server/overhead";
+import { loadStaticCatalog } from "@/server/search-index";
 import { parseTle } from "@/domain/orbit/tle";
 import { vanguardTle, withCatalogNumber } from "../helpers/tles";
 
-const { line1, line2 } = vanguardTle();
-
 function candidate(number: string, name: string): OverheadCandidate {
   const pair = withCatalogNumber(vanguardTle(), number);
-  return { satelliteNumber: number, name, elementSet: parseTle(pair.line1, pair.line2, name), lineage: "live" };
+  return { satelliteNumber: number, name, elementSet: parseTle(pair.line1, pair.line2), lineage: "live" };
 }
 
 const OBSERVER = { latitudeDeg: 28.5, longitudeDeg: -80.6, heightKm: 0 };
@@ -70,5 +69,24 @@ describe("computeOverheadFor", () => {
     const result = computeOverheadFor(OBSERVER, [], AS_OF);
     expect(result.visible).toEqual([]);
     expect(result.skipped).toBe(0);
+  });
+});
+
+describe("computeOverhead", () => {
+  it("counts candidates whose records failed to load, so a partial answer never looks complete", async () => {
+    const wanted = selectCandidates(loadStaticCatalog().entries);
+    expect(wanted.length).toBeGreaterThan(2);
+    // Every other record fails, the way a provider outage with a cold cache does.
+    let calls = 0;
+    const service = {
+      get: async () => {
+        if (calls++ % 2 === 1) throw new Error("provider unavailable");
+        return { record: { elementSet: parseTle(vanguardTle().line1, vanguardTle().line2) }, lineage: "live" as const };
+      },
+    };
+    const result = await computeOverhead(OBSERVER, -90, service as never);
+    const failed = Math.floor(wanted.length / 2);
+    expect(result.skipped).toBe(failed);
+    expect(result.visible).toHaveLength(wanted.length - failed);
   });
 });

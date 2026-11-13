@@ -11,8 +11,8 @@
 import { AppError } from "@/lib/errors";
 import type { TwoLineElementSet } from "./types";
 
-const LINE1_LENGTH = 69;
-const LINE2_LENGTH = 69;
+/** Both lines are 69 columns: 68 of elements plus the checksum digit. */
+const TLE_LINE_LENGTH = 69;
 
 function checksum9(line: string): number {
   // Columns 1–68; '+' counts 0, non-digits count as their printed digit sum
@@ -33,12 +33,12 @@ function checksum9(line: string): number {
  */
 function normalizeTleLine(raw: string, lineNo: 1 | 2): string {
   const trimmed = raw.replace(/\s+$/, "");
-  if (trimmed.length === LINE1_LENGTH) return trimmed;
+  if (trimmed.length === TLE_LINE_LENGTH) return trimmed;
   if (trimmed.length < 68) {
     // Not enough columns for a body - malformed (e.g. truncated fetch).
     throw new AppError("validation", `TLE line ${lineNo} is too short (${trimmed.length} chars, need ≥68)`);
   }
-  if (trimmed.length > LINE1_LENGTH) {
+  if (trimmed.length > TLE_LINE_LENGTH) {
     throw new AppError("validation", `TLE line ${lineNo} is too long (${trimmed.length} chars)`);
   }
   return trimmed.slice(0, -1).padEnd(68) + trimmed.slice(-1);
@@ -63,7 +63,7 @@ function parseEpoch(line1: string): Date {
  * re-inserts the trimmed spacing before the trailing checksum digit so the
  * fixed-column checks are meaningful.
  */
-export function parseTle(line1Raw: string, line2Raw: string, name?: string): TwoLineElementSet {
+export function parseTle(line1Raw: string, line2Raw: string): TwoLineElementSet {
   const line1 = normalizeTleLine(line1Raw, 1);
   const line2 = normalizeTleLine(line2Raw, 2);
 

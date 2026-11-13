@@ -6,8 +6,8 @@
  */
 
 import { eciToEcf, ecfToLookAngles, degreesToRadians, gstime, type SatRec } from "satellite.js";
-import { RAD2DEG, type Degrees, type Kilometers, type Radians } from "@/lib/units";
-import type { GeodeticPosition, TemEState } from "@/domain/orbit/types";
+import { RAD2DEG, type Degrees, type Kilometers } from "@/lib/units";
+import type { TemEState } from "@/domain/orbit/types";
 
 export interface LookAngle {
   azimuthDeg: Degrees;

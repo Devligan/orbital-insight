@@ -219,10 +219,13 @@ export const SkyField = memo(function SkyField({
   // actually wants it. (Time controls live with the explorer's slider.)
   const [cloudDetailsOpen, setCloudDetailsOpen] = useState(false);
   const statusRef = useRef(onCloudStatus);
+  const unavailableRef = useRef(onUnavailable);
 
-  // Parent status callback is kept in a ref (never called during render).
+  // Parent callbacks are kept in refs (never called during render), so a new
+  // callback identity from a parent re-render never tears down the viewer.
   useEffect(() => {
     statusRef.current = onCloudStatus;
+    unavailableRef.current = onUnavailable;
   });
 
   useEffect(() => {
@@ -244,7 +247,7 @@ export const SkyField = memo(function SkyField({
       probe.getContext("webgl") ??
       probe.getContext("experimental-webgl");
     if (!gl) {
-      if (!disposed) onUnavailable?.();
+      if (!disposed) unavailableRef.current?.();
       return () => {
         disposed = true;
       };

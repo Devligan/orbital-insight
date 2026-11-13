@@ -35,7 +35,7 @@ describe("pass finder", () => {
       minElevationDeg: 10,
     });
     const passes = result[0]?.passes ?? [];
-    // Sanity bounds, not exact counts ( 黄业主 the input data is fixed but the
+    // Sanity bounds, not exact counts (the input data is fixed, but the
     // model is a numerical integrator).
     expect(passes.length).toBeGreaterThan(0);
     expect(passes.length).toBeLessThan(20);
@@ -83,6 +83,60 @@ describe("pass finder", () => {
     for (const pass of truncated) {
       expect(pass.rise).toBeNull();
     }
+  });
+
+  describe("truncation names the side the window cut off", () => {
+    const FLORIDA = { latitudeDeg: 28, longitudeDeg: -80, heightKm: 0 };
+    const full =
+      findPasses({ compiled: [iss], observer: FLORIDA, ...window(EPOCH, 24), minElevationDeg: 10 })[0]?.passes.find(
+        (p) => p.truncated === null,
+      );
+
+    it("the fixture has a complete pass to cut (tests below are not vacuous)", () => {
+      expect(full?.rise).toBeInstanceOf(Date);
+      expect(full?.set).toBeInstanceOf(Date);
+    });
+
+    it('a pass still up when the window ends is "set"-truncated, with its rise kept', () => {
+      const { rise, max } = full as { rise: Date; max: Date };
+      // Two hours of lead-in, ending just after the apex: risen, not yet set.
+      const windowStart = new Date(rise.getTime() - 2 * 3_600_000);
+      const windowEnd = new Date(max.getTime() + 30_000);
+      const last = findPasses({ compiled: [iss], observer: FLORIDA, windowStart, windowEnd, minElevationDeg: 10 })[0]?.passes.at(-1);
+      expect(last?.truncated).toBe("set");
+      expect(last?.set).toBeNull();
+      expect(Math.abs((last?.rise as Date).getTime() - rise.getTime())).toBeLessThan(1_000);
+      expect(last?.azimuthAtRiseDeg).not.toBeNull();
+      expect(last?.azimuthAtSetDeg).toBeNull();
+    });
+
+    it('a pass already up when the window starts is "rise"-truncated, with its set kept', () => {
+      const { set, max } = full as { set: Date; max: Date };
+      const windowStart = new Date(max.getTime() - 30_000);
+      const first = findPasses({
+        compiled: [iss],
+        observer: FLORIDA,
+        windowStart,
+        windowEnd: new Date(set.getTime() + 2 * 3_600_000),
+        minElevationDeg: 10,
+      })[0]?.passes[0];
+      expect(first?.truncated).toBe("rise");
+      expect(first?.rise).toBeNull();
+      expect(Math.abs((first?.set as Date).getTime() - set.getTime())).toBeLessThan(1_000);
+    });
+
+    it('a window inside a single pass is "both"-truncated', () => {
+      const { max } = full as { max: Date };
+      const only = findPasses({
+        compiled: [iss],
+        observer: FLORIDA,
+        windowStart: new Date(max.getTime() - 60_000),
+        windowEnd: new Date(max.getTime() + 60_000),
+        minElevationDeg: 10,
+      })[0]?.passes;
+      expect(only).toHaveLength(1);
+      expect(only?.[0]?.truncated).toBe("both");
+    });
   });
 
   it("yields fewer passes at a higher elevation cutoff", () => {

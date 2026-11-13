@@ -53,7 +53,7 @@ export function loadStaticCatalog(): { generatedAt: Date | null; entries: Static
   const generatedAt = data.generatedAt ? new Date(data.generatedAt) : null;
   for (const row of data.entries) {
     try {
-      const elementSet = parseTle(row.tleLine1, row.tleLine2, row.name);
+      const elementSet = parseTle(row.tleLine1, row.tleLine2);
       entries.push({
         satelliteNumber: elementSet.satelliteNumber,
         name: row.name,
