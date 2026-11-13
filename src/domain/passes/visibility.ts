@@ -96,6 +96,13 @@ export interface PassVisibility {
   reasonIfNotVisible: "satellite-in-shadow" | "sky-too-bright" | "both" | null;
   /** Visible portion of the pass (edges refined to ~1 s); null when never visible. */
   visibleWindow: VisibleWindow | null;
+  /**
+   * The pass's path across the observer's sky: the light-sweep samples
+   * (uniform in time, rise → set, clamped to the serving window). Drawn as
+   * the "where to look" sky chart; the visible stretch comes from
+   * `visibleWindow`, whose refined edges are sharper than this sampling.
+   */
+  skyTrack: VisibleMoment[];
 }
 
 interface LightSample {
@@ -239,6 +246,7 @@ export function enrichPassVisibility(params: {
     satelliteInShadowAtApex: apexInShadow,
     reasonIfNotVisible,
     visibleWindow: fromGround ? visibleWindowOf(satrec, observer, samples) : null,
+    skyTrack: samples.map(toMoment),
   };
 }
 

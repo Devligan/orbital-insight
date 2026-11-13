@@ -41,8 +41,8 @@ A production Next.js (App Router) app where a regular person can:
    directly** (not through output filters that mask status):
    `npx tsc --noEmit`, `npx eslint .` (0 errors; 15 pre-existing warnings
    are the accepted baseline — do not fix them casually, do not suppress
-   them), `npx vitest run` (189 passed / 1 skipped as of 2026-11-12),
-   `npm run build`, `npm run check:bundle`, `npx playwright test` (31: 25
+   them), `npx vitest run` (216 passed / 1 skipped as of 2026-11-12, late),
+   `npm run build`, `npm run check:bundle`, `npx playwright test` (32: 26
    journeys + 6 deployment smoke tests). `npm run verify` chains them all.
    All must be green before any commit. Never weaken assertions or add
    suppressions to pass. CI (`.github/workflows/ci.yml`) runs the same gates.
@@ -128,6 +128,24 @@ A production Next.js (App Router) app where a regular person can:
 - **Open:** site has no author credit yet (ask the owner how they want to
   be named); "Orbital Insight" collides with a real company's name — owner's
   call; the alert/digest loop (priority 2 below) is still unbuilt.
+
+## Update — 2026-11-12 (late): sky charts + calendar
+
+- **Sky charts** (`src/features/pass-prediction/sky-chart*.ts(x)`): every
+  enriched pass now carries `visibility.skyTrack` on the wire, which is the 24
+  light-sweep samples `enrichPassVisibility` already computed, so no new
+  propagation. The chart is star-chart oriented (N up, **E left**). The bright
+  segment is drawn between the *refined* window edges plus the samples strictly
+  inside it. Don't redraw it from the coarse samples, or the line and the text
+  will disagree. Shown on home visible rows, pass cards, and a "Sky" column in
+  the /passes table.
+- **Add to calendar** (`src/features/tonight/pass-calendar.ts`): RFC 5545,
+  built client-side, visible stretch only, `-PT10M` alarm, stable UID per
+  pass. This is the first slice of roadmap priority 2 (the alert loop) and
+  needs no service worker or account. Push/notification digests are still open.
+- Production is still the 2026-10-14 build: `vercel deploy --prod` was denied
+  for the agent again even with the owner asking for live verification. The
+  owner must promote a verified preview (`vercel promote <url>`).
 
 ## Known environmental realities
 

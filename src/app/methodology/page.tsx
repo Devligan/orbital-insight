@@ -259,6 +259,20 @@ const SECTIONS = [
           page lists only passes with a visible window still ahead; every geometric pass remains one click away.
         </li>
         <li>
+          <strong>Sky charts.</strong> Each pass is drawn on a chart of your sky: the zenith at the centre, the
+          horizon on the rim, elevation falling linearly outward (rings at 30° and 60°), and east on the
+          <em> left</em> — a star chart&apos;s orientation, the sky seen from below, so held overhead with N toward
+          north every point sits where it will appear. The dashed arc is the same 24 rise-to-set samples the
+          visibility test uses; the bright line runs between the refined window edges above, not between coarse
+          samples, so it starts and ends where the text says. A ring marks a mid-sky entry into Earth&apos;s shadow.
+        </li>
+        <li>
+          <strong>Calendar events.</strong> &ldquo;Add to calendar&rdquo; builds an iCalendar (RFC 5545) file in
+          your browser — nothing is sent anywhere — spanning only the visible stretch, with a 10-minute alarm. A
+          calendar file cannot update itself, and predictions move as new element sets arrive (a station reboost
+          moves them most), so the event links back to the live prediction.
+        </li>
+        <li>
           <strong>Times are the observer&apos;s.</strong> Pass times are shown on the wall clock of the coordinates
           you entered, not your device&apos;s: the server resolves the time zone offline from the coordinates with
           tz-lookup, which uses simplified zone boundaries. Its authors measure that about 5% of random points on

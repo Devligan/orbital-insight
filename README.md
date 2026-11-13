@@ -45,6 +45,17 @@ A pass counts only if the satellite is sunlit (Earth's shadow cylinder) while th
 twilight. Brightness is estimated only from sourced standard magnitudes (Mallama 2020 convention); everything else
 reads "brightness unknown" rather than an invented number.
 
+**Where to look, drawn** ([`sky-chart-geometry.ts`](src/features/pass-prediction/sky-chart-geometry.ts),
+[`pass-calendar.ts`](src/features/tonight/pass-calendar.ts))
+Every pass is plotted on a chart of the observer's sky (zenith at the centre, east on the left as in a star chart).
+The faint arc is the geometric pass; the bright line is only the stretch where the satellite is sunlit against a dark
+sky, drawn between the bisection-refined window edges rather than coarse samples, with a ring where it slips into
+Earth's shadow. One tap turns a visible pass into an RFC 5545 calendar event with a 10-minute alarm, built in the
+browser. The tests check that format against the spec itself (75-octet folding that never splits a UTF-8
+character, TEXT escaping, stable UIDs) rather than against a snapshot.
+
+![An ISS pass from Tokyo: 87° nearly overhead, sky chart and calendar button](docs/images/sky-chart.png)
+
 **Honesty as a contract** ([`/methodology`](https://orbital-insight-drab.vercel.app/methodology))
 Every response carries data lineage (`live` / `cached` / `provider-unavailable-stale`). Provider failures are typed
 failures, never fabricated orbits, and every approximation and limit is documented on the methodology page.
@@ -89,7 +100,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  PR["Pull request"] --> CI["CI: types · lint · 190 unit/integration tests<br/>production build · bundle budget · 31 e2e journeys"]
+  PR["Pull request"] --> CI["CI: types · lint · 217 unit/integration tests<br/>production build · bundle budget · 32 e2e journeys"]
   PR --> PREV["Vercel preview"] --> SMOKE["Smoke suite against the preview URL"]
   MAIN["Merge to main"] --> PROD["Vercel production"] --> CHECKS["Smoke suite + Lighthouse"]
   CRON["Every 2 days"] --> DATA["Runner fetches snapshots → commit → redeploy"]
@@ -103,11 +114,11 @@ Dependabot groups routine bumps; Cesium minors are held for deliberate upgrades 
 
 | Route | What it does |
 | --- | --- |
-| `/` | Hero answer to "what's flying over me tonight?" (visible passes only, local times, compass words) next to the live globe: every active satellite, follow the ISS with NASA's 3D model, time slider and 60× fast-forward, shareable links |
+| `/` | Hero answer to "what's flying over me tonight?" (visible passes only, local times, compass words, a sky chart of each pass, add-to-calendar with a reminder) next to the live globe: every active satellite, follow the ISS with NASA's 3D model, time slider and 60× fast-forward, shareable links |
 | `/atlas` | All active satellites by inclination and altitude, a 10 km altitude histogram that shows each constellation shell, and a constellation table |
 | `/conjunctions` | Close-approach screening of any satellite against the active catalog: TCA, miss distance (RIC), closing speed, encounter profile |
 | `/satellites/[id]` | Element set, epoch and provenance, approximate orbit characteristics, 24 h ground track |
-| `/passes` | Pass predictions for any location (rise / peak / set, azimuths, visibility verdict), CSV export |
+| `/passes` | Pass predictions for any location (rise / peak / set, azimuths, visibility verdict, sky chart per pass), CSV export |
 | `/compare` | Two element sets compared, with propagated-position deltas over time |
 | `/watchlist` | Browser-local watchlist (no account) |
 | `/methodology` | Data sources, frames, validation, every approximation and limit |
@@ -128,7 +139,7 @@ npm run verify       # typecheck → lint → tests → production build → bun
 
 | Command | What it runs |
 | --- | --- |
-| `npm test` | Vitest unit + integration (190; the one skip is an opt-in live-provider check: `RUN_LIVE_TESTS=1`) |
+| `npm test` | Vitest unit + integration (217; the one skip is an opt-in live-provider check: `RUN_LIVE_TESTS=1`) |
 | `npm run test:e2e` | Playwright journeys against `next start` (production build first) |
 | `npm run test:smoke` | The deployment smoke suite; point it anywhere with `E2E_BASE_URL=https://…` |
 | `npm run check:bundle` | First-load JS per page (gzip) against budgets |

@@ -158,6 +158,12 @@ test.describe("pass prediction journey", () => {
     await page.getByRole("button", { name: /Predict passes/i }).click();
     const outcome = page.getByText(/No passes above/i).or(page.getByRole("table"));
     await expect(outcome.first()).toBeVisible({ timeout: 60_000 });
+    // Every enriched pass row carries its sky chart ("where to look").
+    if (await page.getByRole("table").count()) {
+      const rows = page.locator("table tbody tr");
+      await expect(rows.first().locator('[data-testid="sky-chart"]')).toBeVisible();
+      expect(await page.locator('table [data-testid="sky-chart"]').count()).toBe(await rows.count());
+    }
   });
 
   test("exports pass predictions as a CSV download", async ({ page }) => {
@@ -302,6 +308,93 @@ test.describe("location-first + shareable moments", () => {
     await expect(
       page.locator('[data-testid="tonight-pass-cards"]').or(page.getByText(/Doesn't clear your horizon/i)).first(),
     ).toBeVisible({ timeout: 10_000 });
+    if (await page.locator('[data-testid="pass-card"]').count()) {
+      await expect(page.locator('[data-testid="pass-card"] [data-testid="sky-chart"]').first()).toBeVisible();
+    }
+  });
+
+  test("a visible pass shows where to look on a sky chart and goes into the calendar", async ({ page }) => {
+    // Whether a real pass is visible depends on the date, so this pins the
+    // UI half with a contract-shaped response; the physics behind it is
+    // unit-tested (visible-window, sky-chart, pass-calendar).
+    const now = Date.now();
+    const at = (seconds: number) => new Date(now + 30 * 60_000 + seconds * 1000).toISOString();
+    const skyTrack = Array.from({ length: 24 }, (_, i) => {
+      const f = i / 23;
+      return { timeIso: at(f * 360), azimuthDeg: 225 - 135 * f, elevationDeg: 10 + 53 * Math.sin(Math.PI * f) };
+    });
+    const visibleWindow = {
+      start: skyTrack[0],
+      end: { timeIso: at(280), azimuthDeg: 120, elevationDeg: 35 },
+      startsFromShadow: false,
+      endsInShadow: true,
+    };
+    await page.route("**/api/passes", (route) =>
+      route.fulfill({
+        json: {
+          ok: true,
+          data: {
+            windowStart: new Date(now).toISOString(),
+            windowEnd: new Date(now + 24 * 3_600_000).toISOString(),
+            minElevationDeg: 10,
+            observerTimeZone: "Etc/GMT",
+            results: [
+              {
+                satelliteNumber: "25544",
+                name: "ISS (ZARYA)",
+                lineage: "live",
+                passes: [
+                  {
+                    riseTime: at(0),
+                    maxTime: at(180),
+                    maxElevationDeg: 63,
+                    setTime: at(360),
+                    truncated: "none",
+                    azimuthAtRiseDeg: 225,
+                    azimuthAtMaxDeg: 157.5,
+                    azimuthAtSetDeg: 90,
+                    visibility: {
+                      fromGround: true,
+                      bestEstimatedMagnitude: -3.4,
+                      bestTimeIso: at(180),
+                      sunElevationDegAtApex: -14,
+                      satelliteInShadowAtApex: false,
+                      reasonIfNotVisible: null,
+                      visibleWindow,
+                      skyTrack,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      }),
+    );
+    await page.context().grantPermissions(["geolocation"]);
+    await page.context().setGeolocation({ latitude: 40.7, longitude: -74 });
+    await page.goto("/");
+    await page.getByRole("button", { name: /Show me tonight's passes/i }).click();
+
+    const row = page.locator('[data-testid="tonight-visible-pass"]').first();
+    await expect(row).toBeVisible({ timeout: 60_000 });
+    const chart = row.locator('[data-testid="sky-chart"]');
+    await expect(chart).toBeVisible();
+    await expect(chart).toHaveAttribute("data-visible", "true");
+    await expect(chart.locator('[data-testid="sky-chart-visible"]')).toHaveCount(1);
+    await expect(chart.locator('[data-testid="sky-chart-shadow-entry"]')).toHaveCount(1);
+    await expect(chart).toHaveAttribute("aria-label", /highest 63° in the S.*visible from 10° up in the SW to 35° up in the SE/);
+
+    const downloadPromise = page.waitForEvent("download", { timeout: 30_000 });
+    await row.getByRole("button", { name: /Add to calendar/i }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/^iss-pass-\d{4}-\d{2}-\d{2}\.ics$/);
+    const { readFile } = await import("node:fs/promises");
+    const ics = (await readFile((await download.path()) as string, "utf8")).replace(/\r\n /g, "");
+    expect(ics).toMatch(/^BEGIN:VCALENDAR\r\n/);
+    expect(ics).toContain("SUMMARY:ISS visible — look SW");
+    expect(ics).toContain("TRIGGER:-PT10M");
+    expect(ics).toContain("LOCATION:40.7°N\\, 74.0°W");
   });
 
   test("the URL names the viewed object and instant, and reopening reproduces it", async ({ page }) => {
