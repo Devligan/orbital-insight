@@ -31,6 +31,11 @@ export default function HomePage() {
 
 const DESTINATIONS = [
   {
+    href: "/identify",
+    title: "What did I just see?",
+    body: "Saw a light glide across the sky? Say when and which way you looked, and every catalogued satellite is checked against your sky.",
+  },
+  {
     href: "/atlas",
     title: "Who's in orbit",
     body: "Every active satellite charted by height and tilt. Starlink's shells, the sun-synchronous band and the geostationary ring, at a glance.",
@@ -59,7 +64,7 @@ function MoreToExplore() {
       <h2 id="explore-title" className="text-[20px] font-semibold">
         More to explore
       </h2>
-      <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {DESTINATIONS.map((d) => (
           <li key={d.href}>
             <Link

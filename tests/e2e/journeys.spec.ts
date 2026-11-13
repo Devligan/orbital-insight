@@ -504,7 +504,7 @@ test.describe("phone layout", () => {
     // A single unbreakable line (TLE text, a wide table) inside an `auto`
     // grid column once pushed the whole detail page off-screen on phones.
     await page.setViewportSize({ width: 390, height: 844 });
-    for (const path of ["/", "/passes", "/satellites/25544", "/compare", "/watchlist", "/methodology"]) {
+    for (const path of ["/", "/identify", "/passes", "/satellites/25544", "/compare", "/watchlist", "/methodology", "/engineering"]) {
       await page.goto(path);
       await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {
         /* long-lived requests (catalog, imagery) may keep the network busy; layout is settled by now */
@@ -630,6 +630,57 @@ test.describe("close-approach screening", () => {
     // Docked modules share the ISS's element set: never reported as approaches.
     await expect(table.getByText("ISS (ZVEZDA)")).toHaveCount(0);
     expect(errors).toEqual([]);
+  });
+});
+
+test.describe("what did I just see", () => {
+  // datetime-local is read on the browser's clock; pin it to the spot's zone.
+  test.use({ timezoneId: "America/New_York" });
+
+  /** "YYYY-MM-DDTHH:00" for yesterday at `hour`, New York time. */
+  function yesterdayAt(hour: number): string {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" })
+      .format(new Date(Date.now() - 24 * 3_600_000))
+      .split("-");
+    return `${parts[0]}-${parts[1]}-${parts[2]}T${String(hour).padStart(2, "0")}:00`;
+  }
+
+  async function describeSighting(page: import("@playwright/test").Page, local: string) {
+    await page.goto("/identify");
+    await page.getByTestId("place-search").fill("40.7, -74");
+    await page.getByRole("option", { name: /Use 40\.7000°N, 74\.0000°W/ }).click();
+    await expect(page.getByTestId("identify-spot")).toBeVisible();
+    await page.getByRole("radio", { name: "Earlier…" }).click();
+    await page.getByLabel("Date and time you saw it").fill(local);
+  }
+
+  test("names real candidates for a dark-sky sighting and draws their paths", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    // 10 pm in New York is past civil twilight in every season.
+    await describeSighting(page, yesterdayAt(22));
+    // "Not sure" on both: every sunlit, moving object in the dark sky qualifies,
+    // so a real catalog always yields matches. The physics is unit-tested.
+    await page.getByTestId("identify-submit").click();
+    const answer = page.getByTestId("identify-answer");
+    await expect(answer).toBeVisible({ timeout: 90_000 });
+    await expect(answer.getByRole("heading", { level: 2 }).first()).toHaveText(/fit|matches/);
+    const entries = answer.locator('[data-testid="identify-candidate"], [data-testid="identify-group"]');
+    expect(await entries.count()).toBeGreaterThan(0);
+    await expect(entries.first()).toContainText(/up in the (N|NE|E|SE|S|SW|W|NW)/);
+    await expect(answer.getByTestId("sighting-chart")).toBeVisible();
+    expect(await answer.getByTestId("sighting-chart-track").count()).toBeGreaterThan(0);
+    await expect(answer.getByText(/SGP4 propagations in/)).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test("says the sky was too bright instead of guessing, for a midday sighting", async ({ page }) => {
+    await describeSighting(page, yesterdayAt(13));
+    await page.getByRole("radiogroup", { name: "Direction you were looking" }).getByRole("radio", { name: "NW" }).click();
+    await page.getByTestId("identify-submit").click();
+    await expect(page.getByTestId("identify-bright-sky")).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByText(/the sun was up/)).toBeVisible();
+    await expect(page.locator('[data-testid="identify-candidate"]')).toHaveCount(0);
   });
 });
 

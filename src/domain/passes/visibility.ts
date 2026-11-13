@@ -37,13 +37,12 @@ import {
   observerEciKm,
   type EciVectorKm,
 } from "@/domain/light/solar";
+import { estimateMagnitude } from "@/domain/light/magnitude";
 import type { PassResult } from "./types";
 
 /** Sky-darkness threshold: civil twilight — the satellite reads if it is bright. */
 const SKY_DARKNESS_SUN_ELEVATION_DEG = -6;
 
-/** 2.5·log₁₀(0.5): moves the phase term's zero from full phase to 90°. */
-const HALF_PHASE_NORMALIZATION = 2.5 * Math.log10(0.5);
 
 /** Samples per pass for the light sweep. Passes are 5–15 min for LEO. */
 const SAMPLES_PER_PASS = 24;
@@ -163,15 +162,6 @@ function toMoment(sample: LightSample): VisibleMoment {
   };
 }
 
-/** Apparent magnitude from a standard magnitude (1 000 km, 90° phase). */
-function estimateMagnitude(stdMag: number, rangeKm: number, phaseDeg: number): number {
-  const rangeTerm = 5 * Math.log10(Math.max(rangeKm, 1));
-  const cosPhase = Math.cos((phaseDeg * Math.PI) / 180);
-  // Illuminated fraction, zeroed at 90°: full phase (φ=0) → −0.75 (brighter),
-  // half phase → 0, crescent (φ>90°) → dimmer.
-  const phaseTerm = -2.5 * Math.log10(Math.max((1 + cosPhase) / 2, 1e-6)) + HALF_PHASE_NORMALIZATION;
-  return stdMag - 15 + rangeTerm + phaseTerm;
-}
 
 /**
  * Evaluate pass visibility for one geometric pass. `satrec` is the compiled

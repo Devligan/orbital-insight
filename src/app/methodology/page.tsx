@@ -349,6 +349,58 @@ const SECTIONS = [
     ),
   },
   {
+    id: "identify",
+    heading: "Identifying a sighting (“What did I just see?”)",
+    body: (
+      <ul className="list-disc space-y-1 pl-5">
+        <li>
+          <strong>What is searched.</strong> Every object in the active catalog the globe uses, propagated with SGP4 in
+          your browser (a Web Worker) every 10 s for 4 minutes either side of the time you give: about 49 instants ×
+          16,000 objects, roughly 780,000 propagations. Ten seconds matters: an object passing overhead crosses about 1°
+          a second, so coarser steps could jump straight over the patch of sky you describe.
+        </li>
+        <li>
+          <strong>What counts as a match.</strong> At some sampled instant the object was at least 10° up, in direct
+          sunlight (the same cylindrical shadow test as for passes), and your sun was at least 6° below the horizon. It
+          was crossing the sky at least 1° a minute (you saw it <em>move</em>; this leaves out geostationary and
+          navigation satellites, which sit 20,000 to 36,000 km away and aren&apos;t naked-eye objects in normal
+          conditions). And it came within 25° of what you reported, about one compass point either side.
+        </li>
+        <li>
+          <strong>Distance from your report.</strong> &ldquo;Looking NW, halfway up&rdquo; is taken as the arc of sky due
+          NW between 30° and 60° up (10–30° for &ldquo;low&rdquo;, 60–90° for &ldquo;nearly overhead&rdquo;, horizon to
+          zenith when unsure). A candidate&apos;s distance is the angle to the nearest point of that arc, solved in
+          closed form, so the zenith counts as on every line of sight.
+        </li>
+        <li>
+          <strong>Which way it moved (optional).</strong> An object&apos;s heading is the compass direction of its 10-second
+          step across the sky, taken from the horizontal part of that step. Overhead, that is the direction it travels;
+          low in the west and climbing, it reads &ldquo;toward the E&rdquo;, which is how people describe it. A
+          remembered direction keeps candidates heading within 45° of it. Around dusk, hundreds of Starlinks can be
+          sunlit in one quarter of the sky, and this is the filter that narrows them most.
+        </li>
+        <li>
+          <strong>Ranking.</strong> Closest to your report first, in 5° steps (finer would claim more precision than
+          &ldquo;it was over there&rdquo; contains). Within a step, objects with a published standard magnitude come
+          first, brightest first, then nearer before farther. A &ldquo;satellite train&rdquo; is folded into one entry:
+          at least four satellites from one launch within 10° of each other on the sky at the same instant. Sharing a
+          launch is not enough. Thousands of Starlinks from years-old launches are spread around their orbits, so a few
+          launch-mates crossing the same quarter of the sky is ordinary and stays listed one by one.
+        </li>
+        <li>
+          <strong>Checked against the pass predictor.</strong> The search and the pass predictor are separate code
+          paths. A test asks the search about every moment the pass predictor calls a test satellite visible, from five
+          places on Earth, and requires the satellite named within 1°. Its look-angle maths is also checked against
+          satellite.js to nine decimal places.
+        </li>
+        <li>
+          <strong>What it can&apos;t know.</strong> Classified objects aren&apos;t in the public catalog, and new
+          launches take a day or two to appear. Aircraft, meteors and planets are described, not computed. Times are
+          your device&apos;s clock.
+        </li>
+      </ul>
+    ),
+  },  {
     id: "validation",
     heading: "Automated validation",
     body: (

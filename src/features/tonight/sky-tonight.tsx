@@ -438,6 +438,10 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
             <p className="text-[13px] text-[var(--color-status-warn)]">{passesError}</p>
           ) : null}
 
+          <Link href="/identify" className="self-start text-[13px] text-[var(--color-accent)] hover:underline" data-testid="tonight-identify-link">
+            Saw something moving that isn&apos;t listed? Find out what it was →
+          </Link>
+
           {/* Right now — geometry, not visibility. */}
           <div>
             <h2 className="mb-1.5 text-[14px] font-semibold text-[var(--color-text-secondary)]">Above your horizon right now</h2>
