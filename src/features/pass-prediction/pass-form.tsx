@@ -8,8 +8,10 @@
  * truncated passes honestly. CSV export encodes exactly the returned data.
  */
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { PlaceSearch, type ChosenSpot } from "@/features/observer/place-search";
+import { rememberSpot, useRememberedSpot } from "@/features/observer/spot-store";
 import { useWatchlist } from "@/features/watchlist/local-store";
 import { PassCard, type PassCardData as PassEntry } from "@/features/pass-prediction/pass-cards";
 import { observerClock, observerZoneNote } from "@/features/pass-prediction/sky-words";
@@ -39,19 +41,49 @@ interface PassResponse {
   error?: { kind: string; message: string };
 }
 
+/** Bright, well-known objects people ask about, one tap each. */
+const QUICK_PICKS = [
+  { satelliteNumber: "25544", name: "ISS" },
+  { satelliteNumber: "48274", name: "Tiangong" },
+  { satelliteNumber: "20580", name: "Hubble" },
+] as const;
+
+interface FormValues {
+  satellites: string;
+  latitude: string;
+  longitude: string;
+  altitudeMeters: string;
+  windowHours: string;
+  minElevationDeg: string;
+}
+
+const DEFAULT_SPOT = { lat: "51.5072", lon: "-0.1276", altitudeMeters: "11", label: "London, England, United Kingdom" };
+
 export function PassPredictionsForm() {
   const watchlist = useWatchlist();
+  // Where you are comes from the spot remembered on the home page (or a place
+  // picked here); typing coordinates by hand overrides it for this page.
+  const remembered = useRememberedSpot();
+  const [typed, setTyped] = useState<{ latitude: string; longitude: string; altitudeMeters: string } | null>(null);
   const [satelliteInput, setSatelliteInput] = useState("25544");
-  const [latitude, setLatitude] = useState("51.5072");
-  const [longitude, setLongitude] = useState("-0.1276");
-  const [altitudeMeters, setAltitudeMeters] = useState("11");
   const [windowHours, setWindowHours] = useState("24");
   const [minElevationDeg, setMinElevationDeg] = useState("10");
   const [results, setResults] = useState<PassResponse["data"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Drops a slower, superseded answer (e.g. the opening run vs. a quick re-run).
+  const requestRef = useRef(0);
 
-  async function submit() {
+  const latitude = typed?.latitude ?? (remembered ? remembered.lat.toFixed(4) : DEFAULT_SPOT.lat);
+  const longitude = typed?.longitude ?? (remembered ? remembered.lon.toFixed(4) : DEFAULT_SPOT.lon);
+  // A geocoded place has no useful height for this; sea level is within the model's slack.
+  const altitudeMeters = typed?.altitudeMeters ?? (remembered ? "0" : DEFAULT_SPOT.altitudeMeters);
+  const spotLabel = typed ? null : remembered ? remembered.label : DEFAULT_SPOT.label;
+  const form: FormValues = { satellites: satelliteInput, latitude, longitude, altitudeMeters, windowHours, minElevationDeg };
+
+  // Uses only setters and the ref, so it's stable and effects can depend on it.
+  const run = useCallback(async (values: FormValues) => {
+    const request = ++requestRef.current;
     setBusy(true);
     setError(null);
     setResults(null);
@@ -60,30 +92,56 @@ export function PassPredictionsForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          satelliteNumbers: satelliteInput.split(/[\s,]+/).map((id) => id.trim()).filter((id) => /^[0-9]{1,5}$/.test(id)),
+          satelliteNumbers: values.satellites.split(/[\s,]+/).map((id) => id.trim()).filter((id) => /^[0-9]{1,5}$/.test(id)),
           observer: {
-            latitudeDeg: Number(latitude),
-            longitudeDeg: Number(longitude),
-            altitudeMeters: Number(altitudeMeters),
+            latitudeDeg: Number(values.latitude),
+            longitudeDeg: Number(values.longitude),
+            altitudeMeters: Number(values.altitudeMeters),
           },
           windowStartIso: new Date().toISOString(),
-          windowHours: Number(windowHours),
-          minElevationDeg: Number(minElevationDeg),
+          windowHours: Number(values.windowHours),
+          minElevationDeg: Number(values.minElevationDeg),
         }),
       });
       const body = (await response.json()) as PassResponse;
+      if (request !== requestRef.current) return;
       if (!body.ok || !body.data) {
         setError(body.error?.message ?? "The pass-prediction service reported an error");
         return;
       }
       setResults(body.data);
     } catch {
-      setError("Could not reach the pass-prediction service (network error)");
+      if (request === requestRef.current) setError("Could not reach the pass-prediction service (network error)");
     } finally {
-      setBusy(false);
+      if (request === requestRef.current) setBusy(false);
     }
+  }, []);
+
+  // The latest form, for the effect below (refs are written in effects, not during render).
+  const formRef = useRef(form);
+  useEffect(() => {
+    formRef.current = form;
+  });
+
+  // Open on an answer, not an empty panel, and answer again whenever the spot
+  // changes (a place picked here, or on the home page in another tab).
+  const spotKey = remembered ? `${remembered.lat},${remembered.lon}` : "default";
+  useEffect(() => {
+    void run(formRef.current);
+  }, [run, spotKey]);
+
+  function choosePlace(spot: ChosenSpot) {
+    setTyped(null);
+    rememberSpot({ lat: spot.lat, lon: spot.lon, label: spot.label, source: spot.source });
   }
 
+  function editSpot(field: "latitude" | "longitude" | "altitudeMeters", value: string) {
+    setTyped({ latitude, longitude, altitudeMeters, [field]: value });
+  }
+
+  function submit() {
+    void run(form);
+  }
   const watchlistQuick = watchlist.items.slice(0, 4);
 
   return (
@@ -94,25 +152,60 @@ export function PassPredictionsForm() {
           className="flex flex-col gap-3"
           onSubmit={(e) => {
             e.preventDefault();
-            void submit();
+            submit();
           }}
         >
-          <label className="flex flex-col gap-1">
-            <span className="label">Observer latitude (−90…90 °)</span>
-            <input className="input" value={latitude} onChange={(e) => setLatitude(e.target.value)} name="latitude" autoComplete="off" />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="label">Observer longitude (−180…180 °)</span>
-            <input className="input" value={longitude} onChange={(e) => setLongitude(e.target.value)} name="longitude" autoComplete="off" />
-          </label>
+          <div className="flex flex-col gap-1">
+            <span className="label">Where you&apos;re watching from</span>
+            <PlaceSearch onChoose={choosePlace} label="Find a place by name, postcode, or coordinates" />
+            <span className="text-[12px] text-[var(--color-text-secondary)]" data-testid="passes-spot">
+              {spotLabel ?? "Coordinates as typed below"}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="label">Latitude (±90°)</span>
+              <input
+                className="input"
+                value={latitude}
+                onChange={(e) => editSpot("latitude", e.target.value)}
+                name="latitude"
+                inputMode="decimal"
+                autoComplete="off"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="label">Longitude (±180°)</span>
+              <input
+                className="input"
+                value={longitude}
+                onChange={(e) => editSpot("longitude", e.target.value)}
+                name="longitude"
+                inputMode="decimal"
+                autoComplete="off"
+              />
+            </label>
+          </div>
           <label className="flex flex-col gap-1">
             <span className="label">Altitude above sea level (m)</span>
-            <input className="input" value={altitudeMeters} onChange={(e) => setAltitudeMeters(e.target.value)} name="altitude" autoComplete="off" />
+            <input className="input" value={altitudeMeters} onChange={(e) => editSpot("altitudeMeters", e.target.value)} name="altitude" autoComplete="off" />
           </label>
           <label className="flex flex-col gap-1">
             <span className="label">Catalog IDs (up to 25, space-separated)</span>
             <input className="input font-mono" value={satelliteInput} onChange={(e) => setSatelliteInput(e.target.value)} name="satellites" autoComplete="off" />
           </label>
+          <div className="-mt-1 flex flex-wrap gap-1">
+            {QUICK_PICKS.map((pick) => (
+              <button
+                type="button"
+                key={pick.satelliteNumber}
+                className="badge text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
+                onClick={() => setSatelliteInput((prev) => addId(prev, pick.satelliteNumber))}
+              >
+                + {pick.name}
+              </button>
+            ))}
+          </div>
           <label className="flex flex-col gap-1">
             <span className="label">Prediction window (hours, ≤ 720)</span>
             <input className="input" value={windowHours} onChange={(e) => setWindowHours(e.target.value)} name="window" autoComplete="off" />
@@ -131,9 +224,7 @@ export function PassPredictionsForm() {
                     type="button"
                     key={item.satelliteNumber}
                     className="badge text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
-                    onClick={() =>
-                      setSatelliteInput((prev) => (prev.split(/[\s,]+/).includes(item.satelliteNumber) ? prev : `${prev} ${item.satelliteNumber}`.trim()))
-                    }
+                    onClick={() => setSatelliteInput((prev) => addId(prev, item.satelliteNumber))}
                   >
                     + {item.name}
                   </button>
@@ -169,7 +260,7 @@ export function PassPredictionsForm() {
         />
 
         {busy ? <Loading label="Propagating passes…" /> : null}
-        {error ? <ErrorState title="Pass prediction failed" message={error} retry={() => void submit()} /> : null}
+        {error ? <ErrorState title="Pass prediction failed" message={error} retry={submit} /> : null}
         {!busy && !error && !results ? (
           <EmptyState title="No predictions yet" hint="Configure the observation parameters and run a prediction." />
         ) : null}
@@ -300,6 +391,11 @@ function exportCsv(
   }
   const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\r\n");
   downloadFile(csv, `passes_${results.windowStart.slice(0, 10)}_${inputs.latitude}N${inputs.longitude}E.csv`, "text/csv;charset=utf-8");
+}
+
+/** Append a catalog id unless it's already listed. */
+function addId(list: string, id: string): string {
+  return list.split(/[\s,]+/).includes(id) ? list : `${list} ${id}`.trim();
 }
 
 function csvEscape(value: string): string {

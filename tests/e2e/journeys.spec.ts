@@ -135,25 +135,67 @@ test.describe("detail + search journey", () => {
     await expect(page.getByRole("option", { name: /ISS \(ZARYA\)/ })).toBeVisible({ timeout: 5_000 });
   });
 
-  test("overhead computation answers from the hero's manual coordinates", async ({ page }) => {
+  test("overhead computation answers from coordinates typed into the place box", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: /What's flying over you tonight/i })).toBeVisible();
     const hero = page.getByRole("region", { name: "What's in the sky" });
-    await hero.getByLabel("Manual latitude").fill("28.5");
-    await hero.getByLabel("Manual longitude").fill("-80.6"); // Florida
-    await hero.getByRole("button", { name: "Go" }).click();
+    // Coordinates resolve locally: no geocoder request is involved.
+    await hero.getByTestId("place-search").fill("28.5, -80.6"); // Florida
+    await hero.getByRole("option", { name: /Use 28\.5000°N, 80\.6000°W/ }).click();
     // The observer chip appears either way; the honest named-or-empty lines
     // follow (never a spinner forever).
     await expect(page.getByText(/watching from 28\.5/i)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/ISS|CSS|Nothing bright is above 15/i).first()).toBeVisible({ timeout: 30_000 });
+  });
+
+  test("finds a town by name, remembers it, and carries it to /passes", async ({ page }) => {
+    // The geocoder is a third party called from the browser; answer it here
+    // so the journey tests our handling, not their uptime.
+    await page.route("https://geocoding-api.open-meteo.com/**", (route) =>
+      route.fulfill({
+        json: {
+          results: [
+            { id: 4164138, name: "Miami", latitude: 25.77427, longitude: -80.19366, country: "United States", admin1: "Florida" },
+          ],
+        },
+      }),
+    );
+    await page.goto("/");
+    const hero = page.getByRole("region", { name: "What's in the sky" });
+    await hero.getByTestId("place-search").fill("Miami");
+    await hero.getByRole("option", { name: /Miami, Florida, United States/ }).click();
+    await expect(hero.getByText("Watching from Miami, Florida, United States")).toBeVisible();
+
+    // A returning visitor isn't asked again.
+    await page.reload();
+    await expect(
+      page.getByRole("region", { name: "What's in the sky" }).getByText("Watching from Miami, Florida, United States"),
+    ).toBeVisible({ timeout: 30_000 });
+
+    // /passes opens on an answer for the same spot, not an empty form.
+    await page.goto("/passes");
+    await expect(page.getByTestId("passes-spot")).toHaveText("Miami, Florida, United States");
+    await expect(page.getByLabel(/^Latitude/)).toHaveValue("25.7743");
+    await expect(page.getByText(/No passes above/i).or(page.getByRole("table")).first()).toBeVisible({ timeout: 60_000 });
+  });
+
+  test("says so when place search is down, and coordinates still work", async ({ page }) => {
+    await page.route("https://geocoding-api.open-meteo.com/**", (route) => route.fulfill({ status: 503, body: "" }));
+    await page.goto("/");
+    const hero = page.getByRole("region", { name: "What's in the sky" });
+    await hero.getByTestId("place-search").fill("Miami");
+    await expect(hero.getByRole("status")).toContainText(/HTTP 503.*type coordinates/i);
+    await hero.getByTestId("place-search").fill("25.77, -80.19");
+    await hero.getByRole("option", { name: /Use 25\.7700°N/ }).click();
+    await expect(hero.getByText(/watching from 25\.8°N/i)).toBeVisible();
   });
 });
 
 test.describe("pass prediction journey", () => {
   test("calculates passes for a location and satellite", async ({ page }) => {
     await page.goto("/passes");
-    await page.getByLabel(/Observer latitude/i).fill("28.5");
-    await page.getByLabel(/Observer longitude/i).fill("-80.6"); // Florida
+    await page.getByLabel(/^Latitude/).fill("28.5");
+    await page.getByLabel(/^Longitude/).fill("-80.6"); // Florida
     await page.getByLabel(/Catalog IDs/i).fill("25544");
     await page.getByRole("button", { name: /Predict passes/i }).click();
     const outcome = page.getByText(/No passes above/i).or(page.getByRole("table"));
@@ -168,8 +210,8 @@ test.describe("pass prediction journey", () => {
 
   test("exports pass predictions as a CSV download", async ({ page }) => {
     await page.goto("/passes");
-    await page.getByLabel(/Observer latitude/i).fill("28.5");
-    await page.getByLabel(/Observer longitude/i).fill("-80.6");
+    await page.getByLabel(/^Latitude/).fill("28.5");
+    await page.getByLabel(/^Longitude/).fill("-80.6");
     await page.getByLabel(/Catalog IDs/i).fill("25544");
     await page.getByRole("button", { name: /Predict passes/i }).click();
     // The export fires the download synchronously with the click — register
@@ -445,8 +487,8 @@ test.describe("pass cards on phones", () => {
   test("a phone-width viewport renders passes as cards, not a 7-column table", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/passes");
-    await page.getByLabel(/Observer latitude/i).fill("0");
-    await page.getByLabel(/Observer longitude/i).fill("0");
+    await page.getByLabel(/^Latitude/).fill("0");
+    await page.getByLabel(/^Longitude/).fill("0");
     await page.getByLabel(/Catalog IDs/i).fill("25544");
     await page.getByRole("button", { name: /Predict passes/i }).click();
     // A stable test id, not styling classes: a visual redesign once broke a
