@@ -105,6 +105,20 @@ export function countdownTo(startIso: string, endIso: string, nowMs: number): st
   return timeUntil(startIso, nowMs) ?? (Date.parse(endIso) > nowMs ? "visible now" : "over");
 }
 
+/**
+ * Elevation the way people measure it outside: a fist held at arm's length
+ * spans about 10° (the standard stargazing rule of thumb; hands vary, so it is
+ * rounded to half a fist). Near the zenith, "straight up" is clearer than
+ * stacking nine fists.
+ */
+export function heightWords(elevationDeg: number): string {
+  if (elevationDeg >= 75) return "nearly straight overhead";
+  const fists = Math.max(1, Math.round(elevationDeg / 5) / 2);
+  const whole = Math.floor(fists);
+  const count = fists === whole ? String(whole) : `${whole}½`;
+  return `about ${count} ${fists === 1 ? "fist" : "fists"} above the horizon`;
+}
+
 /** An edge this far from rise/set happened mid-sky, not at the horizon cutoff. */
 const MID_SKY_EDGE_MS = 5_000;
 
@@ -135,7 +149,9 @@ export function skyPath(pass: PassCardData, window: VisibleWindowDto): string[] 
 
   const apexMs = Date.parse(pass.maxTime);
   if (apexMs > startMs && apexMs < endMs) {
-    steps.push(`highest ${Math.round(pass.maxElevationDeg)}° in the ${compassPoint(pass.azimuthAtMaxDeg)}`);
+    steps.push(
+      `highest ${Math.round(pass.maxElevationDeg)}° in the ${compassPoint(pass.azimuthAtMaxDeg)} (${heightWords(pass.maxElevationDeg)})`,
+    );
   }
 
   const endsMidSky = pass.setTime !== null && Date.parse(pass.setTime) - endMs > MID_SKY_EDGE_MS;

@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { PassResultDto } from "@/contracts/orbital";
-import { countdownTo, noneVisibleReason, skyPath, summarizeTonight, timeUntil } from "@/features/tonight/visible-tonight";
+import { countdownTo, heightWords, noneVisibleReason, skyPath, summarizeTonight, timeUntil } from "@/features/tonight/visible-tonight";
 
 type Pass = PassResultDto["passes"][number];
 
@@ -125,7 +125,7 @@ describe("countdown and sky path wording", () => {
     const full = pass(10, { visible: [10, 16] });
     expect(skyPath(full, full.visibility!.visibleWindow!)).toEqual([
       "appears 10° up in the SW",
-      "highest 55° in the S",
+      "highest 55° in the S (about 5½ fists above the horizon)",
       "last seen 10° up in the E",
     ]);
     // Fades into shadow before culminating: no "highest" claim.
@@ -134,6 +134,16 @@ describe("countdown and sky path wording", () => {
       "appears 10° up in the SW",
       "fades into Earth's shadow 25° up in the E",
     ]);
+  });
+
+  it("gives heights in fists at arm's length, and calls the zenith straight up", () => {
+    expect(heightWords(10)).toBe("about 1 fist above the horizon");
+    expect(heightWords(12)).toBe("about 1 fist above the horizon");
+    expect(heightWords(4)).toBe("about 1 fist above the horizon");
+    expect(heightWords(36)).toBe("about 3½ fists above the horizon");
+    expect(heightWords(74)).toBe("about 7½ fists above the horizon");
+    expect(heightWords(75)).toBe("nearly straight overhead");
+    expect(heightWords(89)).toBe("nearly straight overhead");
   });
 
   it("attributes a mid-sky edge without a shadow flag to twilight", () => {

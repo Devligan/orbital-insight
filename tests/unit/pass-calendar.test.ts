@@ -108,7 +108,9 @@ describe("visiblePassesIcs", () => {
   it("tells you where to look, how bright, and links back to the live prediction", () => {
     expect(prop(lines, "SUMMARY")).toEqual(["ISS visible — look SW"]);
     const description = prop(lines, "DESCRIPTION")[0] ?? "";
-    expect(description).toContain("Where to look: appears 10° up in the SW → highest 63° in the S → fades into Earth's shadow 24° up in the E.");
+    expect(description).toContain(
+      "Where to look: appears 10° up in the SW → highest 63° in the S (about 6½ fists above the horizon) → fades into Earth's shadow 24° up in the E.",
+    );
     expect(description).toContain("Estimated magnitude -3.4 (conspicuous).");
     expect(description).toContain("Predicted for 40.7°N\\, 74.0°W");
     expect(prop(lines, "URL")).toEqual(["https://orbit.example/satellites/25544"]);
