@@ -2,7 +2,7 @@ import Link from "next/link";
 import { STANDARD_MAGNITUDES } from "@/domain/light/standard-magnitudes";
 
 export const metadata = {
-  title: "Methodology and validation — Orbital Insight",
+  title: "Methodology and validation · Orbital Insight",
 };
 
 const SECTIONS = [

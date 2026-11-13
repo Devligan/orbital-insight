@@ -131,7 +131,7 @@ export function AtlasView() {
           </section>
           <p className="mt-2 text-[12px] text-[var(--color-text-muted)]">
             CelesTrak active catalog, fetched {ageLabel(load.generatedAt)}
-            {load.stale ? " — the provider is unreachable, so this is the last good copy" : ""}.
+            {load.stale ? ". The provider is unreachable, so this is the last good copy" : ""}.
             {load.skipped > 0 ? ` ${count(load.skipped)} rows with unreadable elements left out.` : ""}
           </p>
 
@@ -287,12 +287,7 @@ function FocusChip({
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={
-        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[13px] transition-colors " +
-        (active
-          ? "border-[var(--color-accent)] bg-[var(--color-bg-inset)] text-[var(--color-text-primary)]"
-          : "border-[var(--color-border-strong)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]")
-      }
+      className="choice gap-2"
     >
       {swatch ? <span aria-hidden="true" className="inline-block size-2.5 rounded-sm" style={{ background: swatch }} /> : null}
       {label}

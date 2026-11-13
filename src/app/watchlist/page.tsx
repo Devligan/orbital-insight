@@ -65,7 +65,7 @@ export default function WatchlistPage() {
         )}
 
         <p className="mt-3 text-[11px] text-[var(--color-text-muted)]">
-          This demo watchlist lives in your browser&apos;s local storage — it is not stored on any server. When the
+          This demo watchlist lives in your browser&apos;s local storage. It is not stored on any server. When the
           application is configured with Supabase and you sign in, watchlists persist server-side under Row Level
           Security instead. The difference is always labelled; nothing silently syncs without your intent.
         </p>

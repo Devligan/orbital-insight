@@ -60,21 +60,19 @@ const DESTINATIONS = [
 /** Below the fold: the rest of the app, for visitors who came for more than tonight's sky. */
 function MoreToExplore() {
   return (
-    <section aria-labelledby="explore-title" className="mx-auto max-w-6xl px-4 pt-10">
-      <h2 id="explore-title" className="text-[20px] font-semibold">
-        More to explore
+    <section aria-labelledby="explore-title" className="mx-auto max-w-6xl px-4 pt-14">
+      <h2 id="explore-title" className="eyebrow">
+        Also here
       </h2>
-      <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {DESTINATIONS.map((d) => (
-          <li key={d.href}>
-            <Link
-              href={d.href}
-              className="panel group flex h-full flex-col p-4 transition-colors hover:border-[var(--color-accent-dim)]"
-            >
-              <span className="text-[16px] font-semibold text-[var(--color-text-primary)]">
-                {d.title} <span aria-hidden="true" className="text-[var(--color-accent)] transition-transform group-hover:translate-x-0.5">→</span>
+      <ul className="mt-3 grid border-t border-[var(--color-border-hairline)] sm:grid-cols-2 lg:grid-cols-5">
+        {DESTINATIONS.map((d, i) => (
+          <li key={d.href} className="border-b border-[var(--color-border-hairline)] lg:border-b-0 lg:border-r lg:pl-5 lg:first:pl-0 lg:last:border-r-0">
+            <Link href={d.href} className="group flex h-full flex-col gap-1.5 py-5 pr-5">
+              <span className="font-mono text-[11px] text-[var(--color-text-muted)]">{String(i + 1).padStart(2, "0")}</span>
+              <span className="text-[16px] font-medium text-[var(--color-text-primary)] decoration-[var(--color-accent)] underline-offset-4 group-hover:underline">
+                {d.title}
               </span>
-              <span className="mt-1 text-[13px] text-[var(--color-text-secondary)]">{d.body}</span>
+              <span className="text-[13.5px] leading-relaxed text-[var(--color-text-secondary)]">{d.body}</span>
             </Link>
           </li>
         ))}

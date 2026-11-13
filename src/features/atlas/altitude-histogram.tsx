@@ -57,8 +57,8 @@ export function AltitudeHistogram({ points }: { points: readonly AtlasPoint[] })
         >
           {[0, 0.25, 0.5, 0.75, 1].map((f) => (
             <g key={f}>
-              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(yMax * f)} y2={y(yMax * f)} stroke="#1e2a3a" />
-              <text x={MARGIN.left - 8} y={y(yMax * f)} fill="#5d7291" fontSize={11} textAnchor="end" dominantBaseline="middle">
+              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(yMax * f)} y2={y(yMax * f)} stroke="#232327" />
+              <text x={MARGIN.left - 8} y={y(yMax * f)} fill="#8a8983" fontSize={11} textAnchor="end" dominantBaseline="middle">
                 {Math.round(yMax * f).toLocaleString("en-US")}
               </text>
             </g>
@@ -97,13 +97,13 @@ export function AltitudeHistogram({ points }: { points: readonly AtlasPoint[] })
               </g>
             );
           })}
-          <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(0)} y2={y(0)} stroke="#2a3a50" />
+          <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(0)} y2={y(0)} stroke="#36363c" />
           {(width < 640 ? [200, 600, 1_000, 1_400] : [200, 400, 600, 800, 1_000, 1_200, 1_400]).map((km, i, all) => (
             <text
               key={km}
               x={x(km)}
               y={HEIGHT - 12}
-              fill="#5d7291"
+              fill="#8a8983"
               fontSize={11}
               textAnchor={i === 0 ? "start" : i === all.length - 1 ? "end" : "middle"}
             >

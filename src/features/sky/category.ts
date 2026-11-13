@@ -17,7 +17,13 @@ export const CATEGORY_LABELS = [
   "High orbit / elliptical",
 ] as const;
 
-export const CATEGORY_COLORS = ["#38bdf8", "#a78bfa", "#fbbf24", "#34d399"] as const;
+/**
+ * Low orbit (nearly the whole catalog) is a warm grey dust, so the rare bands
+ * stand out against it. The three hues are the atlas's validated categorical
+ * set (src/features/atlas/palette.ts), reused so the product has one palette.
+ * Amber is kept out of the cloud: it marks the followed object and anything sunlit.
+ */
+export const CATEGORY_COLORS = ["#a9a79f", "#3987e5", "#199e70", "#d95926"] as const;
 
 export interface ClassificationInput {
   /** satellite.js v7: mean motion in rad/min (the `no` field). */

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AUTHOR_NAME, AUTHOR_URL, REPO_URL } from "@/lib/site";
 
 export const metadata = {
-  title: "How it's built — Orbital Insight",
+  title: "How it's built · Orbital Insight",
   description:
     "The engineering behind Orbital Insight: SGP4 validated against the official reference suite, client-side conjunction screening, a CI/CD pipeline that smoke-tests every deployment, and the bugs that shaped it.",
 };
@@ -209,13 +209,13 @@ export default function EngineeringPage() {
 
 function ArchColumn({ title, items }: { title: string; items: readonly (readonly [string, string])[] }) {
   return (
-    <div className="panel p-4">
-      <div className="label uppercase tracking-wide">{title}</div>
-      <ul className="mt-2 space-y-2">
+    <div className="panel px-4 pb-1 pt-3">
+      <div className="label">{title}</div>
+      <ul className="mt-2 divide-y divide-[var(--color-border-hairline)]">
         {items.map(([name, detail]) => (
-          <li key={name} className="panel-inset px-3 py-2">
-            <div className="text-[14px] font-semibold">{name}</div>
-            <div className="text-[12px] text-[var(--color-text-secondary)]">{detail}</div>
+          <li key={name} className="py-2.5">
+            <div className="text-[14px] font-medium">{name}</div>
+            <div className="text-[13px] text-[var(--color-text-secondary)]">{detail}</div>
           </li>
         ))}
       </ul>

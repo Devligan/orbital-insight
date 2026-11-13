@@ -89,7 +89,7 @@ function SkyHeading() {
     <div>
       <h1 className="heading-display text-[30px] sm:text-[38px]">What&apos;s flying over you tonight?</h1>
       <p className="lede mt-2 max-w-xl">
-        One tap and you&apos;ll know which space stations cross your dark sky while sunlit — when, and exactly where
+        One tap shows which space stations will cross your dark sky lit by the sun: when, and exactly where
         to look. Real orbits, no account.
       </p>
     </div>
@@ -177,7 +177,7 @@ function VisiblePassRow({
               ? `≈ magnitude ${item.magnitude.toFixed(1)} · ${brightnessWord(item.magnitude)}`
               : "brightness unknown (no published standard magnitude)"}
             {item.lineage === "provider-unavailable-stale" ? (
-              <span className="ml-2 text-[var(--color-status-warn)]">older orbit data — times may drift</span>
+              <span className="ml-2 text-[var(--color-status-warn)]">older orbit data, times may drift</span>
             ) : null}
           </p>
           <CloudLine clouds={clouds} item={item} />
@@ -337,10 +337,10 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
         setPasses(body.data);
         setPassesError(null);
       } else {
-        setPassesError(body.error?.message ?? "Pass predictions are briefly unavailable — try again shortly.");
+        setPassesError(body.error?.message ?? "Pass predictions are briefly unavailable. Try again shortly.");
       }
     } catch {
-      if (spotRef.current === spot) setPassesError("Could not reach the analysis service — check your connection.");
+      if (spotRef.current === spot) setPassesError("Could not reach the analysis service. Check your connection.");
     } finally {
       if (spotRef.current === spot) {
         setNowMs(Date.now());
@@ -519,7 +519,7 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
               , CC BY 4.0), not a look at your patch of sky, and it doesn&apos;t change the verdict. Light pollution and
               your horizon aren&apos;t modeled; brightness estimates are rough (attitude, solar arrays). Sky charts: the
               centre is straight up and the rim your horizon, with
-              east on the left — hold one overhead with N to the north. The bright line is the part you can see; a
+              east on the left: hold one overhead with N to the north. The bright line is the part you can see; a
               ring marks where it slips into Earth&apos;s shadow. Heights are in fists: one held at arm&apos;s length covers about 10°.{" "}
               <Link href="/methodology" className="hover:underline">
                 How this works

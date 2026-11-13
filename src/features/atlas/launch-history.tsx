@@ -58,8 +58,8 @@ export function LaunchHistory({ points, asOfYear }: { points: readonly AtlasPoin
         >
           {[0, 0.5, 1].map((f) => (
             <g key={f}>
-              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(yMax * f)} y2={y(yMax * f)} stroke="#1e2a3a" />
-              <text x={MARGIN.left - 8} y={y(yMax * f)} fill="#5d7291" fontSize={11} textAnchor="end" dominantBaseline="middle">
+              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(yMax * f)} y2={y(yMax * f)} stroke="#232327" />
+              <text x={MARGIN.left - 8} y={y(yMax * f)} fill="#8a8983" fontSize={11} textAnchor="end" dominantBaseline="middle">
                 {Math.round(yMax * f).toLocaleString("en-US")}
               </text>
             </g>
@@ -97,10 +97,10 @@ export function LaunchHistory({ points, asOfYear }: { points: readonly AtlasPoin
               </g>
             );
           })}
-          <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(0)} y2={y(0)} stroke="#2a3a50" />
+          <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(0)} y2={y(0)} stroke="#36363c" />
           {bins.map((bin, i) =>
             i === 0 || (bin.year - FROM_YEAR) % tickEvery === 0 ? (
-              <text key={bin.year} x={x(i) + slot / 2} y={HEIGHT - 12} fill="#5d7291" fontSize={11} textAnchor="middle">
+              <text key={bin.year} x={x(i) + slot / 2} y={HEIGHT - 12} fill="#8a8983" fontSize={11} textAnchor="middle">
                 {i === 0 ? `<${FROM_YEAR}` : bin.year}
               </text>
             ) : null,
@@ -109,7 +109,7 @@ export function LaunchHistory({ points, asOfYear }: { points: readonly AtlasPoin
             <text
               x={x(starlinkStart) + slot / 2}
               y={y(bins[starlinkStart]!.total) - 6}
-              fill="#8fa3bd"
+              fill="#b0afa8"
               fontSize={11}
               textAnchor="end"
             >

@@ -251,7 +251,7 @@ export function IdentifyView() {
         </Question>
 
         <Question number={3} title="Which way were you looking?">
-          <div className="grid w-[216px] grid-cols-3 gap-1.5" role="radiogroup" aria-label="Direction you were looking">
+          <div className="grid w-[264px] grid-cols-3 gap-1.5" role="radiogroup" aria-label="Direction you were looking">
             {ROSE.map(([label, az]) => (
               <Chip key={label} selected={azimuthDeg === az} onClick={() => setAzimuthDeg(az)} wide>
                 {label}
@@ -271,7 +271,7 @@ export function IdentifyView() {
         </Question>
 
         <Question number={5} title="Which way was it moving? (optional)">
-          <div className="grid w-[216px] grid-cols-3 gap-1.5" role="radiogroup" aria-label="Direction it was moving">
+          <div className="grid w-[264px] grid-cols-3 gap-1.5" role="radiogroup" aria-label="Direction it was moving">
             {ROSE.map(([label, az]) => (
               <Chip key={label} selected={travelDeg === az} onClick={() => setTravelDeg(az)} wide>
                 {az === null ? label : `${ARROWS[label] ?? ""} ${label}`}
@@ -320,11 +320,11 @@ export function IdentifyView() {
 function Question({ number, title, children }: { number: number; title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h2 className="mb-2 text-[15px] font-semibold">
-        <span className="mr-2 font-mono text-[12px] text-[var(--color-accent)]">{number}</span>
+      <h2 className="mb-2.5 flex items-baseline gap-3 text-[15px] font-medium">
+        <span className="eyebrow w-5 shrink-0">{String(number).padStart(2, "0")}</span>
         {title}
       </h2>
-      {children}
+      <div className="sm:pl-8">{children}</div>
     </div>
   );
 }
@@ -346,13 +346,7 @@ function Chip({
       role="radio"
       aria-checked={selected}
       onClick={onClick}
-      className={
-        "rounded-full border px-3 py-1.5 text-[13px] transition-colors " +
-        (wide ? "w-full text-center " : "") +
-        (selected
-          ? "border-[var(--color-accent)] bg-[color-mix(in_oklab,var(--color-accent)_14%,transparent)] text-[var(--color-text-primary)]"
-          : "border-[var(--color-border-hairline)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]")
-      }
+      className={"choice " + (wide ? "w-full text-center" : "")}
     >
       {children}
     </button>

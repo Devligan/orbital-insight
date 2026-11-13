@@ -182,12 +182,7 @@ export function ConjunctionsView() {
               type="button"
               aria-pressed={targetId === pick.id}
               onClick={() => choose(pick.id)}
-              className={
-                "rounded-full border px-3 py-1 text-[13px] " +
-                (targetId === pick.id
-                  ? "border-[var(--color-accent)] bg-[var(--color-bg-inset)] text-[var(--color-text-primary)]"
-                  : "border-[var(--color-border-strong)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]")
-              }
+              className="choice"
             >
               {pick.label}
             </button>
@@ -321,7 +316,7 @@ function Segmented<T extends number>({
   return (
     <div role="group" aria-label={label} className="flex items-center gap-2">
       <span className="label">{label}</span>
-      <div className="flex rounded-lg border border-[var(--color-border-strong)] p-0.5">
+      <div className="flex rounded-[3px] border border-[var(--color-border-strong)] p-0.5">
         {options.map((option) => (
           <button
             key={option.value}
@@ -329,9 +324,9 @@ function Segmented<T extends number>({
             aria-pressed={option.value === value}
             onClick={() => onChange(option.value)}
             className={
-              "rounded-md px-2.5 py-1 " +
+              "rounded-[2px] px-2.5 py-1 " +
               (option.value === value
-                ? "bg-[var(--color-bg-inset)] font-semibold text-[var(--color-text-primary)]"
+                ? "bg-[var(--color-bg-raised)] font-medium text-[var(--color-text-primary)]"
                 : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]")
             }
           >
@@ -350,8 +345,8 @@ function Progress({ done, total }: { done: number; total: number }) {
       <div className="text-[13px] text-[var(--color-text-secondary)]">
         {total > 0 ? `Propagating ${n(total)} candidates with SGP4… ${Math.round(fraction * 100)}%` : "Compiling element sets…"}
       </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--color-bg-inset)]">
-        <div className="h-full rounded-full bg-[var(--color-accent)] transition-[width]" style={{ width: `${fraction * 100}%` }} />
+      <div className="mt-2 h-1 overflow-hidden bg-[var(--color-bg-inset)]">
+        <div className="h-full bg-[var(--color-accent)] transition-[width]" style={{ width: `${fraction * 100}%` }} />
       </div>
     </div>
   );
@@ -544,25 +539,25 @@ function EncounterDetail({
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[640px]" role="img" aria-label={`Separation between ${targetRow.n} and ${approach.name} from ${offsetLabel(-halfWindowMs).slice(1)} before to ${offsetLabel(halfWindowMs).slice(1)} after closest approach; minimum ${approach.missKm.toFixed(2)} km.`}>
         {[0, 0.5, 1].map((f) => (
           <g key={f}>
-            <line x1={M.left} x2={W - M.right} y1={y(yMax * f)} y2={y(yMax * f)} stroke="#1e2a3a" />
-            <text x={M.left - 6} y={y(yMax * f)} fill="#5d7291" fontSize={11} textAnchor="end" dominantBaseline="middle">
+            <line x1={M.left} x2={W - M.right} y1={y(yMax * f)} y2={y(yMax * f)} stroke="#232327" />
+            <text x={M.left - 6} y={y(yMax * f)} fill="#8a8983" fontSize={11} textAnchor="end" dominantBaseline="middle">
               {n(Math.round(yMax * f))} km
             </text>
           </g>
         ))}
-        <line x1={M.left} x2={W - M.right} y1={y(thresholdKm)} y2={y(thresholdKm)} stroke="#5d7291" strokeDasharray="4 4" />
-        <text x={W - M.right} y={y(thresholdKm) - 5} fill="#8fa3bd" fontSize={11} textAnchor="end">
+        <line x1={M.left} x2={W - M.right} y1={y(thresholdKm)} y2={y(thresholdKm)} stroke="#8a8983" strokeDasharray="4 4" />
+        <text x={W - M.right} y={y(thresholdKm) - 5} fill="#b0afa8" fontSize={11} textAnchor="end">
           {thresholdKm} km
         </text>
-        <line x1={x(approach.tcaMs)} x2={x(approach.tcaMs)} y1={M.top} y2={H - M.bottom} stroke="#2a3a50" />
-        <path d={path} fill="none" stroke="#38bdf8" strokeWidth={2} strokeLinejoin="round" />
-        <circle cx={x(approach.tcaMs)} cy={y(approach.missKm)} r={4} fill="#38bdf8" stroke="#0d1420" strokeWidth={2} />
+        <line x1={x(approach.tcaMs)} x2={x(approach.tcaMs)} y1={M.top} y2={H - M.bottom} stroke="#36363c" />
+        <path d={path} fill="none" stroke="var(--color-accent)" strokeWidth={2} strokeLinejoin="round" />
+        <circle cx={x(approach.tcaMs)} cy={y(approach.missKm)} r={4} fill="var(--color-accent)" stroke="var(--color-bg-inset)" strokeWidth={2} />
         {[-1, -0.5, 0, 0.5, 1].map((f, i, all) => (
           <text
             key={f}
             x={x(approach.tcaMs + f * halfWindowMs)}
             y={H - 8}
-            fill="#5d7291"
+            fill="#8a8983"
             fontSize={11}
             textAnchor={i === 0 ? "start" : i === all.length - 1 ? "end" : "middle"}
           >
