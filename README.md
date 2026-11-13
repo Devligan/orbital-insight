@@ -66,6 +66,16 @@ hour) and the peak height in fists at arm's length, the one measuring tool every
 go from the visitor's browser, not the server, because Open-Meteo rate-limits per IP. Their responses are checked by
 hand instead of with Zod: the bundle budget caught Zod adding 27 kB to the home page.
 
+**"What did I just see?" over the whole catalog** ([`src/domain/sighting/identify.ts`](src/domain/sighting/identify.ts))
+The question people ask after a steady light glides overhead. A Web Worker runs SGP4 for ~16,000 objects every 10 s
+across ±4 minutes (~780k propagations, about 2 s on a laptop) and keeps those that were above 10°, sunlit, under a
+dark sky, visibly moving, and close to what was reported. "Looking NW, halfway up" is an arc of sky, and the
+distance to it is solved in closed form. The hot loop allocates nothing, and its look-angle maths matches
+satellite.js to nine decimal places. The search is also tested against the pass predictor, an independent code
+path: at every moment the predictor calls a satellite visible, the search must name it within 1°. A "satellite
+train" is reported only for launch-mates clustered within 10° at the same instant. An early version grouped any
+four launch-mates, and the screenshots showed it calling scattered 2021 Starlinks a train.
+
 **Honesty as a contract** ([`/methodology`](https://orbital-insight-drab.vercel.app/methodology))
 Every response carries data lineage (`live` / `cached` / `provider-unavailable-stale`). Provider failures are typed
 failures, never fabricated orbits, and every approximation and limit is documented on the methodology page.
@@ -130,6 +140,7 @@ now held at 0 while its 1.6 MB catalog loads.
 | Route | What it does |
 | --- | --- |
 | `/` | Hero answer to "what's flying over me tonight?" (find your spot by town, postcode or coordinates, remembered between visits; visible passes only, local times, compass words and heights in fists, a sky chart and a cloud forecast for each pass, add-to-calendar with a reminder) next to the live globe: every active satellite, follow the ISS with NASA's 3D model, time slider and 60× fast-forward, shareable links |
+| `/identify` | "What did I just see?": say when, which way you looked, how high, and (optionally) which way it moved; every catalogued satellite is checked against your sky in a Web Worker, with launch-batch "trains" folded together and a sky chart of the best matches |
 | `/atlas` | All active satellites by inclination and altitude, a 10 km altitude histogram that shows each constellation shell, and a constellation table |
 | `/conjunctions` | Close-approach screening of any satellite against the active catalog: TCA, miss distance (RIC), closing speed, encounter profile |
 | `/satellites/[id]` | Element set, epoch and provenance, approximate orbit characteristics, 24 h ground track |

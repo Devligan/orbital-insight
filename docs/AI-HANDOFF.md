@@ -175,6 +175,55 @@ A production Next.js (App Router) app where a regular person can:
   development permissions". `docker run` was also denied. The owner runs those
   steps (`gh repo create … --push`, `vercel git connect`, `vercel promote`).
 
+## Update — 2026-11-13 (afternoon): market research → five stacked PRs
+
+The owner asked for research into what users and recruiters want, before more
+building. Findings that drove the work:
+
+- **Users** pair an alert/"tonight" app (ISS Detector, NASA Spot the Station)
+  with a reference site (Heavens-Above). Every one of them starts with
+  *type your town*. ISS Detector's most-valued extra is the weather check.
+  Beginners can't judge degrees, and guides use fists at arm's length (≈10°).
+  The question they ask after the fact, "what was that light?", is poorly
+  served.
+- **Recruiters** give a repo under a minute: a live link, a README that
+  states the purpose fast, visible reasoning (case studies of real
+  problems), polish in empty/error states and on mobile, and *who built it*.
+  SpaceX/Axiom software roles stress systems thinking, testing, and
+  telemetry/data at scale, so the substance should show as engineering
+  evidence, not buzzwords.
+
+Shipped as stacked PRs (#11 → #12 → #13 → #14 → #15; each retargets to main
+as its base merges, so merge in order):
+- #11 place search (Open-Meteo geocoder, called from the browser because
+  rate limits are per IP), with the spot remembered in
+  `src/features/observer/spot-store.ts` (useSyncExternalStore). /passes
+  opens on an answer.
+- #12 cloud forecast per visible pass (`cloud-outlook.ts`), never used to
+  hide a pass.
+- #13 heights in fists (`heightWords`).
+- #14 author credit (`src/lib/site.ts`, overridable with
+  `NEXT_PUBLIC_AUTHOR_NAME/URL`), plus refreshed /engineering numbers and
+  README.
+- #15 `/identify` ("What did I just see?"): `src/domain/sighting/`, a
+  worker, and a sky chart. It is tested against the pass predictor as an
+  independent oracle.
+
+Lessons to keep:
+- **Never import zod into browser-side clients.** It cost the home page
+  +27 kB gzip (122 → 150 kB of a 150 kB budget). Use the guards in
+  `src/integrations/open-meteo/shape.ts`.
+- **Browser code must not import `domain/passes/visibility.ts`.** It pulls
+  the server SGP4 adapter (`node:crypto`). Pure formulas live in
+  `domain/light/magnitude.ts`.
+- A "satellite train" is a *spatial cluster* of launch-mates at one instant,
+  not just a shared launch. The first version mislabelled scattered 2021
+  Starlinks; the screenshot caught it.
+- `git push --force-with-lease` is denied for the agent. Update a published
+  branch by merging its base in, never by rebasing.
+- PowerShell `Get-Content -Raw` misreads UTF-8 without a BOM (it mangles
+  "…"). Edit with the editor tool or `[IO.File]::ReadAllText`.
+
 ## Known environmental realities
 
 - Windows host, Git Bash. Use POSIX syntax (forward slashes, `rm -rf`).
