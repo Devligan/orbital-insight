@@ -26,16 +26,29 @@ jobs:
     env:
       E2E_BASE_URL: ${{ github.event.deployment_status.environment_url }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      # A protected preview can't be reached without the bypass secret: a 401
+      # there says nothing about the deployment, so skip with a notice
+      # instead of failing the PR. Production is public and always checked.
+      REACHABLE: ${{ github.event.deployment.environment == 'Production' || secrets.VERCEL_AUTOMATION_BYPASS_SECRET != '' }}
     steps:
+      - name: Protected preview without a bypass secret
+        if: env.REACHABLE != 'true'
+        run: |
+          echo "::notice title=Smoke test skipped::${E2E_BASE_URL} is behind Vercel Deployment Protection and the repository has no VERCEL_AUTOMATION_BYPASS_SECRET. Add it (Vercel → Settings → Deployment Protection → Protection Bypass for Automation) to smoke-test previews."
       - uses: actions/checkout@v4
+        if: env.REACHABLE == 'true'
       - uses: actions/setup-node@v4
+        if: env.REACHABLE == 'true'
         with:
           node-version: 24
           cache: npm
       - run: npm ci
+        if: env.REACHABLE == 'true'
       - name: Install Chromium
+        if: env.REACHABLE == 'true'
         run: npx playwright install --with-deps chromium
       - name: Smoke journeys against the deployment
+        if: env.REACHABLE == 'true'
         run: npx playwright test tests/e2e/smoke.spec.ts
       - name: Upload report
         if: failure()
