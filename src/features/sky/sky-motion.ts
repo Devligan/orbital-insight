@@ -1,5 +1,5 @@
 /**
- * Whole-sky motion between SGP4 sweeps — pure, JSX-free, unit-tested.
+ * Whole-sky motion between SGP4 sweeps - pure, JSX-free, unit-tested.
  *
  * The worker runs SGP4 for every object in one sweep and sends each object's
  * Earth-fixed position *and velocity*. Between sweeps the globe moves every
@@ -8,17 +8,17 @@
  *   p(t) = p(sweep) + v(sweep) × (t − sweep)
  *
  * A straight line drifts from the curved orbit by about ½·a·Δt² (gravity in
- * low orbit is ~8.7 m/s²): ~110 m after 5 s, ~1 km after 15 s — well under a
+ * low orbit is ~8.7 m/s²): ~110 m after 5 s, ~1 km after 15 s - well under a
  * pixel at globe scale. So SGP4 recomputes every object at least every
  * `SWEEP_HORIZON_SIM_MS` of simulated time, and the dots glide smoothly at
  * any clock rate instead of jumping when their batch comes round.
  *
  * (Before: 600-object batches every 140 ms, so each dot moved once per
- * ~2.5 s — at 60× a low-orbit dot jumped ~1,100 km at a time — and every
+ * ~2.5 s - at 60× a low-orbit dot jumped ~1,100 km at a time - and every
  * batch cost ~600 separate GPU buffer uploads.)
  */
 
-/** Earth's rotation rate (IERS, rad/s) — the Earth-fixed frame turns at this rate. */
+/** Earth's rotation rate (IERS, rad/s) - the Earth-fixed frame turns at this rate. */
 export const EARTH_ROTATION_RAD_PER_S = 7.292115e-5;
 
 /** Longest simulated span a dot is moved in a straight line before SGP4 recomputes it. */
@@ -26,7 +26,7 @@ export const SWEEP_HORIZON_SIM_MS = 15_000;
 
 /**
  * A sweep older (or newer) than this relative to the drawn instant belongs to
- * a different moment — the clock jumped (slider). Hold the dots where they
+ * a different moment - the clock jumped (slider). Hold the dots where they
  * are until the fresh sweep for the new instant arrives (milliseconds later).
  */
 export const MAX_EXTRAPOLATION_SIM_MS = 2 * SWEEP_HORIZON_SIM_MS;
@@ -54,7 +54,7 @@ export interface Vec3 {
  * SGP4's TEME state (km, km/s) → Earth-fixed state (m, m/s), written at
  * `index` into flat [x, y, z] arrays.
  *
- * Position: rotation by GMST about the pole — the same rotation
+ * Position: rotation by GMST about the pole - the same rotation
  * satellite.js's `eciToEcf` applies (no polar motion; metres-level, far below
  * a pixel). Velocity is taken *in the rotating frame*:
  * v_ef = R·v_teme − ω × r_ef, so a dot at rest over the ground (GEO) has

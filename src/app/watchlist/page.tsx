@@ -2,25 +2,20 @@
 
 import Link from "next/link";
 import { useWatchlist } from "@/features/watchlist/local-store";
-import { EmptyState, Panel, PanelHeader } from "@/components/ui/primitives";
+import { EmptyState, Panel } from "@/components/ui/primitives";
+import { PAGE, PageHeader } from "@/components/ui/page-header";
 import { formatUtc } from "@/lib/units";
 
 export default function WatchlistPage() {
   const watchlist = useWatchlist();
 
   return (
-    <div className="mx-auto max-w-3xl p-3">
-      <div className="mb-3">
-        <h1 className="text-[16px] font-semibold">Watchlist</h1>
-        <p className="text-[12px] text-[var(--color-text-muted)]">
-          Saved satellites and quick links to their analysis pages.
-        </p>
-      </div>
+    <div className={PAGE}>
+      <PageHeader eyebrow="Watchlist" title="Saved satellites">
+        The ones you&apos;ve starred, kept in this browser only. Nothing is sent to a server.
+      </PageHeader>
 
       <Panel>
-        <div className="flex flex-wrap items-center gap-2">
-          <PanelHeader title="Saved in this browser (demo mode)" />
-        </div>
 
         {watchlist.items.length === 0 ? (
           <EmptyState
@@ -42,7 +37,7 @@ export default function WatchlistPage() {
                 {watchlist.items.map((item) => (
                   <tr key={item.satelliteNumber}>
                     <td>
-                      <Link href={`/satellites/${item.satelliteNumber}`} className="text-[var(--color-accent)] hover:underline">
+                      <Link href={`/satellites/${item.satelliteNumber}`} className="link">
                         {item.name}
                       </Link>
                     </td>
@@ -64,11 +59,6 @@ export default function WatchlistPage() {
           </div>
         )}
 
-        <p className="mt-3 text-[11px] text-[var(--color-text-muted)]">
-          This demo watchlist lives in your browser&apos;s local storage. It is not stored on any server. When the
-          application is configured with Supabase and you sign in, watchlists persist server-side under Row Level
-          Security instead. The difference is always labelled; nothing silently syncs without your intent.
-        </p>
       </Panel>
     </div>
   );

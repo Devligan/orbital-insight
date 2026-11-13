@@ -24,7 +24,7 @@ test.describe("explorer journey", () => {
       await page.getByRole("button", { name }).first().click();
       await page.waitForTimeout(700);
     }
-    // Engineering prose is collapsed by default in the redesigned surface —
+    // Engineering prose is collapsed by default in the redesigned surface -
     // open the technical panel to reach epoch/provenance assertions.
     await page.getByText(/Technical details & provenance/i).click();
     await expect(page.getByText(/Element epoch:/i)).toBeVisible({ timeout: 30_000 });
@@ -43,12 +43,12 @@ test.describe("explorer journey", () => {
   test("loads a real satellite with orbital characteristics and provenance", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "ISS (ZARYA)" }).first().click();
-    // Engineering prose is collapsed by default in the redesigned surface —
+    // Engineering prose is collapsed by default in the redesigned surface -
     // open the technical panel, then verify the full data contract.
     await page.getByText(/Technical details & provenance/i).click();
     await expect(page.getByText(/Element epoch:/i)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/Retrieved:/i)).toBeVisible();
-    // Plain-language honesty line (rephrased deliberately — same contract:
+    // Plain-language honesty line (rephrased deliberately - same contract:
     // a prediction, not live telemetry).
     await expect(page.getByText(/Position shown is calculated/i)).toBeVisible();
     // Provenance link is always visible (uncollapsed) on the redesigned aside.
@@ -120,7 +120,7 @@ test.describe("detail + search journey", () => {
     await expect(page.getByRole("option").first()).toBeVisible({ timeout: 5_000 });
     await page.getByRole("option").first().click();
     // The detail route is server-rendered with provider-backed data; under
-    // full-suite load the transition can exceed the default 15 s — every
+    // full-suite load the transition can exceed the default 15 s - every
     // other provider-dependent assertion here already uses longer timeouts.
     await expect(page).toHaveURL(/\/satellites\/\d+$/, { timeout: 60_000 });
     await expect(page.getByText(/Original GP record on CelesTrak/i)).toBeVisible({ timeout: 30_000 });
@@ -129,7 +129,7 @@ test.describe("detail + search journey", () => {
 
   test("search answers instantly from the shipped catalog snapshot", async ({ page }) => {
     // The curated catalog ships with the deployment, so options appear without
-    // waiting on any provider call — verified even minutes after a cold boot.
+    // waiting on any provider call - verified even minutes after a cold boot.
     await page.goto("/");
     await page.getByPlaceholder(/Search satellites/i).fill("ZARYA");
     await expect(page.getByRole("option", { name: /ISS \(ZARYA\)/ })).toBeVisible({ timeout: 5_000 });
@@ -214,7 +214,7 @@ test.describe("pass prediction journey", () => {
     await page.getByLabel(/^Longitude/).fill("-80.6");
     await page.getByLabel(/Catalog IDs/i).fill("25544");
     await page.getByRole("button", { name: /Predict passes/i }).click();
-    // The export fires the download synchronously with the click — register
+    // The export fires the download synchronously with the click - register
     // the listener BEFORE clicking so the event cannot be missed.
     const downloadPromise = page.waitForEvent("download", { timeout: 30_000 });
     await page.getByRole("button", { name: /Export CSV/i }).click();
@@ -274,7 +274,7 @@ test.describe("2D fallback journey", () => {
     });
     await page.goto("/");
     await page.getByRole("button", { name: "ISS (ZARYA)" }).first().click();
-    // The globe failure fallback appears — an honest failure message naming the
+    // The globe failure fallback appears - an honest failure message naming the
     // 2D swap-in, not a spinner forever.
     await expect(page.getByText(/same orbit drawn in 2D/i)).toBeVisible({ timeout: 60_000 });
     // And the computed 2D ground track actually swaps in.
@@ -298,7 +298,7 @@ test.describe("provider failure handling", () => {
     // are honest outcomes. What must NEVER happen is fake/simulated data.
     await page.goto("/satellites/25544");
     // The detail page labels fields without a trailing colon (styled
-    // uppercase) — the colon form only exists on the explorer aside.
+    // uppercase) - the colon form only exists on the explorer aside.
     const loaded = page.getByText(/Element epoch/i);
     const honestFailure = page.getByText(/Satellite data unavailable/i);
     await expect(loaded.or(honestFailure).first()).toBeVisible({ timeout: 60_000 });
@@ -324,7 +324,7 @@ test.describe("provider failure handling", () => {
     });
     await page.goto("/");
     await page.waitForTimeout(8_000);
-    // Uncaught page errors are never acceptable, whatever their wording — a
+    // Uncaught page errors are never acceptable, whatever their wording - a
     // filtered check here once let a SyntaxError that killed the globe ship.
     expect(pageErrors).toEqual([]);
     expect(errors.filter((entry) => /exception|Error:/.test(entry))).toEqual([]);
@@ -333,14 +333,14 @@ test.describe("provider failure handling", () => {
 
 test.describe("location-first + shareable moments", () => {
   test("one click on 'my location' yields tonight's passes from that spot", async ({ page }) => {
-    // Grant a fixed device location (equator — the ISS crosses it twice per
+    // Grant a fixed device location (equator - the ISS crosses it twice per
     // orbit, so a 24 h window reliably contains passes above 10°).
     await page.context().grantPermissions(["geolocation"]);
     await page.context().setGeolocation({ latitude: 0, longitude: 0 });
     await page.goto("/");
     await page.getByRole("button", { name: /Show me tonight's passes/i }).click();
     // The headline answer arrives: visible passes, or the truthful reason
-    // there are none — never a spinner forever and never fabricated times.
+    // there are none - never a spinner forever and never fabricated times.
     await expect(
       page.locator('[data-testid="tonight-visible-list"]').or(page.locator('[data-testid="tonight-visible-empty"]')).first(),
     ).toBeVisible({ timeout: 90_000 });
@@ -490,7 +490,7 @@ test.describe("location-first + shareable moments", () => {
     const shared = await page.evaluate(() => navigator.clipboard.readText());
     expect(shared).toMatch(/\/?cat=20580&t=12$/);
     // Deep-linking the shared URL lands on that object at that offset: the
-    // slider starts at step 12, not 0. (ISS 25544 for the deep link — it must
+    // slider starts at step 12, not 0. (ISS 25544 for the deep link - it must
     // always have loadable elements; curated neighbors may rotate over time.)
     await page.goto("/?cat=25544&t=12");
     const slider = page.getByRole("slider");
@@ -579,7 +579,7 @@ test.describe("constellation atlas", () => {
 
     // Take a real Starlink from the same feed and click exactly where it must
     // be drawn: inclination and mean altitude straight from its TLE line 2,
-    // mapped through the plot's published scales. (Data-driven on purpose —
+    // mapped through the plot's published scales. (Data-driven on purpose -
     // a hardcoded "550 km shell" went stale when SpaceX lowered the shell.)
     const catalog = await (await page.request.get("/api/sky/catalog")).json();
     const starlink = (catalog.data.entries as { n: string; l2: string }[]).find((e) => e.n.startsWith("STARLINK"))!;
@@ -706,7 +706,7 @@ test.describe("whole-sky globe", () => {
   test("the active-catalog API serves the full sky with compact propagation-ready rows", async ({ page }) => {
     // The provider is the live dependency; a rate-limited IP gets the typed
     // provider failure (honest 502, no fabricated sky). Both states assert
-    // their shape — full data must be compact and complete wherever it is
+    // their shape - full data must be compact and complete wherever it is
     // present.
     const res = await page.request.get("/api/sky/catalog", { timeout: 120_000 });
     const body = (await res.json()) as {
@@ -719,7 +719,7 @@ test.describe("whole-sky globe", () => {
       expect(data.count).toBeGreaterThanOrEqual(5_000);
       expect(data.entries).toHaveLength(data.count);
       const first = data.entries[0]; // noUncheckedIndexedAccess
-      // Compact shape: catalog number, name, both TLE lines — and nothing else.
+      // Compact shape: catalog number, name, both TLE lines - and nothing else.
       expect(Object.keys(first!).sort()).toEqual(["i", "l1", "l2", "n"]);
       expect(String(first!.l1)).toMatch(/^1 \d{5}/);
       expect(String(first!.l2)).toMatch(/^2 \d{5}/);
@@ -732,7 +732,7 @@ test.describe("whole-sky globe", () => {
   test("the whole-sky toggle keeps the orbit view honest on any GPU outcome", async ({ page }) => {
     // Environments differ: headless runners often lack WebGL entirely. What
     // must hold everywhere: no crashes on toggle, and either the animated
-    // cloud commentary or the honest 3D-unavailable fallback — never blank.
+    // cloud commentary or the honest 3D-unavailable fallback - never blank.
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(String(error)));
     await page.goto("/");
@@ -741,14 +741,14 @@ test.describe("whole-sky globe", () => {
     await page.getByRole("button", { name: "Whole sky: on" }).click();
     await page.getByRole("button", { name: "Whole sky: off" }).click();
     // WebGL available: Cesium's canvas renders. WebGL off: the parent's honest
-    // 2D fallback. Both are acceptable, named outcomes — the "couldn't start"
+    // 2D fallback. Both are acceptable, named outcomes - the "couldn't start"
     // panel is not: it means the 3D runtime itself is broken.
     await expect(
       page.locator('[aria-label^="3D globe showing"] canvas').or(page.locator('[data-testid="ground-track-marker"]')).first(),
     ).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('[data-testid="globe-failed"]')).toHaveCount(0);
     // Cesium reports render-loop failures in its own panel, not as page
-    // errors — a date-line geometry crash once froze the globe this way.
+    // errors - a date-line geometry crash once froze the globe this way.
     await page.waitForTimeout(15_000);
     await expect(page.locator(".cesium-widget-errorPanel")).toHaveCount(0);
     expect(errors).toEqual([]);

@@ -4,12 +4,12 @@
  * Pass predictions as readable cards.
  *
  * Desktop keeps the technical table (arbitrary column counts, azimuth
- * comparisons). On a phone a 7-column table scrolls off-screen — the same
+ * comparisons). On a phone a 7-column table scrolls off-screen - the same
  * numbers render as a card per pass so nothing needs horizontal scrolling.
  * Used by the /passes results table (small screens) and the explorer's
  * "tonight from my location" panel. Times read on the observer's wall clock
  * (zone from the server), not the viewing device's. Each card carries the
- * pass's sky chart — where to look, drawn rather than described.
+ * pass's sky chart - where to look, drawn rather than described.
  */
 
 import { SkyChart } from "./sky-chart";
@@ -48,7 +48,7 @@ export function visibilityLine(pass: PassCardData): string | null {
 
 /**
  * One pass, read at a glance: when it peaks (observer's wall clock), how
- * high and where, rise/set, and the visibility verdict — a green dot when it
+ * high and where, rise/set, and the visibility verdict - a green dot when it
  * can actually be seen, so the eye finds the passes that matter.
  */
 export function PassCard({ pass, timeZone }: { pass: PassCardData; timeZone: string | null }) {

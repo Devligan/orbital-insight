@@ -4,7 +4,7 @@ import path from "node:path";
 /**
  * Copies the CesiumJS static runtime assets (workers, widget CSS, default
  * assets) into public/cesium, where window.CESIUM_BASE_URL points. The build
- * remains reproducible from the lockfile — no manual download step.
+ * remains reproducible from the lockfile - no manual download step.
  */
 const source = path.resolve(import.meta.dirname, "../node_modules/cesium/Build/Cesium");
 const target = path.resolve(import.meta.dirname, "../public/cesium");

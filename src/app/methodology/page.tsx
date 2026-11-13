@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { PAGE, PageHeader } from "@/components/ui/page-header";
+import { REPO_URL } from "@/lib/site";
 import { STANDARD_MAGNITUDES } from "@/domain/light/standard-magnitudes";
 
 export const metadata = {
@@ -16,10 +18,10 @@ const SECTIONS = [
           <a className="text-[var(--color-accent)] hover:underline" href="https://celestrak.org/" target="_blank" rel="noreferrer">
             CelesTrak&apos;s current GP data interface
           </a>{" "}
-          (GP `gp.php` queries in the documented TLE output format) — a free public service maintained by T.S. Kelso.
+          (<code>gp.php</code> queries in the documented TLE output format), a free public service maintained by T.S. Kelso.
           Detail, pass, and search views use bounded curated groups (crewed stations, GNSS constellations,
           scientific satellites) plus single-object lookups. The whole-sky globe is the one exception: it needs every
-          active object (~11k elements), fetched in a single request at most once every 6 hours and shared by all
+          active object (about 16,000 element sets), fetched in a single request at most once every 6 hours and shared by all
           visitors.
         </li>
         <li>
@@ -40,9 +42,9 @@ const SECTIONS = [
         <li>
           Requests are cached server-side for 2 hours. A record older than that but less than a day old is answered
           at once, labelled &ldquo;cached&rdquo;, while a fresh copy is fetched in the background for the next
-          request — so an unreachable provider never holds the page up for its 15-second timeout. Older records wait
+          request, so an unreachable provider never holds the page up for its 15-second timeout. Older records wait
           for the provider; when it is unreachable, previously fetched data is served and clearly labelled
-          &ldquo;cached&rdquo; or &ldquo;stale — provider unavailable&rdquo;. The application never fabricates a
+          &ldquo;cached&rdquo; or &ldquo;stale: provider unavailable&rdquo;. The application never fabricates a
           response when the provider is down.
         </li>
         <li>
@@ -135,11 +137,11 @@ const SECTIONS = [
     heading: "Orbital elements and their epoch",
     body: (
       <p>
-        An element set (TLE) is a snapshot of a satellite&apos;s orbit at its <strong>epoch</strong> — the TLE&apos;s
+        An element set (TLE) is a snapshot of a satellite&apos;s orbit at its <strong>epoch</strong>, the TLE&apos;s
         instant (line 1, columns 19–32, with the fractional day-of-year). Every derived quantity in this application
         (position, ground track, pass times) inherits the epoch, and we display it alongside every result. Each fetch
         records the retrieval time so &ldquo;how old is this data&rdquo; always has an exact answer. Elements older
-        than 36 hours are flagged in the UI — a conservative operational-difference warning from the SGP4 maintenance
+        than 36 hours are flagged in the UI: a conservative operational-difference warning from the SGP4 maintenance
         model, not an asserted universal accuracy cutoff.
       </p>
     ),
@@ -149,7 +151,7 @@ const SECTIONS = [
     heading: "SGP4 propagation",
     body: (
       <p>
-        Positions are propagated with <strong>SGP4</strong> — the Simplified General Perturbations model (coded here via
+        Positions are propagated with <strong>SGP4</strong>, the Simplified General Perturbations model (coded here via
         the maintained <code>satellite.js</code> implementation). SGP4 models secular and periodic perturbations
         (J2/J4, atmospheric drag via B*, resonant terms) near Earth, and SDP4-style deep-space corrections for orbits
         beyond ~225 minutes of period. It is the standard model trained to consume NORAD element sets; results are in
@@ -170,8 +172,8 @@ const SECTIONS = [
         <li>
           SGP4 output (TEME) is converted to earth-fixed (ECEF) using the Greenwich sidereal time (GMST) for each
           sample, then to WGS-72 geodetic coordinates (the same ellipsoid the element set model uses internally).
-          Differences between WGS-72 and WGS-84 geodetic coordinates are bounded by ~180 m — smaller than the
-          prediction error budget — and documented rather than silently mixed.
+          Differences between WGS-72 and WGS-84 geodetic coordinates are bounded by ~180 m (smaller than the
+          prediction error budget) and documented rather than silently mixed.
         </li>
         <li>
           Pass calculations use topocentric azimuth/elevation from the observer&apos;s WGS-72 geodetic location
@@ -198,7 +200,7 @@ const SECTIONS = [
           reported with an explicit <em>truncated</em> marker rather than invented boundary times.
         </li>
         <li>
-          The search window is validated server-side (≤ 30 days) and bounded to at most 25 satellites per request —
+          The search window is validated server-side (≤ 30 days) and bounded to at most 25 satellites per request:
           one SGP4 sweep per satellite per request, ~2,880 evaluations for 24 h; cheap enough for the free tier while
           remaining bounded.
         </li>
@@ -212,19 +214,19 @@ const SECTIONS = [
       <ul className="list-disc space-y-1 pl-5">
         <li>
           <strong>Predictions, not measurements.</strong> Everything labelled &ldquo;position&rdquo; here is an SGP4
-          propagation from a published element set — never a live telemetry feed from the satellite.
+          propagation from a published element set, never a live telemetry feed from the satellite.
         </li>
         <li>
           <strong>Accuracy decays from the epoch.</strong> SGP4+TLE is historically good to very roughly ~1 km at
           epoch for well-tracked LEO objects, growing with prediction duration; GEO and highly-dragged objects differ.
-          Exact figures depend on the specific object, the fit quality, and weather in the upper atmosphere — we show
+          Exact figures depend on the specific object, the fit quality, and weather in the upper atmosphere. We show
           element age and let you judge against the guidelines linked below.
         </li>
         <li>
           <strong>Passes ≠ visibility.</strong> A predicted pass is orbital geometry relative to your coordinates.
-          Visual-visibility judgements model <em>sunlight geometry</em> — the satellite must be lit (cylindrical
-          shadow test) and the observer&apos;s sky must be past civil twilight (sun below −6°) — plus, where a
-          published value exists, a phase-corrected apparent-magnitude estimate. Light pollution and eyesight are
+          Visual-visibility judgements model <em>sunlight geometry</em>: the satellite must be lit (cylindrical
+          shadow test) and the observer&apos;s sky must be past civil twilight (sun below −6°). Where a
+          published value exists, it also estimates apparent magnitude, corrected for phase. Light pollution and eyesight are
           not modeled, so this still is not an observing forecast.
         </li>
         <li>
@@ -250,14 +252,14 @@ const SECTIONS = [
             Mallama 2020, §2
           </a>
           ). We estimate m ≈ m<sub>std</sub> − 15 + 5·log₁₀(range km) − 2.5·log₁₀((1 + cos φ)/2) − 0.753, which
-          equals m<sub>std</sub> at 1 000 km and 90°. Real satellites are not spheres — attitude and solar-array
-          orientation move their brightness around this model — so treat estimates as rough. Objects without a
+          equals m<sub>std</sub> at 1 000 km and 90°. Real satellites are not spheres: attitude and solar-array
+          orientation move their brightness around this model, so treat estimates as rough. Objects without a
           published value get no magnitude at all (&ldquo;brightness unknown&rdquo;): a size-blind default would
           rate a cubesat as bright as a space station. The values in use, with their sources and known weaknesses:
           <ul className="mt-1 list-[circle] space-y-1 pl-5">
             {Object.entries(STANDARD_MAGNITUDES).map(([satelliteNumber, entry]) => (
               <li key={satelliteNumber}>
-                NORAD {satelliteNumber}: <span className="data-value">{entry.value.toFixed(1)}</span> — {entry.source}.{" "}
+                NORAD {satelliteNumber}: <span className="data-value">{entry.value.toFixed(1)}</span>, {entry.source}.{" "}
                 <em>Caveat:</em> {entry.caveat}.
               </li>
             ))}
@@ -266,7 +268,7 @@ const SECTIONS = [
         <li>
           <strong>The visible window.</strong> Each pass is sampled 24 times between rise and set; the first and
           last visible samples bracket when it can actually be seen, and each edge is refined by bisection to about
-          a second (finer would be false precision — the shadow model itself is good to seconds). The window is
+          a second (finer would be false precision; the shadow model itself is good to seconds). The window is
           assumed contiguous: within one pass the sky only darkens or brightens, and the satellite crosses the
           shadow boundary at most once. An edge in mid-sky has only two possible causes under this model, and the
           home page names which: Earth&apos;s shadow (&ldquo;fades into Earth&apos;s shadow 25° up in the E&rdquo;)
@@ -276,7 +278,7 @@ const SECTIONS = [
         <li>
           <strong>Sky charts.</strong> Each pass is drawn on a chart of your sky: the zenith at the centre, the
           horizon on the rim, elevation falling linearly outward (rings at 30° and 60°), and east on the
-          <em> left</em> — a star chart&apos;s orientation, the sky seen from below, so held overhead with N toward
+          <em> left</em>, a star chart&apos;s orientation, the sky seen from below, so held overhead with N toward
           north every point sits where it will appear. The dashed arc is the same 24 rise-to-set samples the
           visibility test uses; the bright line runs between the refined window edges above, not between coarse
           samples, so it starts and ends where the text says. A ring marks a mid-sky entry into Earth&apos;s shadow.
@@ -285,7 +287,7 @@ const SECTIONS = [
         </li>
         <li>
           <strong>Calendar events.</strong> &ldquo;Add to calendar&rdquo; builds an iCalendar (RFC 5545) file in
-          your browser — nothing is sent anywhere — spanning only the visible stretch, with a 10-minute alarm. A
+          your browser (nothing is sent anywhere), spanning only the visible stretch, with a 10-minute alarm. A
           calendar file cannot update itself, and predictions move as new element sets arrive (a station reboost
           moves them most), so the event links back to the live prediction.
         </li>
@@ -307,7 +309,7 @@ const SECTIONS = [
           <strong>Times are the observer&apos;s.</strong> Pass times are shown on the wall clock of the coordinates
           you entered, not your device&apos;s: the server resolves the time zone offline from the coordinates with
           tz-lookup, which uses simplified zone boundaries. Its authors measure that about 5% of random points on
-          Earth — mostly remote areas and open ocean — resolve to a zone with a different UTC offset; populated places
+          Earth (mostly remote areas and open ocean) resolve to a zone with a different UTC offset; populated places
           resolve reliably. Open ocean uses nautical UTC±N zones. When the zone differs from your device&apos;s, the
           page says so, and the technical pass table also keeps UTC.
         </li>
@@ -325,13 +327,13 @@ const SECTIONS = [
           the same instant. The ISS is drawn with NASA&apos;s &ldquo;International Space Station (ISS) (B)&rdquo;
           model (NASA 3D Resources, credit NASA/Michael D. Carbajal; NASA states its 3D resources are free and without
           copyright). Two things about it are not measurements: it is drawn <em>enlarged</em> so it stays visible
-          — the real station is about 109 m across — and its attitude is approximated as pointing along its
+          (the real station is about 109 m across), and its attitude is approximated as pointing along its
           direction of travel, close to how the ISS usually flies, because attitude is not part of an element set.
           Other objects are shown as dots: we only use models we can source.
         </li>
         <li>
           <strong>Whole-sky dots between SGP4 runs.</strong> Your browser runs SGP4 for every whole-sky object at
-          once — every 5 seconds live, every quarter-second at 60× — and between those runs moves each dot in a
+          once (every 5 seconds live, every quarter-second at 60×), and between those runs moves each dot in a
           straight line along its computed velocity. Over that span a straight line strays from the curved orbit by
           at most about a kilometre (checked against SGP4 itself in the tests), well under one pixel at globe scale.
           To save work, a dot is redrawn only when it would move at least half a pixel on screen, so on the far side
@@ -409,8 +411,8 @@ const SECTIONS = [
           The SGP4 integration is validated against the <strong>official SGP4 verification suite</strong>
           {" "}published with Vallado&apos;s reference implementation (`SGP4-VER.TLE` + `tcppver.out`, mirrored by
           the python-sgp4 project). Our test regenerates the expected 700 output rows and compares the first seven
-          numeric fields (TEME km, km/s) against the file at a tolerance of <code>2e-7</code> — the same bound the
-          python-sgp4 project uses — across all 33 element sets, including the known SGP4 failure cases.
+          numeric fields (TEME km, km/s) against the file at a tolerance of <code>2e-7</code>, the same bound the
+          python-sgp4 project uses, across all 33 element sets, including the known SGP4 failure cases.
         </p>
         <p className="mt-2">
           Additional suites cover: TLE parsing/checksum rejection, coordinate conversions, ground-track antimeridian
@@ -426,32 +428,50 @@ const SECTIONS = [
 
 export default function MethodologyPage() {
   return (
-    <div className="mx-auto max-w-4xl p-4">
-      <h1 className="text-[18px] font-semibold">Methodology &amp; validation</h1>
-      <p className="mt-1 text-[12px] text-[var(--color-text-muted)]">
-        What this application computes, from which sources, with which limits — stated so you can make your own
-        judgement about the numbers.
-      </p>
+    <div className={PAGE}>
+      <PageHeader eyebrow="Methodology" title="How the numbers are made">
+        What this site computes, from which sources, and where its limits are, so you can judge the numbers for
+        yourself.
+      </PageHeader>
 
-      <nav aria-label="Sections" className="panel-inset mt-3 flex flex-wrap gap-2 p-2 text-[12px]">
-        {SECTIONS.map((section) => (
-          <a key={section.id} href={`#${section.id}`} className="text-[var(--color-accent)] hover:underline">
-            {section.heading}
-          </a>
-        ))}
-      </nav>
+      <div className="grid gap-10 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <nav aria-label="Sections" className="lg:sticky lg:top-20 lg:self-start">
+          <ol className="flex flex-col gap-1.5 text-[13px]">
+            {SECTIONS.map((section, i) => (
+              <li key={section.id} className="flex gap-3">
+                <span className="font-mono text-[11px] leading-[19px] text-[var(--color-text-muted)]">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <a href={`#${section.id}`} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
+                  {section.heading}
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
 
-      {SECTIONS.map((section) => (
-        <section key={section.id} id={section.id} className="panel mt-3 scroll-mt-14 p-4">
-          <h2 className="mb-2 text-[14px] font-semibold">{section.heading}</h2>
-          <div className="space-y-2 text-[13px] text-[var(--color-text-secondary)]">{section.body}</div>
-        </section>
-      ))}
-
-      <p className="mt-4 text-[12px] text-[var(--color-text-muted)]">
-        See also the <Link href="/" className="text-[var(--color-accent)] hover:underline">explorer</Link> and the
-        repository README for run/validation instructions.
-      </p>
+        <div className="reading min-w-0 max-w-[72ch]">
+          {SECTIONS.map((section) => (
+            <section
+              key={section.id}
+              id={section.id}
+              className="scroll-mt-20 border-t border-[var(--color-border-hairline)] py-8 first:border-t-0 first:pt-0"
+            >
+              <h2 className="mb-4 text-[20px] font-medium tracking-[-0.01em]">{section.heading}</h2>
+              <div className="space-y-3 text-[15px] leading-relaxed text-[var(--color-text-secondary)] [&_li]:mt-1.5 [&_strong]:font-medium [&_strong]:text-[var(--color-text-primary)]">
+                {section.body}
+              </div>
+            </section>
+          ))}
+          <p className="border-t border-[var(--color-border-hairline)] pt-6 text-[13px] text-[var(--color-text-muted)]">
+            The code and its tests are on{" "}
+            <a href={REPO_URL} className="link">
+              GitHub
+            </a>
+            .
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

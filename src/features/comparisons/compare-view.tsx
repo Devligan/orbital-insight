@@ -147,8 +147,8 @@ export function CompareView({ initialLeft, initialRight }: { initialLeft: string
                     labelFormatter={(label) => formatUtc(new Date(String(label)))}
                     formatter={(value) => [`${Number(value).toFixed(2)} km`, "Δ position"]}
                   />
-                  <Line dataKey="deltaAltitudeKm" name="Δ altitude" stroke="#ecebe6" dot={false} strokeWidth={1.4} />
-                  <Line dataKey="deltaKm" name="Δ range" stroke="#f2b544" dot={false} strokeWidth={1.4} />
+                  <Line dataKey="deltaAltitudeKm" name="Δ altitude" stroke="var(--color-text-primary)" dot={false} strokeWidth={1.4} />
+                  <Line dataKey="deltaKm" name="Δ range" stroke="var(--color-accent)" dot={false} strokeWidth={1.4} />
                 </LineChart>
               </ResponsiveContainer>
             </div>

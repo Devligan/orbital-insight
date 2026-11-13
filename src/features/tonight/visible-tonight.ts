@@ -1,5 +1,5 @@
 /**
- * "What can I actually see?" — the selection and wording behind the home
+ * "What can I actually see?" - the selection and wording behind the home
  * page's headline list. Pure (no React, no clock reads) so the honesty rules
  * are unit-tested:
  *
@@ -100,7 +100,7 @@ export function timeUntil(iso: string, nowMs: number): string | null {
   return `in ${h} h ${String(minutes % 60).padStart(2, "0")} m`;
 }
 
-/** Countdown to a visible window — the number humans plan around. */
+/** Countdown to a visible window - the number humans plan around. */
 export function countdownTo(startIso: string, endIso: string, nowMs: number): string {
   return timeUntil(startIso, nowMs) ?? (Date.parse(endIso) > nowMs ? "visible now" : "over");
 }
@@ -125,12 +125,12 @@ const MID_SKY_EDGE_MS = 5_000;
 /**
  * Where to look, start to finish: "appears 10° up in the SW → highest 63°
  * in the S → fades into Earth's shadow 25° up in the E". The apex is only
- * named when it falls inside the visible window — a pass that vanishes into
+ * named when it falls inside the visible window - a pass that vanishes into
  * shadow before culminating never shows its highest point.
  *
  * A mid-sky edge has exactly two possible causes under the visibility model
  * (sunlit satellite + dark sky): Earth's shadow, flagged by the server, or
- * otherwise twilight — the sky darkening past or brightening through −6°.
+ * otherwise twilight - the sky darkening past or brightening through −6°.
  */
 export function skyPath(pass: PassCardData, window: VisibleWindowDto): string[] {
   const steps: string[] = [];
@@ -138,17 +138,25 @@ export function skyPath(pass: PassCardData, window: VisibleWindowDto): string[] 
   const startMs = Date.parse(window.start.timeIso);
   const endMs = Date.parse(window.end.timeIso);
 
+  // No rise time means the pass was already under way when the prediction
+  // window opened (truncated at its start), so the stretch begins "now".
+  const alreadyUp = pass.riseTime === null;
   const startsMidSky = pass.riseTime !== null && startMs - Date.parse(pass.riseTime) > MID_SKY_EDGE_MS;
   steps.push(
     window.startsFromShadow
       ? `emerges from Earth's shadow ${at(window.start)}`
-      : startsMidSky
-        ? `shows up as the sky darkens, ${at(window.start)}`
-        : `appears ${at(window.start)}`,
+      : alreadyUp
+        ? `already up, ${at(window.start)}`
+        : startsMidSky
+          ? `shows up as the sky darkens, ${at(window.start)}`
+          : `appears ${at(window.start)}`,
   );
 
+  // The peak is worth naming only when it's somewhere else: a stretch that
+  // starts at the top would otherwise say "36° up … highest 36°".
   const apexMs = Date.parse(pass.maxTime);
-  if (apexMs > startMs && apexMs < endMs) {
+  const apexIsElsewhere = Math.round(pass.maxElevationDeg) > Math.round(window.start.elevationDeg);
+  if (apexMs > startMs && apexMs < endMs && apexIsElsewhere) {
     steps.push(
       `highest ${Math.round(pass.maxElevationDeg)}° in the ${compassPoint(pass.azimuthAtMaxDeg)} (${heightWords(pass.maxElevationDeg)})`,
     );

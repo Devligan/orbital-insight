@@ -1,6 +1,6 @@
 /**
  * Hand a generated file to the browser as a download (CSV exports, calendar
- * events). Built client-side from data already on the page — nothing is
+ * events). Built client-side from data already on the page - nothing is
  * uploaded. Must run inside a user-gesture handler.
  */
 export function downloadFile(content: string, fileName: string, mimeType: string): void {

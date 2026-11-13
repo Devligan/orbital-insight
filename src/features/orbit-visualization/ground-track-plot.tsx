@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 2D ground track — an equirectangular projection rendered as SVG.
+ * 2D ground track - an equirectangular projection rendered as SVG.
  * Used both as the WebGL fallback on the explorer and as the primary
  * ground-track chart on the satellite detail page.
  *

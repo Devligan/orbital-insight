@@ -11,14 +11,14 @@
  *
  * Data provenance: CelesTrak GP element sets (public, free, attributed on
  * /methodology). This is the same client contract as src/integrations/
- * celestrak — GROUP=<name>&FORMAT=tle with polite spacing — reimplemented
+ * celestrak - GROUP=<name>&FORMAT=tle with polite spacing - reimplemented
  * inline because build scripts cannot import TypeScript sources.
  *
  * Failure policy: the build must never depend on the provider, and a
  * provider problem must never *destroy* a good snapshot. The file is
  * replaced only when every group refreshes; otherwise the previous snapshot
  * stays untouched (its single generatedAt remains the truthful retrieval
- * time for all its entries — merging old entries under a new timestamp would
+ * time for all its entries - merging old entries under a new timestamp would
  * misstate provenance). Only when no previous snapshot exists is an empty or
  * partial index written, with the failed groups recorded in `gaps`, and the
  * running application falls back to its normal on-demand provider path.
@@ -89,7 +89,7 @@ async function fetchGroup(group) {
       Accept: "text/plain",
     },
   });
-  if (response.status === 404) return []; // "no objects matched" — honest empty
+  if (response.status === 404) return []; // "no objects matched" - honest empty
   if (!response.ok) throw new Error(`HTTP ${response.status} for group ${group}`);
   const text = await response.text();
   if (!text.trim()) return [];
@@ -110,7 +110,7 @@ function snapshotAgeMs() {
 
 async function main() {
   // Iterative builds shouldn't re-download the catalog each time (provider
-  // politeness — repeated builds contributed to an IP block).
+  // politeness - repeated builds contributed to an IP block).
   const age = snapshotAgeMs();
   if (existingEntryCount() > 0 && age < SNAPSHOT_REFRESH_MS && !process.env.SEARCH_INDEX_FORCE_REFRESH) {
     console.warn(`[search-index] snapshot is ${Math.round(age / 60_000)} min old — reusing (SEARCH_INDEX_FORCE_REFRESH=1 to refetch)`);
@@ -156,6 +156,6 @@ async function main() {
 
 main().catch((error) => {
   console.error(`[search-index] aborted: ${error?.message ?? error}`);
-  // Never fail the build on provider trouble — and never clobber a good snapshot.
+  // Never fail the build on provider trouble - and never clobber a good snapshot.
   if (existingEntryCount() === 0) writeOut({ generatedAt: new Date().toISOString(), gaps: "all", entries: [] });
 });

@@ -3,7 +3,7 @@
 /**
  * Shared observer-location state.
  *
- * Asking the browser for location is a permission event — doing it from two
+ * Asking the browser for location is a permission event - doing it from two
  * separate widgets means two prompts for one action. This hook is lifted to
  * the explorer and passed down, so "use my location" on any panel fills in
  * the same observer everywhere (overhead widget, tonight's passes, …).

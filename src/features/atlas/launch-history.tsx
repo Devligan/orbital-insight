@@ -6,7 +6,7 @@ import { GROUP_COLORS, GROUP_LABELS, GROUP_ORDER } from "./palette";
 
 /**
  * Still-active satellites by launch year, stacked by colour group. Read it as
- * "what's flying today, by when it went up" — not launches per year (failed,
+ * "what's flying today, by when it went up" - not launches per year (failed,
  * decayed and retired objects aren't in the active catalog).
  */
 
@@ -58,8 +58,8 @@ export function LaunchHistory({ points, asOfYear }: { points: readonly AtlasPoin
         >
           {[0, 0.5, 1].map((f) => (
             <g key={f}>
-              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(yMax * f)} y2={y(yMax * f)} stroke="#232327" />
-              <text x={MARGIN.left - 8} y={y(yMax * f)} fill="#8a8983" fontSize={11} textAnchor="end" dominantBaseline="middle">
+              <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(yMax * f)} y2={y(yMax * f)} stroke="var(--color-border-hairline)" />
+              <text x={MARGIN.left - 8} y={y(yMax * f)} fill="var(--color-text-muted)" fontSize={11} textAnchor="end" dominantBaseline="middle">
                 {Math.round(yMax * f).toLocaleString("en-US")}
               </text>
             </g>
@@ -97,10 +97,10 @@ export function LaunchHistory({ points, asOfYear }: { points: readonly AtlasPoin
               </g>
             );
           })}
-          <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(0)} y2={y(0)} stroke="#36363c" />
+          <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(0)} y2={y(0)} stroke="var(--color-border-strong)" />
           {bins.map((bin, i) =>
             i === 0 || (bin.year - FROM_YEAR) % tickEvery === 0 ? (
-              <text key={bin.year} x={x(i) + slot / 2} y={HEIGHT - 12} fill="#8a8983" fontSize={11} textAnchor="middle">
+              <text key={bin.year} x={x(i) + slot / 2} y={HEIGHT - 12} fill="var(--color-text-muted)" fontSize={11} textAnchor="middle">
                 {i === 0 ? `<${FROM_YEAR}` : bin.year}
               </text>
             ) : null,
@@ -109,7 +109,7 @@ export function LaunchHistory({ points, asOfYear }: { points: readonly AtlasPoin
             <text
               x={x(starlinkStart) + slot / 2}
               y={y(bins[starlinkStart]!.total) - 6}
-              fill="#b0afa8"
+              fill="var(--color-text-secondary)"
               fontSize={11}
               textAnchor="end"
             >

@@ -8,9 +8,9 @@
  *  - timeouts and typed failures (network / timeout / rate-limit / schema)
  *
  * We use the documented TLE output format of the current GP data interface
- * (https://celestrak.org/NORAD/elements/gp.php — the /ed/ path was retired
+ * (https://celestrak.org/NORAD/elements/gp.php - the /ed/ path was retired
  * with the 2023 GP interface upgrade), which also
- * prefixes each element set with the object's name — giving us both catalog
+ * prefixes each element set with the object's name - giving us both catalog
  * names and propagation-ready element sets from one bounded request.
  *
  * Rate-limit behavior (documented on /methodology): CelesTrak is a free
@@ -162,7 +162,7 @@ export class HttpCelestrakClient implements CelestrakClient {
     }
     if (response.status === 404) {
       // CelesTrak answers unknown identifiers/groups with 404 + "No GP data
-      // found" — a well-formed "no match" answer, not an outage: report an
+      // found" - a well-formed "no match" answer, not an outage: report an
       // empty result and let the service layer decide not-found vs cache.
       return [];
     }
@@ -172,7 +172,7 @@ export class HttpCelestrakClient implements CelestrakClient {
 
     const text = await response.text();
     if (!text.trim()) {
-      // Empty body is how CelesTrak reports "no objects matched" — this is a
+      // Empty body is how CelesTrak reports "no objects matched" - this is a
       // well-formed provider response, not a schema failure; callers map it
       // to not-found when nothing is cached.
       return [];

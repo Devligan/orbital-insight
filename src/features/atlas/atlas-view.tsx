@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE, PageHeader } from "@/components/ui/page-header";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -85,10 +86,8 @@ export function AtlasView() {
   }, [load]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-10">
-      <header className="pt-8 pb-6">
-        <h1 className="heading-display text-[30px] md:text-[40px]">Who&apos;s in orbit</h1>
-        <p className="lede mt-2 max-w-2xl text-[16px]">
+    <div className={PAGE}>
+      <PageHeader eyebrow="Atlas" title="Who&apos;s in orbit">
           Every active satellite in the public catalog, placed by the shape of its orbit.{" "}
           {/* While loading, the sentence's space is held so nothing below moves when the figure arrives. */}
           <span className={summary ? undefined : "invisible"} aria-hidden={summary ? undefined : true}>
@@ -98,8 +97,7 @@ export function AtlasView() {
             </strong>{" "}
             of them.
           </span>
-        </p>
-      </header>
+      </PageHeader>
 
       {/* The charts below are ~3 000 px tall. Holding a screen's height while the catalog loads keeps the footer
           out of view, so the page doesn't lurch when they arrive (Lighthouse measured CLS 0.85 without it). */}

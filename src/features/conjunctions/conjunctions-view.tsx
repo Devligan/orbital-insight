@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE, PageHeader } from "@/components/ui/page-header";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
@@ -16,7 +17,7 @@ import { sgp4Body } from "./sgp4-body";
 
 /**
  * Quick picks resolve against the live catalog: fixed ids for the landmarks,
- * and "a Starlink" is the first one found in the 53° shell — a hardcoded
+ * and "a Starlink" is the first one found in the 53° shell - a hardcoded
  * Starlink id would eventually point at a deorbited satellite.
  */
 const QUICK_PICKS: { label: string; resolve: (rows: CatalogRow[], byId: Map<string, CatalogRow>) => string | undefined }[] = [
@@ -164,14 +165,11 @@ export function ConjunctionsView() {
   const targetName = target?.n ?? `#${targetId}`;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-10">
-      <header className="pt-8 pb-5">
-        <h1 className="heading-display text-[30px] md:text-[40px]">Close approaches</h1>
-        <p className="lede mt-2 max-w-2xl text-[16px]">
-          Pick any satellite and your browser screens it against every other active satellite: which ones pass
-          within a few kilometres in the coming days, exactly when, and from which direction.
-        </p>
-      </header>
+    <div className={PAGE}>
+      <PageHeader eyebrow="Conjunctions" title="Close approaches">
+        Pick any satellite and your browser screens it against every other active satellite: which ones pass within a
+        few kilometres in the coming days, exactly when, and from which direction.
+      </PageHeader>
 
       <section className="panel p-4" aria-label="Screening setup">
         <div className="flex flex-wrap items-center gap-2">
@@ -539,17 +537,17 @@ function EncounterDetail({
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[640px]" role="img" aria-label={`Separation between ${targetRow.n} and ${approach.name} from ${offsetLabel(-halfWindowMs).slice(1)} before to ${offsetLabel(halfWindowMs).slice(1)} after closest approach; minimum ${approach.missKm.toFixed(2)} km.`}>
         {[0, 0.5, 1].map((f) => (
           <g key={f}>
-            <line x1={M.left} x2={W - M.right} y1={y(yMax * f)} y2={y(yMax * f)} stroke="#232327" />
-            <text x={M.left - 6} y={y(yMax * f)} fill="#8a8983" fontSize={11} textAnchor="end" dominantBaseline="middle">
+            <line x1={M.left} x2={W - M.right} y1={y(yMax * f)} y2={y(yMax * f)} stroke="var(--color-border-hairline)" />
+            <text x={M.left - 6} y={y(yMax * f)} fill="var(--color-text-muted)" fontSize={11} textAnchor="end" dominantBaseline="middle">
               {n(Math.round(yMax * f))} km
             </text>
           </g>
         ))}
-        <line x1={M.left} x2={W - M.right} y1={y(thresholdKm)} y2={y(thresholdKm)} stroke="#8a8983" strokeDasharray="4 4" />
-        <text x={W - M.right} y={y(thresholdKm) - 5} fill="#b0afa8" fontSize={11} textAnchor="end">
+        <line x1={M.left} x2={W - M.right} y1={y(thresholdKm)} y2={y(thresholdKm)} stroke="var(--color-text-muted)" strokeDasharray="4 4" />
+        <text x={W - M.right} y={y(thresholdKm) - 5} fill="var(--color-text-secondary)" fontSize={11} textAnchor="end">
           {thresholdKm} km
         </text>
-        <line x1={x(approach.tcaMs)} x2={x(approach.tcaMs)} y1={M.top} y2={H - M.bottom} stroke="#36363c" />
+        <line x1={x(approach.tcaMs)} x2={x(approach.tcaMs)} y1={M.top} y2={H - M.bottom} stroke="var(--color-border-strong)" />
         <path d={path} fill="none" stroke="var(--color-accent)" strokeWidth={2} strokeLinejoin="round" />
         <circle cx={x(approach.tcaMs)} cy={y(approach.missKm)} r={4} fill="var(--color-accent)" stroke="var(--color-bg-inset)" strokeWidth={2} />
         {[-1, -0.5, 0, 0.5, 1].map((f, i, all) => (
@@ -557,7 +555,7 @@ function EncounterDetail({
             key={f}
             x={x(approach.tcaMs + f * halfWindowMs)}
             y={H - 8}
-            fill="#8a8983"
+            fill="var(--color-text-muted)"
             fontSize={11}
             textAnchor={i === 0 ? "start" : i === all.length - 1 ? "end" : "middle"}
           >

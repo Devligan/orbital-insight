@@ -30,7 +30,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`h-full ${plexSans.variable} ${plexMono.variable}`}>
       <body className="min-h-full">
-        <a href="#main-content" className="sr-only focus:not-sr-only">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-[3px] focus:bg-[var(--color-accent)] focus:px-3 focus:py-2 focus:text-[14px] focus:font-medium focus:text-[var(--color-on-accent)]"
+        >
           Skip to content
         </a>
         <div id="main-content">

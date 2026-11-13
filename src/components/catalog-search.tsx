@@ -39,7 +39,7 @@ export function CatalogSearch({ onSelect }: { onSelect: (hit: SearchHit) => void
         setActiveIndex(0);
         setOpen(true);
       } catch {
-        // Aborted or network failure — leave stale results, don't fake success.
+        // Aborted or network failure - leave stale results, don't fake success.
       } finally {
         setBusy(false);
       }

@@ -4,11 +4,11 @@
  * Pure functions over the active catalog (name + both TLE lines per object):
  *  - orbit shape read straight from the TLE's fixed columns (inclination,
  *    eccentricity, mean motion) and turned into Keplerian perigee/apogee
- *    altitudes — the same two-body close form as `characteristics.ts`,
+ *    altitudes - the same two-body close form as `characteristics.ts`,
  *    labelled an approximation wherever it is shown;
  *  - constellation membership from the provider's own object names. That is
  *    transparent and reproducible (every rule is a pattern below, listed on
- *    /methodology) but not authoritative — an operator renaming a satellite
+ *    /methodology) but not authoritative - an operator renaming a satellite
  *    would move it. Objects matching no rule are "everything else", never
  *    guessed into a constellation.
  *
@@ -100,7 +100,7 @@ export interface AtlasPoint {
   periodMinutes: number;
   perigeeKm: number;
   apogeeKm: number;
-  /** Mean of perigee and apogee altitudes — the y position on the atlas. */
+  /** Mean of perigee and apogee altitudes - the y position on the atlas. */
   meanAltitudeKm: number;
   regime: OrbitRegime;
   /** From line 1's international designator; null when absent or not supplied. */
@@ -303,7 +303,7 @@ export interface AltitudeBin {
 
 /**
  * Objects per altitude band (by mean altitude), stacked by colour group.
- * Objects outside [minKm, maxKm) are not counted — the caller labels the range.
+ * Objects outside [minKm, maxKm) are not counted - the caller labels the range.
  */
 export function altitudeHistogram(
   points: readonly AtlasPoint[],

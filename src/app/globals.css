@@ -1,30 +1,31 @@
 @import "tailwindcss";
 
 /*
- * Orbital Insight design system: an instrument panel, not a landing page.
+ * Orbital Insight: the night sky, and the light satellites catch in it.
  *
- * - Neutral graphite surfaces. No blue tint, no glow, no gradients.
- * - One warm signal colour, "sunlit": the light a satellite reflects is the
- *   thing this site helps you find, so the accent marks what you can see and
- *   what you can act on, and nothing else.
- * - IBM Plex Sans for reading, Plex Mono for numbers and the small uppercase
- *   labels that name each readout.
- * - Square-ish corners (3px) and hairline rules. Cards only where something
- *   is a discrete object (a pass, a candidate), never as decoration.
+ * - The page is the sky: near-black with a trace of blue, and one sparse star
+ *   field (public/sky.svg, drawn by scripts/make-starfield.mjs) behind
+ *   everything. No glows, no gradients, no nebula wallpaper.
+ * - One warm colour, sunlit amber. A satellite is visible because it's lit by
+ *   a sun that has set for you, so amber marks what you can see and what you
+ *   can act on, and nothing else.
+ * - IBM Plex Sans for reading, Plex Mono for numbers and the small capitals
+ *   that name a readout.
+ * - Surfaces are slightly translucent so the sky shows at their edges; 3px
+ *   corners, hairline rules, cards only for discrete things.
  *
- * Text colours keep WCAG AA on every surface: muted 5.4:1 on panels, secondary
- * 8.6:1, accent 10.8:1 on the page, dark text on the accent 10.2:1.
- */
-@theme {
-  --color-bg-root: #0a0a0b;
-  --color-bg-panel: #111113;
-  --color-bg-inset: #0d0d0f;
-  --color-bg-raised: #18181b;
-  --color-border-hairline: #232327;
-  --color-border-strong: #36363c;
-  --color-text-primary: #ecebe6;
-  --color-text-secondary: #b0afa8;
-  --color-text-muted: #8a8983;
+ * Contrast (WCAG AA everywhere, computed on the panel colour): primary 15.6:1,
+ * secondary 8.5:1, muted 5.1:1, accent 10.5:1, text on the accent 10.2:1.
+ */@theme {
+  --color-bg-root: #05070b;
+  --color-bg-panel: rgb(11 14 21 / 0.88);
+  --color-bg-inset: rgb(8 10 16 / 0.92);
+  --color-bg-raised: #141925;
+  --color-border-hairline: #1a2030;
+  --color-border-strong: #2a3244;
+  --color-text-primary: #e9e7e1;
+  --color-text-secondary: #a7acb8;
+  --color-text-muted: #7c8394;
   --color-accent: #f2b544;
   --color-accent-dim: #8a6524;
   --color-on-accent: #17120a;
@@ -44,12 +45,21 @@
 
 body {
   background-color: var(--color-bg-root);
+  background-image: url("/sky.svg");
+  background-size: 1600px 1100px;
+  background-attachment: fixed;
   color: var(--color-text-primary);
   font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.55;
   font-feature-settings: "ss02" 1;
   -webkit-font-smoothing: antialiased;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  color: var(--color-text-primary);
 }
 
 ::selection {
@@ -59,9 +69,9 @@ body {
 /* Page titles: set, not shouted. */
 .heading-display {
   color: var(--color-text-primary);
-  font-weight: 600;
-  letter-spacing: -0.022em;
-  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -0.028em;
+  line-height: 1.06;
 }
 
 .lede {
@@ -143,7 +153,7 @@ body {
   }
 
   .input:hover {
-    border-color: #4a4a52;
+    border-color: #3a4459;
   }
 
   .input:focus {
@@ -281,7 +291,7 @@ body {
   }
 
   .choice:hover {
-    border-color: #4a4a52;
+    border-color: #3a4459;
     color: var(--color-text-primary);
   }
 
@@ -291,6 +301,19 @@ body {
     border-color: var(--color-accent);
     background-color: color-mix(in oklab, var(--color-accent) 12%, transparent);
     color: var(--color-text-primary);
+  }
+
+  .choice-sm {
+    min-height: 28px;
+    padding: 3px 10px;
+    font-size: 12.5px;
+  }
+
+  /* Long-form text clears its own patch of sky: a star beside a word reads as
+     punctuation, so paragraphs sit on solid night with the stars kept to the margins. */
+  .reading {
+    background-color: var(--color-bg-root);
+    box-shadow: 0 0 0 28px var(--color-bg-root);
   }
 
   /* Links in running text: underlined, not coloured. */

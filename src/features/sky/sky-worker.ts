@@ -5,12 +5,12 @@
  * blocks:
  *  - parses the catalog (~10.6k TLEs) once, skipping unparsable rows
  *  - classifies every object once (LEO / MEO / GEO / HEO from mean motion +
- *    eccentricity — derived from the elements, never guessed)
+ *    eccentricity - derived from the elements, never guessed)
  *  - sweeps: SGP4 for *every* object at one simulated instant, posting
  *    Earth-fixed positions and velocities as flat Float32Arrays (zero-copy
  *    transfer). The globe moves each dot along its velocity between sweeps
  *    (see sky-motion.ts), so a sweep is needed only every ~15 s of simulated
- *    time — every 5 s live, every ¼ s at 60×.
+ *    time - every 5 s live, every ¼ s at 60×.
  *
  * Time contract: simulation time follows the explorer's shared clock
  * (`sim = baseSim + elapsedWall × rate`, see view-clock.ts), set at init and
@@ -152,7 +152,7 @@ function sweepAndSchedule(): void {
 }
 
 /**
- * Every component finite — a non-finite coordinate reaching Cesium poisons
+ * Every component finite - a non-finite coordinate reaching Cesium poisons
  * the cloud's bounding volume and stops the globe's rendering.
  */
 function finiteState(r: { x: number; y: number; z: number }, v: { x: number; y: number; z: number }): boolean {

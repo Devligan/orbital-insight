@@ -136,6 +136,27 @@ describe("countdown and sky path wording", () => {
     ]);
   });
 
+  it("says 'already up' for a pass under way when the window opened, without naming its peak twice", () => {
+    // The request was made mid-pass: no rise time, and the visible stretch starts
+    // at its highest point (36°, as on a real ISS pass over New York).
+    const p = pass(10, { visible: [13, 16] });
+    const underWay = {
+      ...p,
+      riseTime: null,
+      truncated: "rise" as const,
+      maxTime: iso(13.2),
+      maxElevationDeg: 36.3,
+      visibility: {
+        ...p.visibility!,
+        visibleWindow: { ...p.visibility!.visibleWindow!, start: { timeIso: iso(13), azimuthDeg: 135, elevationDeg: 36 } },
+      },
+    };
+    expect(skyPath(underWay, underWay.visibility.visibleWindow)).toEqual([
+      "already up, 36° up in the SE",
+      "last seen 10° up in the E",
+    ]);
+  });
+
   it("gives heights in fists at arm's length, and calls the zenith straight up", () => {
     expect(heightWords(10)).toBe("about 1 fist above the horizon");
     expect(heightWords(12)).toBe("about 1 fist above the horizon");

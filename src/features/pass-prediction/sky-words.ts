@@ -7,7 +7,7 @@
 import type { PassResultDto } from "@/contracts/orbital";
 
 /**
- * One pass as it arrives on the wire. Derived from the shared contract — a
+ * One pass as it arrives on the wire. Derived from the shared contract - a
  * hand-copied shape here is how the client once drifted from the server.
  */
 export type PassCardData = PassResultDto["passes"][number];
@@ -40,7 +40,7 @@ function offsetName(timeZone: string, at: Date): string {
 }
 
 /**
- * "Times are Tokyo time (GMT+9)" — shown only when the observer's clock
+ * "Times are Tokyo time (GMT+9)" - shown only when the observer's clock
  * differs from the device's at that instant, so a local user never sees
  * noise. Null when no label is needed.
  */

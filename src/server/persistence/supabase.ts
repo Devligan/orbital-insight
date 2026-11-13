@@ -38,7 +38,7 @@ function getSnapshotsClient(): SupabaseClient | null {
 
 /**
  * A per-request client bound to the caller's Supabase Auth JWT. Returns null
- * when credentials/token are absent — watchlist endpoints then report
+ * when credentials/token are absent - watchlist endpoints then report
  * unavailability instead of failing.
  */
 export function getUserClient(request: Request): SupabaseClient | null {
