@@ -56,6 +56,16 @@ character, TEXT escaping, stable UIDs) rather than against a snapshot.
 
 ![An ISS pass from Tokyo: 87° nearly overhead, sky chart and calendar button](docs/images/sky-chart.png)
 
+**Built for the person outside, not just the orbit** ([`place-search.tsx`](src/features/observer/place-search.tsx),
+[`cloud-outlook.ts`](src/features/tonight/cloud-outlook.ts))
+These features started from a survey of what casual watchers actually use (Heavens-Above, ISS Detector, FindStarlink,
+NASA's Spot the Station) and where those tools let them down. Every one of them starts with *type your town*, so
+this one does too, and it remembers the spot in the browser so a return visit skips the question. Each visible pass carries
+the forecast cloud cover for its minute (interpolated from hourly model output, never bridged across a missing
+hour) and the peak height in fists at arm's length, the one measuring tool everyone carries. Both third-party calls
+go from the visitor's browser, not the server, because Open-Meteo rate-limits per IP. Their responses are checked by
+hand instead of with Zod: the bundle budget caught Zod adding 27 kB to the home page.
+
 **Honesty as a contract** ([`/methodology`](https://orbital-insight-drab.vercel.app/methodology))
 Every response carries data lineage (`live` / `cached` / `provider-unavailable-stale`). Provider failures are typed
 failures, never fabricated orbits, and every approximation and limit is documented on the methodology page.
@@ -71,6 +81,7 @@ flowchart LR
     GLOBE["CesiumJS globe<br/>(lazy, mounts when visible)"]
     UI --> SKY & SCR & GLOBE
   end
+  UI -- "town search · cloud forecast<br/>(per-visitor, per-IP limits)" --> OM[("Open-Meteo")]
   subgraph Vercel
     CDN[("CDN<br/>s-maxage + SWR")]
     API["Route handlers<br/>validate → service → respond"]
@@ -100,7 +111,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  PR["Pull request"] --> CI["CI: types · lint · 228 unit/integration tests · runtime audit<br/>production build · bundle budget · 33 e2e journeys"]
+  PR["Pull request"] --> CI["CI: types · zero-warning lint · 288 unit/integration tests · runtime audit<br/>production build · bundle budget · 36 e2e journeys"]
   PR --> PREV["Vercel preview"] --> SMOKE["Smoke suite against the preview URL"]
   MAIN["Merge to main"] --> PROD["Vercel production"] --> CHECKS["Smoke suite + Lighthouse"]
   CRON["Every 2 days"] --> DATA["Runner fetches snapshots → commit → redeploy"]
@@ -118,11 +129,11 @@ now held at 0 while its 1.6 MB catalog loads.
 
 | Route | What it does |
 | --- | --- |
-| `/` | Hero answer to "what's flying over me tonight?" (visible passes only, local times, compass words, a sky chart of each pass, add-to-calendar with a reminder) next to the live globe: every active satellite, follow the ISS with NASA's 3D model, time slider and 60× fast-forward, shareable links |
+| `/` | Hero answer to "what's flying over me tonight?" (find your spot by town, postcode or coordinates, remembered between visits; visible passes only, local times, compass words and heights in fists, a sky chart and a cloud forecast for each pass, add-to-calendar with a reminder) next to the live globe: every active satellite, follow the ISS with NASA's 3D model, time slider and 60× fast-forward, shareable links |
 | `/atlas` | All active satellites by inclination and altitude, a 10 km altitude histogram that shows each constellation shell, and a constellation table |
 | `/conjunctions` | Close-approach screening of any satellite against the active catalog: TCA, miss distance (RIC), closing speed, encounter profile |
 | `/satellites/[id]` | Element set, epoch and provenance, approximate orbit characteristics, 24 h ground track |
-| `/passes` | Pass predictions for any location (rise / peak / set, azimuths, visibility verdict, sky chart per pass), CSV export |
+| `/passes` | Pass predictions for any town or coordinates, opening on your remembered spot (rise / peak / set, azimuths, visibility verdict, sky chart per pass), CSV export |
 | `/compare` | Two element sets compared, with propagated-position deltas over time |
 | `/watchlist` | Browser-local watchlist (no account) |
 | `/methodology` | Data sources, frames, validation, every approximation and limit |
@@ -143,7 +154,7 @@ npm run verify       # typecheck → lint → tests → production build → bun
 
 | Command | What it runs |
 | --- | --- |
-| `npm test` | Vitest unit + integration (228; the one skip is an opt-in live-provider check: `RUN_LIVE_TESTS=1`) |
+| `npm test` | Vitest unit + integration (288; the one skip is an opt-in live-provider check: `RUN_LIVE_TESTS=1`) |
 | `npm run test:e2e` | Playwright journeys against `next start` (production build first) |
 | `npm run test:smoke` | The deployment smoke suite; point it anywhere with `E2E_BASE_URL=https://…` |
 | `npm run check:bundle` | First-load JS per page (gzip) against budgets |
@@ -162,4 +173,11 @@ overwrite each other's output.
 
 Orbital elements come from [CelesTrak](https://celestrak.org/) (public GP data, attributed, cached politely).
 Positions are SGP4 predictions from public element sets: kilometre-level accuracy, no covariance. That makes this
-a tool for exploring and screening, **not for navigation, safety, or collision-avoidance decisions**.
+a tool for exploring and screening, **not for navigation, safety, or collision-avoidance decisions**. Town search
+and cloud forecasts come from [Open-Meteo](https://open-meteo.com/) (CC BY 4.0; places from GeoNames).
+
+## Author
+
+Designed and built by [Devligan](https://github.com/Devligan). The site credits its author in the footer and on
+[`/engineering`](https://orbital-insight-drab.vercel.app/engineering). A deployment can set
+`NEXT_PUBLIC_AUTHOR_NAME` / `NEXT_PUBLIC_AUTHOR_URL` to change the credit without a code change.

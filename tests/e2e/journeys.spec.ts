@@ -640,6 +640,15 @@ test.describe("methodology page", () => {
     await expect(page.getByText(/Predictions, not measurements/i)).toBeVisible();
     await expect(page.getByText(/Not for collision avoidance/i)).toBeVisible();
   });
+
+  test("every page credits its author, and /engineering says who built it", async ({ page }) => {
+    await page.goto("/methodology");
+    const footer = page.locator("footer");
+    await expect(footer.getByRole("link", { name: "Devligan" })).toHaveAttribute("href", "https://github.com/Devligan");
+    await expect(footer.getByRole("link", { name: "source" })).toHaveAttribute("href", /github\.com\/Devligan\/orbital-insight/);
+    await page.goto("/engineering");
+    await expect(page.getByTestId("author-credit")).toHaveText("Designed and built by Devligan.");
+  });
 });
 
 test.describe("whole-sky globe", () => {

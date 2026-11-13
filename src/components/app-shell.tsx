@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { AUTHOR_NAME, AUTHOR_URL, REPO_URL } from "@/lib/site";
 import type { ReactNode } from "react";
 import { CatalogSearch } from "@/components/catalog-search";
 
@@ -94,6 +95,16 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link href="/engineering" className="text-[var(--color-accent)] hover:underline">
             How it&apos;s built
           </Link>
+          <span>
+            Built by{" "}
+            <a href={AUTHOR_URL} className="text-[var(--color-text-secondary)] hover:underline">
+              {AUTHOR_NAME}
+            </a>{" "}
+            ·{" "}
+            <a href={REPO_URL} className="text-[var(--color-text-secondary)] hover:underline">
+              source
+            </a>
+          </span>
           <span className="ml-auto">Not for navigation, safety, or collision avoidance.</span>
         </div>
       </footer>
