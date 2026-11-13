@@ -172,8 +172,8 @@ A production Next.js (App Router) app where a regular person can:
   path; the home page's performance score is ~0.6 (warn) under SwiftShader.
 - **Permissions:** the auto-mode classifier denied `gh repo create` and
   `vercel deploy --prod` even after the owner wrote "You have full
-  development permissions". `docker run` was also denied. Owner-run commands
-  are in the session summary and below.
+  development permissions". `docker run` was also denied. The owner runs those
+  steps (`gh repo create … --push`, `vercel git connect`, `vercel promote`).
 
 ## Known environmental realities
 
