@@ -464,6 +464,33 @@ test.describe("pass cards on phones", () => {
 });
 
 test.describe("constellation atlas", () => {
+  test("holds its layout while the catalog loads (no lurch when the charts arrive)", async ({ page }) => {
+    // A slow catalog response is when the jump happened: Lighthouse measured
+    // CLS 0.85 as ~3 000 px of charts replaced a one-line spinner and threw
+    // the footer out of view. Delay the API the way a slow network would.
+    await page.route("**/api/sky/catalog", async (route) => {
+      const response = await route.fetch();
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      await route.fulfill({ response });
+    });
+    await page.addInitScript(() => {
+      const w = window as unknown as { __cls: number };
+      w.__cls = 0;
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries() as unknown as { value: number; hadRecentInput: boolean }[]) {
+          if (!entry.hadRecentInput) w.__cls += entry.value;
+        }
+      }).observe({ type: "layout-shift", buffered: true });
+    });
+    await page.goto("/atlas");
+    await expect(page.getByTestId("atlas-plot")).toBeVisible({ timeout: 60_000 });
+    await page.waitForTimeout(1_000);
+    const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
+    // Measured here: 0 with the space held, 0.11 without. Half of Core Web
+    // Vitals' 0.1 "good" bound, so a regression fails clearly, not by a hair.
+    expect(cls).toBeLessThan(0.05);
+  });
+
   test("charts the catalog, spotlights a constellation, and opens a dot's satellite", async ({ page }) => {
     await page.goto("/atlas");
     const plot = page.getByTestId("atlas-plot");
