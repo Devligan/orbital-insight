@@ -239,8 +239,8 @@ export function PassPredictionsForm() {
         </form>
 
         <p className="mt-3 text-[11px] text-[var(--color-text-muted)]">
-          Every pass is a geometry calculation. Sunlight geometry — Earth&apos;s shadow and the observer&apos;s sky
-          darkness — is modeled. Brightness is estimated only for objects with a published standard magnitude
+          Every pass is a geometry calculation. Sunlight geometry (Earth&apos;s shadow and the observer&apos;s sky
+          darkness) is modeled. Brightness is estimated only for objects with a published standard magnitude
           (others read &ldquo;brightness unknown&rdquo;), and is rough even then. Clouds and eyesight are not
           modeled. See the{" "}
           <Link href="/methodology" className="text-[var(--color-accent)] hover:underline">methodology</Link>.

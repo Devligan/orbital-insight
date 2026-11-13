@@ -76,7 +76,7 @@ export function CatalogSearch({ onSelect }: { onSelect: (hit: SearchHit) => void
         aria-controls="catalog-search-results"
         aria-autocomplete="list"
         // Short enough to fit a phone header; the full hint lives in the label.
-        placeholder="Search satellites (ISS, 25544…)"
+        placeholder="Search satellites"
         aria-label="Search satellites by name or NORAD catalog number, for example ISS or 25544"
         value={query}
         onChange={(e) => setQuery(e.target.value)}

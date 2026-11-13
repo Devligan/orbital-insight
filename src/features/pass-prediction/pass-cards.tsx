@@ -30,15 +30,15 @@ export function visibilityLine(pass: PassCardData): string | null {
     const brightness =
       v.bestEstimatedMagnitude !== null
         ? `estimated magnitude ${v.bestEstimatedMagnitude.toFixed(1)} (${brightnessWord(v.bestEstimatedMagnitude)})`
-        : "brightness unknown — no published standard magnitude for this object";
-    return `predicted visible in sunlight against a dark sky — look ${look} at the apex, ${brightness}`;
+        : "brightness unknown (no published standard magnitude for this object)";
+    return `predicted visible, sunlit against a dark sky. Look ${look} at the apex; ${brightness}`;
   }
   switch (v.reasonIfNotVisible) {
     case "satellite-in-shadow":
-      return "crossing while inside Earth's shadow — no sunlight to reflect, don't look for it";
+      return "crosses inside Earth's shadow, with no sunlight to reflect: not visible";
     case "sky-too-bright":
       // Covers civil twilight too (sun 0° to −6°), so not "the sun is up".
-      return "your sky is still too bright then — lost against daylight or twilight";
+      return "your sky is still too bright then: lost in daylight or twilight";
     case "both":
       return "overhead only while your sky is lit or the satellite is eclipsed";
     default:

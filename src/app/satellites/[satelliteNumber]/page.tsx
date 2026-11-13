@@ -98,7 +98,7 @@ export default async function SatelliteDetailPage({ params }: { params: Promise<
 
       <div className="flex min-w-0 flex-col gap-3">
         <Panel>
-          <PanelHeader title="Ground track — next 24 hours (predicted)" />
+          <PanelHeader title="Ground track, next 24 hours (predicted)" />
           <GroundTrackPlot
             name={record.catalog.name}
             segments={track.segments.map((segment) =>
@@ -112,7 +112,7 @@ export default async function SatelliteDetailPage({ params }: { params: Promise<
             height={360}
           />
           <p className="mt-2 text-[11px] text-[var(--color-text-muted)]">
-            Sub-satellite points computed by SGP4 from the element set above. Predictions — not measured positions.
+            Sub-satellite points computed by SGP4 from the element set above. Predictions, not measured positions.
             {staleElements ? " Elements are stale; expect increasing error across the prediction window." : ""}
           </p>
         </Panel>
@@ -134,7 +134,7 @@ export default async function SatelliteDetailPage({ params }: { params: Promise<
 function lineageLabel(lineage: string): string {
   if (lineage === "live") return "Live from CelesTrak";
   if (lineage === "cached") return "Cached data";
-  return "Stale — provider unavailable";
+  return "Stale: provider unavailable";
 }
 
 function characteristicRev(rev: number): string {

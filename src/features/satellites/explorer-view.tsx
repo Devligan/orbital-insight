@@ -313,7 +313,7 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
               <div className="panel">
                 <ErrorState
                   title="Couldn't load this satellite right now"
-                  message={`${error.message} — the public data provider may be briefly down; try again shortly.`}
+                  message={`${error.message} The public data provider may be briefly down; try again shortly.`}
                   retry={() => void load(selectedId, 0)}
                 />
               </div>
@@ -344,7 +344,7 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
                 {globeUnavailable ? (
                   <div className="absolute inset-0 overflow-auto bg-[var(--color-bg-panel)] p-4">
                     <p className="mb-2 text-[13px] text-[var(--color-status-warn)]">
-                      This browser has 3D graphics turned off, so here&apos;s the same orbit drawn in 2D — the marker
+                      This browser has 3D graphics turned off, so here&apos;s the same orbit drawn in 2D. The marker
                       follows the time slider below. Want the full spinning globe? Turn on &quot;Use graphics
                       acceleration&quot; in your browser settings and refresh.
                     </p>
@@ -446,7 +446,7 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
                   : "Measuring its orbit…"}
               </p>
               <p className="text-[13px] text-[var(--color-text-muted)]">
-                Shown where it is right now — drag the time slider (or fast-forward) to see where it goes next.
+                Shown where it is right now. Drag the time slider, or fast-forward, to see where it goes next.
                 {selectedId === "25544"
                   ? " The 3D station model (NASA) is drawn enlarged; the real ISS is about 109 m across."
                   : ""}
@@ -471,7 +471,7 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
                 Technical details &amp; provenance
               </summary>
               <div className="flex flex-col gap-2 pt-2 text-[12px] text-[var(--color-text-muted)]">
-                <p className="italic">Position shown is calculated from the orbital elements — a good prediction, not a live reading.</p>
+                <p className="italic">Position shown is calculated from the orbital elements: a good prediction, not a live reading.</p>
                 {detail ? (
                   <>
                     <p>Element epoch: <span className="data-value">{formatUtc(new Date(detail.epoch))}</span></p>
@@ -534,8 +534,8 @@ function WatchlistStar({
         (saved ? "text-[var(--color-accent)]" : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]")
       }
       aria-pressed={saved}
-      aria-label={saved ? "In watchlist — click to remove" : "Save to watchlist"}
-      title={saved ? "In watchlist — click to remove" : "Save to watchlist"}
+      aria-label={saved ? "In watchlist. Click to remove" : "Save to watchlist"}
+      title={saved ? "In watchlist. Click to remove" : "Save to watchlist"}
       onClick={() => (saved ? watchlist.remove(satelliteNumber) : watchlist.add(satelliteNumber, name))}
     >
       {saved ? "★" : "☆"}

@@ -1,7 +1,7 @@
 import { CompareView } from "@/features/comparisons/compare-view";
 
 export const metadata = {
-  title: "Orbital comparison — Orbital Insight",
+  title: "Orbital comparison · Orbital Insight",
 };
 
 export default function ComparePage() {

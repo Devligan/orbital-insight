@@ -477,7 +477,7 @@ export const SkyField = memo(function SkyField({
                 pixelSize: category === 2 ? 3 : 2.5,
                 // Slightly translucent: ten thousand saturated dots compete
                 // for attention; muted colors let the map and cloud coexist.
-                color: Cesium.Color.fromCssColorString((CATEGORY_COLORS[category] ?? "#38bdf8") + "cc"),
+                color: Cesium.Color.fromCssColorString((CATEGORY_COLORS[category] ?? CATEGORY_COLORS[0]) + "cc"),
                 scaleByDistance: new Cesium.NearFarScalar(8_000_000, 1.35, 60_000_000, 0.7),
               });
             }
@@ -662,7 +662,7 @@ export const SkyField = memo(function SkyField({
             point: {
               pixelSize: 9,
               color: Cesium.Color.fromCssColorString("#ffffff"),
-              outlineColor: Cesium.Color.fromCssColorString("#0b1017"),
+              outlineColor: Cesium.Color.fromCssColorString("#0a0a0b"),
               outlineWidth: 1,
             },
           }),
@@ -670,9 +670,9 @@ export const SkyField = memo(function SkyField({
         text: name,
         font: "12px sans-serif",
         pixelOffset: new Cesium.Cartesian2(0, model ? -40 : -14),
-        fillColor: Cesium.Color.fromCssColorString("#dbe4f0"),
+        fillColor: Cesium.Color.fromCssColorString("#ecebe6"),
         showBackground: true,
-        backgroundColor: Cesium.Color.fromCssColorString("#0b1017ee"),
+        backgroundColor: Cesium.Color.fromCssColorString("#0a0a0bee"),
         backgroundPadding: new Cesium.Cartesian2(6, 4),
       },
     });
@@ -683,7 +683,7 @@ export const SkyField = memo(function SkyField({
         positions: orbitPositions,
         width: 1.5,
         material: new Cesium.PolylineDashMaterialProperty({
-          color: Cesium.Color.fromCssColorString("#38bdf866"),
+          color: Cesium.Color.fromCssColorString("#f2b54488"),
         }),
       },
       availability: new Cesium.TimeIntervalCollection([
@@ -769,7 +769,7 @@ export const SkyField = memo(function SkyField({
           width: 1.2,
           clampToGround: true,
           material: new Cesium.PolylineDashMaterialProperty({
-            color: Cesium.Color.fromCssColorString("#fbbf24aa"),
+            color: Cesium.Color.fromCssColorString("#ecebe666"),
             dashLength: 10,
           }),
         },
@@ -819,7 +819,7 @@ export const SkyField = memo(function SkyField({
       <div className="absolute bottom-3 right-3 z-10 flex gap-2">
         <button
           className={
-            "badge cursor-pointer bg-[#0b1017cc] px-3 py-1.5 backdrop-blur-sm " +
+            "badge cursor-pointer bg-[#0a0a0bcc] px-3 py-1.5 backdrop-blur-sm " +
             (following
               ? "border-[var(--color-accent)] text-[var(--color-accent)]"
               : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]")
@@ -831,7 +831,7 @@ export const SkyField = memo(function SkyField({
           {following ? "Following" : "Follow"} {name.replace(/\s*\(.*\)$/, "")}
         </button>
         <button
-          className="badge cursor-pointer bg-[#0b1017cc] px-3 py-1.5 text-[var(--color-text-secondary)] backdrop-blur-sm hover:text-[var(--color-text-primary)]"
+          className="badge cursor-pointer bg-[#0a0a0bcc] px-3 py-1.5 text-[var(--color-text-secondary)] backdrop-blur-sm hover:text-[var(--color-text-primary)]"
           onClick={resetCamera}
         >
           Reset camera
@@ -841,10 +841,10 @@ export const SkyField = memo(function SkyField({
       {/* Cloud commentary: load state or honest failure — one glanceable line. */}
       {cloud ? (
         // bottom-9: clears Cesium's credit line (imagery attribution) along the bottom edge.
-        <div className="absolute bottom-9 left-3 z-10 flex max-w-[75%] flex-col gap-1 rounded-md bg-[#0b1017cc] px-3 py-2 backdrop-blur-sm">
+        <div className="absolute bottom-9 left-3 z-10 flex max-w-[75%] flex-col gap-1 rounded-[3px] bg-[#0a0a0bcc] px-3 py-2 backdrop-blur-sm">
           {cloudStatus.state === "loading" ? (
             <p className="text-[11px] text-[var(--color-text-muted)]">
-              Filling the sky — {cloudStatus.parsed ? "catalog in hand, propagating" : "fetching the live catalog"}…
+              Filling the sky: {cloudStatus.parsed ? "catalog in hand, propagating" : "fetching the live catalog"}…
             </p>
           ) : null}
           {cloudStatus.state === "ready" ? (
@@ -880,7 +880,7 @@ export const SkyField = memo(function SkyField({
                 onClick={() => setCloudDetailsOpen(true)}
               >
                 <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-[var(--color-status-good)]" />
-                {cloudStatus.parsed?.toLocaleString()} objects — click any dot to open it
+                {cloudStatus.parsed?.toLocaleString()} objects. Click any dot to open it
                 <span aria-hidden className="text-[var(--color-text-muted)]">· legend ▴</span>
               </button>
             )
@@ -888,7 +888,7 @@ export const SkyField = memo(function SkyField({
           {cloudStatus.state === "stale" ? (
             <p className="text-[11px] text-[var(--color-status-warn)]">
               {" · "}
-              The live catalog didn&apos;t answer just now — showing the last good copy ({cloudStatus.parsed?.toLocaleString()} objects).
+              The live catalog didn&apos;t answer just now, so this is the last good copy ({cloudStatus.parsed?.toLocaleString()} objects).
             </p>
           ) : null}
           {cloudStatus.state === "error" ? (
