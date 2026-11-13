@@ -11,7 +11,7 @@
  * typed so the UI can say what went wrong instead of showing an empty list.
  */
 
-import { z } from "zod";
+import { isNumberIn, isOptionalString, isRecord } from "./shape";
 
 const SEARCH_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const TIMEOUT_MS = 8_000;
@@ -42,36 +42,36 @@ export class PlaceSearchError extends Error {
   }
 }
 
-const resultSchema = z.object({
-  id: z.number(),
-  name: z.string().min(1),
-  latitude: z.number().min(-90).max(90),
-  longitude: z.number().min(-180).max(180),
-  country: z.string().optional(),
-  admin1: z.string().optional(),
-  timezone: z.string().optional(),
-  population: z.number().optional(),
-});
-
-// The API omits `results` entirely when nothing matches.
-const responseSchema = z.object({ results: z.array(resultSchema).optional() });
+function toPlace(r: unknown): Place | null {
+  if (!isRecord(r)) return null;
+  const { id, name, latitude, longitude, country, admin1, timezone, population } = r;
+  if (!isNumberIn(id, 0, Number.MAX_SAFE_INTEGER) || typeof name !== "string" || name.length === 0) return null;
+  if (!isNumberIn(latitude, -90, 90) || !isNumberIn(longitude, -180, 180)) return null;
+  if (!isOptionalString(country) || !isOptionalString(admin1) || !isOptionalString(timezone)) return null;
+  if (population !== undefined && !isNumberIn(population, 0, Number.MAX_SAFE_INTEGER)) return null;
+  return {
+    id,
+    name,
+    region: admin1 && admin1 !== name ? admin1 : null,
+    country: country ?? null,
+    latDeg: latitude,
+    lonDeg: longitude,
+    timeZone: timezone ?? null,
+    population: population ?? null,
+  };
+}
 
 /** Validate a geocoder response body into places. Throws PlaceSearchError("schema"). */
 export function parsePlaceResponse(body: unknown): Place[] {
-  const parsed = responseSchema.safeParse(body);
-  if (!parsed.success) {
-    throw new PlaceSearchError("schema", "The place search returned an unexpected answer.");
-  }
-  return (parsed.data.results ?? []).map((r) => ({
-    id: r.id,
-    name: r.name,
-    region: r.admin1 && r.admin1 !== r.name ? r.admin1 : null,
-    country: r.country ?? null,
-    latDeg: r.latitude,
-    lonDeg: r.longitude,
-    timeZone: r.timezone ?? null,
-    population: r.population ?? null,
-  }));
+  const schemaError = () => new PlaceSearchError("schema", "The place search returned an unexpected answer.");
+  if (!isRecord(body)) throw schemaError();
+  // The API omits `results` entirely when nothing matches.
+  if (body.results === undefined) return [];
+  if (!Array.isArray(body.results)) throw schemaError();
+  const places = body.results.map(toPlace);
+  // One malformed entry fails the answer: it says the provider changed shape.
+  if (places.some((p) => p === null)) throw schemaError();
+  return places as Place[];
 }
 
 /** "Brooklyn, New York, United States" */
