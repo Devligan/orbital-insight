@@ -90,16 +90,24 @@ export function AtlasView() {
         <h1 className="heading-display text-[30px] md:text-[40px]">Who&apos;s in orbit</h1>
         <p className="lede mt-2 max-w-2xl text-[16px]">
           Every active satellite in the public catalog, placed by the shape of its orbit.{" "}
-          {summary ? (
-            <>
-              One company now flies <strong className="text-[var(--color-text-primary)]">{percent(summary.byConstellation.starlink / summary.total)}</strong> of
-              them.
-            </>
-          ) : null}
+          {/* While loading, the sentence's space is held so nothing below moves when the figure arrives. */}
+          <span className={summary ? undefined : "invisible"} aria-hidden={summary ? undefined : true}>
+            One company now flies{" "}
+            <strong className="text-[var(--color-text-primary)]">
+              {summary ? percent(summary.byConstellation.starlink / summary.total) : "00%"}
+            </strong>{" "}
+            of them.
+          </span>
         </p>
       </header>
 
-      {load.state === "loading" ? <Loading label="Loading the active catalog…" /> : null}
+      {/* The charts below are ~3 000 px tall. Holding a screen's height while the catalog loads keeps the footer
+          out of view, so the page doesn't lurch when they arrive (Lighthouse measured CLS 0.85 without it). */}
+      {load.state === "loading" ? (
+        <div className="min-h-[100svh]">
+          <Loading label="Loading the active catalog…" />
+        </div>
+      ) : null}
       {load.state === "error" ? (
         <div className="panel">
           <ErrorState
