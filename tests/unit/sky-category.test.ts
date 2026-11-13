@@ -8,7 +8,7 @@ import { categoryOf } from "@/features/sky/category";
  */
 describe("orbit-band classification", () => {
   it("classifies LEO by period below ~129 minutes (ISS regime)", () => {
-    // 15.5 rev/day ≈ 92.9 min — mean motion in rad/min (satellite.js `no`)
+    // 15.5 rev/day ≈ 92.9 min - mean motion in rad/min (satellite.js `no`)
     expect(categoryOf({ no: (15.5 * 2 * Math.PI) / 1440, ecco: 0.0005 })).toBe(0);
   });
 

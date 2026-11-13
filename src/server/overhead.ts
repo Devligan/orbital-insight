@@ -69,7 +69,7 @@ export function selectCandidates(
 }
 
 /**
- * Pure overhead computation for a fixed set of candidates — synchronous,
+ * Pure overhead computation for a fixed set of candidates - synchronous,
  * injectable, fully unit-testable without any provider or catalog state.
  */
 export function computeOverheadFor(
@@ -110,7 +110,7 @@ export function computeOverheadFor(
 /**
  * Request-level wrapper: resolves candidates from the catalog snapshot,
  * fetches their records with "cache-first" policy (an outage or a missing
- * record simply skips that candidate — never fabrication), and computes the
+ * record simply skips that candidate - never fabrication), and computes the
  * result for the current instant.
  */
 export async function computeOverhead(

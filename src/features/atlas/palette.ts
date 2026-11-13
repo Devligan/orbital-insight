@@ -1,11 +1,14 @@
 import type { AtlasGroup } from "@/domain/catalog/atlas";
 
 /**
- * Atlas colours. Three categorical hues + a recessive neutral — the most a
+ * Atlas colours. Three categorical hues + a recessive neutral - the most a
  * scatter can carry when every pair of colours meets somewhere on the plot.
  * Validated (dataviz validate_palette.js, --pairs all, dark, surface #0d1420):
  * lightness band, chroma floor, CVD ΔE ≥ 9.4, normal-vision ΔE ≥ 20.9, ≥ 3:1
  * contrast. Identity is never colour-alone: legend + table carry names.
+ * The surface has since moved to the night panel #0b0e15 (relative luminance
+ * 0.0044, vs 0.0069 for #0d1420): darker, so every hue's contrast only rises,
+ * and the pairwise ΔE checks don't involve the surface.
  */
 export const GROUP_COLORS: Record<AtlasGroup, string> = {
   starlink: "#3987e5",

@@ -2,7 +2,7 @@
  * Coordinate-frame and observer-geometry conversions.
  *
  * TEME→ECF and ECF→look-angle math delegate to satellite.js (via the adapter's
- * conventions — km, radians-in, degrees-out documented here). Time is UTC.
+ * conventions - km, radians-in, degrees-out documented here). Time is UTC.
  */
 
 import { eciToEcf, ecfToLookAngles, degreesToRadians, gstime, type SatRec } from "satellite.js";
@@ -37,6 +37,11 @@ export function temeToEcf(teme: TemEState, date: Date): { x: Kilometers; y: Kilo
     gmst,
   );
   return { x: ecf.x as Kilometers, y: ecf.y as Kilometers, z: ecf.z as Kilometers };
+}
+
+/** Greenwich mean sidereal time (radians) at a UTC instant: the TEME→ECF rotation angle. */
+export function gmstRadians(date: Date): number {
+  return gstime(date);
 }
 
 /** Compute a topocentric look angle from an ECF satellite position. */

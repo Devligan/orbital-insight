@@ -1,5 +1,5 @@
 /**
- * The explorer's single simulation clock — what instant the globe shows.
+ * The explorer's single simulation clock - what instant the globe shows.
  *
  * Everything on the globe (the followed satellite, its 3D model, the
  * whole-sky cloud) and the time slider read this one clock, so they can
@@ -36,7 +36,7 @@ export function simTimeAt(clock: ViewClock, wallMs: number): number {
   return clock.baseSimMs + (wallMs - clock.baseWallMs) * clock.rate;
 }
 
-/** Same instant, new rate — re-based so the shown time doesn't jump. */
+/** Same instant, new rate - re-based so the shown time doesn't jump. */
 export function withRate(clock: ViewClock, rate: number, nowMs: number): ViewClock {
   return { baseSimMs: simTimeAt(clock, nowMs), baseWallMs: nowMs, rate };
 }
@@ -52,7 +52,7 @@ export function sliderIndexFor(simMs: number, windowStartMs: number, stepMs: num
   return Math.min(count - 1, Math.max(0, Math.round((simMs - windowStartMs) / stepMs)));
 }
 
-/** "+1 h 15 m" / "+40 m" / "−3 m" relative to the real now — for the readout. */
+/** "+1 h 15 m" / "+40 m" / "−3 m" relative to the real now - for the readout. */
 export function offsetLabel(simMs: number, nowMs: number): string {
   const minutes = Math.round((simMs - nowMs) / 60_000);
   if (minutes === 0) return "now";

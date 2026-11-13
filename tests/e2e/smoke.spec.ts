@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * Deployment smoke tests — run by post-deploy.yml against every Vercel
+ * Deployment smoke tests - run by post-deploy.yml against every Vercel
  * deployment (E2E_BASE_URL), and locally with the rest of the suite.
  *
  * Read-only and quick. Unlike the journeys, these are strict about data: a
@@ -27,6 +27,17 @@ test.describe("deployment smoke", () => {
     await expect(page.locator('[aria-label^="3D globe showing"] canvas')).toBeVisible({ timeout: 60_000 });
     await page.waitForTimeout(1_500);
     expect(errors).toEqual([]);
+  });
+
+  test("pages arrive as real HTML, not a loading shell", async ({ request }) => {
+    // The home hero and the screening page were once client-only (they read the
+    // URL with a client hook), so the server sent "Loading…" and nothing else:
+    // invisible to link previews and search engines, blank until JavaScript ran.
+    const home = await (await request.get("/")).text();
+    expect(home).toContain("flying over you tonight");
+    expect(home).not.toContain("Loading explorer");
+    const screening = await (await request.get("/conjunctions?id=25544")).text();
+    expect(screening).toContain("Close approaches");
   });
 
   test("the whole-sky catalog API serves the full active catalog", async ({ request }) => {

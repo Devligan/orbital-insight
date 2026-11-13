@@ -4,7 +4,7 @@
  * The retention loop without an account: the pass goes into the calendar the
  * person already lives in, with a 10-minute alarm, and the event spans only
  * the stretch they can actually see (not rise → set). Nothing leaves the
- * browser — the file is built here and handed to the device.
+ * browser - the file is built here and handed to the device.
  *
  * Pure: the clock (`nowMs`, DTSTAMP) and the site origin are inputs, so the
  * output is byte-for-byte testable.
@@ -60,7 +60,7 @@ export interface PassEventContext {
   nowMs: number;
   /** Site origin for the event's link back, e.g. https://example.app */
   origin: string;
-  /** "40.7°N, 74.0°W" — where the prediction is for. */
+  /** "40.7°N, 74.0°W" - where the prediction is for. */
   spot: string;
 }
 
@@ -114,7 +114,7 @@ export function visiblePassesIcs(items: VisiblePass[], ctx: PassEventContext): s
   return lines.map(foldLine).join("\r\n") + "\r\n";
 }
 
-/** "iss-pass-2026-11-13.ics" — named for what it is and when (UTC date). */
+/** "iss-pass-2026-11-13.ics" - named for what it is and when (UTC date). */
 export function passEventFileName(item: VisiblePass): string {
   const slug = item.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || item.satelliteNumber;
   return `${slug}-pass-${item.window.start.timeIso.slice(0, 10)}.ics`;

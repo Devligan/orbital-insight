@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Sky — the whole-sky 3D globe (Cesium, lazy-loaded, no Ion token: dimmed
+ * Sky - the whole-sky 3D globe (Cesium, lazy-loaded, no Ion token: dimmed
  * Natural Earth II imagery served from our own /cesium assets, with real
  * day/night lighting).
  *
@@ -31,6 +31,7 @@
  * readbacks (main thread pegged at 100% → 60–70%).
  */
 
+import { INK } from "@/lib/ink";
 import { memo, useEffect, useRef, useState } from "react";
 import type { EciSample } from "./sample-types";
 import { SkyCloud, CATEGORY_COLORS, CATEGORY_LABELS, type SkySweep } from "@/features/sky/sky-cloud";
@@ -50,7 +51,7 @@ import {
  * with a sourced model get one; everything else stays an honest dot.
  * ISS: "International Space Station (ISS) (B)", NASA 3D Resources, credit
  * NASA/Michael D. Carbajal (NASA states its 3D resources are free and without
- * copyright; NASA brand guidelines apply). Drawn enlarged — at globe scale
+ * copyright; NASA brand guidelines apply). Drawn enlarged - at globe scale
  * the real 109 m station would be far below one pixel.
  */
 const SATELLITE_MODELS: Record<string, { uri: string; credit: string }> = {
@@ -62,11 +63,11 @@ export interface SkyFieldProps {
   /** consecutive [lat, lon] pairs split at the antimeridian, degrees */
   trackSegments: [number, number][][];
   name: string;
-  /** NORAD id of the followed object — selects its 3D model when one exists. */
+  /** NORAD id of the followed object - selects its 3D model when one exists. */
   satelliteNumber: string;
   /** The explorer's shared clock: what instant the whole globe shows. */
   clock: ViewClock;
-  /** Called once when WebGL unavailable — the parent shows the 2D fallback. */
+  /** Called once when WebGL unavailable - the parent shows the 2D fallback. */
   onUnavailable?: () => void;
   /** Render the whole-sky cloud (fetches /api/sky/catalog, spawns the worker). */
   cloud?: boolean;
@@ -137,7 +138,7 @@ function redrawStepSeconds(viewer: CesiumViewer, rate: number): number {
 /**
  * Mirror what the globe is actually showing onto its container as data
  * attributes, read back from Cesium itself (its clock; the satellite entity's
- * position at that instant). Tests assert against these — a readout-only
+ * position at that instant). Tests assert against these - a readout-only
  * check once passed while the slider moved nothing and the satellite sat
  * inside the Earth.
  */
@@ -209,7 +210,7 @@ export const SkyField = memo(function SkyField({
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   // Viewer construction is retryable: a failed init (module load, imagery
-  // provider) is NOT evidence the machine lacks WebGL — that's the probe's
+  // provider) is NOT evidence the machine lacks WebGL - that's the probe's
   // job. Bumping `attempt` tears down and rebuilds the viewer.
   const [attempt, setAttempt] = useState(0);
   const [cloudStatus, setCloudStatusState] = useState<CloudStatus>({ state: "idle" });
@@ -238,7 +239,7 @@ export const SkyField = memo(function SkyField({
     // WebGL preflight: create (and discard) a throwaway context BEFORE paying
     // for the ~2 MB Cesium module and imagery-provider setup. Machines without
     // a working GPU stack engage the honest fallback in a fraction of a second
-    // instead of after a slow, timing-dependent module load — the fallback
+    // instead of after a slow, timing-dependent module load - the fallback
     // message stays exactly the same.
     const probe = document.createElement("canvas");
     const gl =
@@ -274,7 +275,7 @@ export const SkyField = memo(function SkyField({
         await ensureWidgetStylesheet();
         if (disposed) return;
         // Basemap: Natural Earth II (public domain), shipped with Cesium and
-        // served from our own /cesium assets — no API key, no third-party
+        // served from our own /cesium assets - no API key, no third-party
         // tile requests, nothing to rate-limit. (The previous CARTO dark
         // raster now requires a key and rendered "API KEY REQUIRED" tiles.)
         // Dimmed and desaturated so the night-side palette and the cloud
@@ -310,11 +311,16 @@ export const SkyField = memo(function SkyField({
           // extra render passes every frame plus a set of shaders compiled
           // (main thread blocked) the first time anything translucent draws.
           orderIndependentTranslucency: false,
+          // A transparent canvas, so Earth hangs in the page's own star field
+          // instead of a second, differently-drawn sky inside a box.
+          contextOptions: { webgl: { alpha: true } },
         });
         if (disposed) {
           viewer.destroy();
           return;
         }
+        if (viewer.scene.skyBox) viewer.scene.skyBox.show = false;
+        viewer.scene.backgroundColor = Cesium.Color.TRANSPARENT;
         // Real day/night shading from Cesium's sun model: the same "is it
         // dark where you are?" question the visibility verdicts answer.
         viewer.scene.globe.enableLighting = true;
@@ -323,7 +329,7 @@ export const SkyField = memo(function SkyField({
         // Zoom without a GPU stall. Cesium's camera controls read the depth
         // buffer back from the GPU on every wheel step (to zoom toward
         // terrain or 3D tiles under the cursor), which blocks the main thread
-        // until the GPU finishes the frame — measured ~0.7 s of every 1 s of
+        // until the GPU finishes the frame - measured ~0.7 s of every 1 s of
         // wheel-zooming on a laptop GPU. This globe is a smooth ellipsoid with
         // no terrain or tiles, so the exact ray–ellipsoid intersection Cesium
         // also computes is the right zoom target; without depth support
@@ -332,7 +338,7 @@ export const SkyField = memo(function SkyField({
         // Exact picks expose a Cesium edge case: wheel-zoom turns the camera
         // about cross(point under cursor, point at screen centre). With the
         // cursor on the centre pixel both are the same point, the axis is
-        // zero, and Cesium throws — which stops the globe's rendering for
+        // zero, and Cesium throws - which stops the globe's rendering for
         // good (reproduced in 2 of 4 runs). A zero axis means "no rotation".
         const camera = viewer.camera as any;
         const rotate = camera.rotate.bind(camera);
@@ -347,7 +353,7 @@ export const SkyField = memo(function SkyField({
         if (!disposed) {
           // Deliberately NOT onUnavailable: WebGL availability was already
           // confirmed by the probe above, so a construction failure here is a
-          // runtime error (imagery, module load, ordering) — retryable, not a
+          // runtime error (imagery, module load, ordering) - retryable, not a
           // reason to demote the user to the 2D fallback.
           setFailed(error instanceof Error ? error.message : String(error));
         }
@@ -399,7 +405,7 @@ export const SkyField = memo(function SkyField({
         setStatus(body.data.stale ? { state: "stale", parsed: body.data.count } : { state: "loading", parsed: body.data.count });
 
         // Between SGP4 sweeps, every redraw moves each dot along its
-        // velocity to the instant Cesium is drawing (sky-motion.ts) — so the
+        // velocity to the instant Cesium is drawing (sky-motion.ts) - so the
         // cloud and the followed satellite share one clock, frame by frame.
         const points: any[] = [];
         let sweep: SkySweep | null = null;
@@ -480,7 +486,7 @@ export const SkyField = memo(function SkyField({
                 pixelSize: category === 2 ? 3 : 2.5,
                 // Slightly translucent: ten thousand saturated dots compete
                 // for attention; muted colors let the map and cloud coexist.
-                color: Cesium.Color.fromCssColorString((CATEGORY_COLORS[category] ?? "#38bdf8") + "cc"),
+                color: Cesium.Color.fromCssColorString((CATEGORY_COLORS[category] ?? CATEGORY_COLORS[0]) + "cc"),
                 scaleByDistance: new Cesium.NearFarScalar(8_000_000, 1.35, 60_000_000, 0.7),
               });
             }
@@ -524,15 +530,15 @@ export const SkyField = memo(function SkyField({
         try {
           viewer.scene.primitives.remove(collectionRef.current);
         } catch {
-          // viewer teardown order — the destroy path handles the rest.
+          // viewer teardown order - the destroy path handles the rest.
         }
       }
       collectionRef.current = null;
       metaRef.current = null;
       cloudRef.current?.dispose();
       cloudRef.current = null;
-      // requestRenderMode: without an explicit redraw the last frame — dots
-      // included — stayed on screen after "Whole sky: off".
+      // requestRenderMode: without an explicit redraw the last frame - dots
+      // included - stayed on screen after "Whole sky: off".
       if (!viewer.isDestroyed?.()) viewer.scene.requestRender();
     };
   }, [ready, cloud, cesiumRef]);
@@ -572,7 +578,7 @@ export const SkyField = memo(function SkyField({
     viewer.clock.multiplier = clock.rate > 0 ? clock.rate : 1;
     viewer.clock.shouldAnimate = clock.rate > 0;
     // requestRenderMode: redraw once simulated time has moved one redraw
-    // step — sized to the zoom and rate (render-cadence.ts).
+    // step - sized to the zoom and rate (render-cadence.ts).
     rateRef.current = clock.rate;
     redrawStepRef.current = redrawStepSeconds(viewer, clock.rate);
     viewer.scene.maximumRenderTimeChange = redrawStepRef.current;
@@ -611,7 +617,7 @@ export const SkyField = memo(function SkyField({
     viewer.entities.removeById?.("orbit");
 
     // The sampled window. (The clock is no longer pinned to its start: the
-    // shared clock effect above sets the shown instant — live by default.)
+    // shared clock effect above sets the shown instant - live by default.)
     const startDate = Cesium.JulianDate.fromDate(new Date(first.time));
     const endDate = Cesium.JulianDate.fromDate(new Date(last.time));
 
@@ -634,7 +640,7 @@ export const SkyField = memo(function SkyField({
 
     // A sourced 3D model when we have one (enlarged: minimumPixelSize keeps
     // it visible from orbit-viewing distance; maximumScale stops it from
-    // ballooning when zoomed in). Attitude follows the direction of travel —
+    // ballooning when zoomed in). Attitude follows the direction of travel -
     // close to the ISS's usual flight attitude, but an approximation: the
     // real attitude isn't in the element set. Everything else: a dot.
     const model = SATELLITE_MODELS[satelliteNumber];
@@ -655,8 +661,8 @@ export const SkyField = memo(function SkyField({
               credits: model.credit,
               // No dynamic environment map (reflections of a sky Cesium
               // renders around the model). Building one compiled a batch of
-              // shaders mid-interaction — the single biggest freeze measured
-              // (~2 s on a laptop GPU) — and at 60× it was rebuilt every
+              // shaders mid-interaction - the single biggest freeze measured
+              // (~2 s on a laptop GPU) - and at 60× it was rebuilt every
               // simulated hour. The sun still lights the model.
               environmentMapOptions: { enabled: false },
             },
@@ -665,7 +671,7 @@ export const SkyField = memo(function SkyField({
             point: {
               pixelSize: 9,
               color: Cesium.Color.fromCssColorString("#ffffff"),
-              outlineColor: Cesium.Color.fromCssColorString("#0b1017"),
+              outlineColor: Cesium.Color.fromCssColorString(INK.sky),
               outlineWidth: 1,
             },
           }),
@@ -673,9 +679,9 @@ export const SkyField = memo(function SkyField({
         text: name,
         font: "12px sans-serif",
         pixelOffset: new Cesium.Cartesian2(0, model ? -40 : -14),
-        fillColor: Cesium.Color.fromCssColorString("#dbe4f0"),
+        fillColor: Cesium.Color.fromCssColorString(INK.primary),
         showBackground: true,
-        backgroundColor: Cesium.Color.fromCssColorString("#0b1017ee"),
+        backgroundColor: Cesium.Color.fromCssColorString(INK.sky + "ee"),
         backgroundPadding: new Cesium.Cartesian2(6, 4),
       },
     });
@@ -686,7 +692,7 @@ export const SkyField = memo(function SkyField({
         positions: orbitPositions,
         width: 1.5,
         material: new Cesium.PolylineDashMaterialProperty({
-          color: Cesium.Color.fromCssColorString("#38bdf866"),
+          color: Cesium.Color.fromCssColorString(INK.sunlit + "88"),
         }),
       },
       availability: new Cesium.TimeIntervalCollection([
@@ -714,7 +720,7 @@ export const SkyField = memo(function SkyField({
     viewer.scene.requestRender();
 
     // A model loads (and compiles its shaders) only on frames Cesium draws,
-    // and the idle globe draws about once every 2 s — its one-time shader
+    // and the idle globe draws about once every 2 s - its one-time shader
     // compile (0.7–1 s, main thread blocked) was measured landing on the
     // user's first drag. Draw every frame until the model is ready and has
     // been drawn, so that cost is paid up front, during load.
@@ -727,7 +733,7 @@ export const SkyField = memo(function SkyField({
       const pump = () => {
         if (viewer.isDestroyed?.()) return;
         // FAILED also means "not registered yet" until Cesium's first update
-        // after the entity was added — only a model seen loading can fail.
+        // after the entity was added - only a model seen loading can fail.
         const state = (viewer as any).dataSourceDisplay.getBoundingSphere(satelliteEntity, false, sphere);
         if (state === Cesium.BoundingSphereState.PENDING) seenLoading = true;
         if (state === Cesium.BoundingSphereState.DONE) framesSinceReady++;
@@ -755,10 +761,10 @@ export const SkyField = memo(function SkyField({
     if (!Cesium || !viewer || !ready) return;
     // One entity per antimeridian-split segment. (These were once flattened
     // into a single polyline, which reconnected every +180° end to the next
-    // −180° start — a line across the globe — and fed Cesium degenerate
+    // −180° start - a line across the globe - and fed Cesium degenerate
     // date-line segments that crashed its geometry worker.)
     //
-    // The entities use fixed ids — adding over a stale id is a hard Cesium
+    // The entities use fixed ids - adding over a stale id is a hard Cesium
     // DeveloperError, so remove-then-add keeps updates idempotent.
     for (const id of trackEntityIdsRef.current) viewer.entities.removeById?.(id);
     trackEntityIdsRef.current = [];
@@ -772,7 +778,7 @@ export const SkyField = memo(function SkyField({
           width: 1.2,
           clampToGround: true,
           material: new Cesium.PolylineDashMaterialProperty({
-            color: Cesium.Color.fromCssColorString("#fbbf24aa"),
+            color: Cesium.Color.fromCssColorString(INK.primary + "66"),
             dashLength: 10,
           }),
         },
@@ -822,7 +828,7 @@ export const SkyField = memo(function SkyField({
       <div className="absolute bottom-3 right-3 z-10 flex gap-2">
         <button
           className={
-            "badge cursor-pointer bg-[#0b1017cc] px-3 py-1.5 backdrop-blur-sm " +
+            "badge cursor-pointer bg-[rgb(5_7_11/0.8)] px-3 py-1.5 backdrop-blur-sm " +
             (following
               ? "border-[var(--color-accent)] text-[var(--color-accent)]"
               : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]")
@@ -834,20 +840,20 @@ export const SkyField = memo(function SkyField({
           {following ? "Following" : "Follow"} {name.replace(/\s*\(.*\)$/, "")}
         </button>
         <button
-          className="badge cursor-pointer bg-[#0b1017cc] px-3 py-1.5 text-[var(--color-text-secondary)] backdrop-blur-sm hover:text-[var(--color-text-primary)]"
+          className="badge cursor-pointer bg-[rgb(5_7_11/0.8)] px-3 py-1.5 text-[var(--color-text-secondary)] backdrop-blur-sm hover:text-[var(--color-text-primary)]"
           onClick={resetCamera}
         >
           Reset camera
         </button>
       </div>
 
-      {/* Cloud commentary: load state or honest failure — one glanceable line. */}
+      {/* Cloud commentary: load state or honest failure - one glanceable line. */}
       {cloud ? (
         // bottom-9: clears Cesium's credit line (imagery attribution) along the bottom edge.
-        <div className="absolute bottom-9 left-3 z-10 flex max-w-[75%] flex-col gap-1 rounded-md bg-[#0b1017cc] px-3 py-2 backdrop-blur-sm">
+        <div className="absolute bottom-9 left-3 z-10 flex max-w-[75%] flex-col gap-1 rounded-[3px] bg-[rgb(5_7_11/0.8)] px-3 py-2 backdrop-blur-sm">
           {cloudStatus.state === "loading" ? (
             <p className="text-[11px] text-[var(--color-text-muted)]">
-              Filling the sky — {cloudStatus.parsed ? "catalog in hand, propagating" : "fetching the live catalog"}…
+              Filling the sky: {cloudStatus.parsed ? "catalog in hand, propagating" : "fetching the live catalog"}…
             </p>
           ) : null}
           {cloudStatus.state === "ready" ? (
@@ -883,7 +889,7 @@ export const SkyField = memo(function SkyField({
                 onClick={() => setCloudDetailsOpen(true)}
               >
                 <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-[var(--color-status-good)]" />
-                {cloudStatus.parsed?.toLocaleString()} objects — click any dot to open it
+                {cloudStatus.parsed?.toLocaleString()} objects. Click any dot to open it
                 <span aria-hidden className="text-[var(--color-text-muted)]">· legend ▴</span>
               </button>
             )
@@ -891,7 +897,7 @@ export const SkyField = memo(function SkyField({
           {cloudStatus.state === "stale" ? (
             <p className="text-[11px] text-[var(--color-status-warn)]">
               {" · "}
-              The live catalog didn&apos;t answer just now — showing the last good copy ({cloudStatus.parsed?.toLocaleString()} objects).
+              The live catalog didn&apos;t answer just now, so this is the last good copy ({cloudStatus.parsed?.toLocaleString()} objects).
             </p>
           ) : null}
           {cloudStatus.state === "error" ? (

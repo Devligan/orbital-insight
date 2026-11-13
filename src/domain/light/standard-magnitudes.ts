@@ -1,5 +1,5 @@
 /**
- * Published standard magnitudes — the only brightness facts this project
+ * Published standard magnitudes - the only brightness facts this project
  * claims about specific objects.
  *
  * Convention (Mallama 2020, "The Brightness of OneWeb Satellites",
@@ -9,7 +9,7 @@
  *
  * Every entry names its source and its known weaknesses. An object absent
  * from this table has *unknown* brightness: the light model can still say it
- * is sunlit against a dark sky, but no magnitude is estimated for it — a
+ * is sunlit against a dark sky, but no magnitude is estimated for it - a
  * size-blind default would rate a tumbling cubesat as conspicuous as a
  * space station.
  */
@@ -32,7 +32,7 @@ export const STANDARD_MAGNITUDES: Readonly<Record<string, StandardMagnitude>> = 
   "48274": {
     value: 0.0,
     source:
-      "Heavens-Above satellite information for 48274 (heavens-above.com/SatInfo.aspx?satid=48274: \"intrinsic brightness 0.0 at 1000 km distance, 50% illuminated\"), as quoted by a web search on 2026-10-16 — the page itself refused our connection, so the value is not yet confirmed first-hand",
+      "Heavens-Above satellite information for 48274 (heavens-above.com/SatInfo.aspx?satid=48274: \"intrinsic brightness 0.0 at 1000 km distance, 50% illuminated\"), as quoted by a web search on 2026-10-16; the page itself refused our connection, so the value is not yet confirmed first-hand",
     caveat:
       "Single published value with no stated observation basis or date; the station grew from one module to three in 2022 (Wentian, Mengtian), and it is unclear which configuration the value describes",
   },

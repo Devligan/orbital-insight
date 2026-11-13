@@ -1,5 +1,5 @@
 /**
- * Overhead computation — behavioral unit tests.
+ * Overhead computation - behavioral unit tests.
  *
  * `computeOverheadFor` is a pure function over (observer, candidates, time):
  * real element sets from the test helpers, no provider, no snapshot state.

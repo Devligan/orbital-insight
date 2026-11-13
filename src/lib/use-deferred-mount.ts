@@ -6,7 +6,7 @@
  *
  * Measured on the home page (production build, 4× CPU throttle): starting
  * the ~1.3 MB Cesium globe at load froze a phone's main thread for ~2.4–3.8 s
- * — exactly when people tap "Show me tonight's passes". On phones only the
+ * - exactly when people tap "Show me tonight's passes". On phones only the
  * globe's top edge peeks into the first screen, so "near the viewport" is
  * not enough: it starts once `visibleFraction` of it is visible (the user
  * scrolled to it), then waits for idle. On desktop the globe is fully in

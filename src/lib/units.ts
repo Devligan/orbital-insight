@@ -22,7 +22,7 @@ export function normalizeAngle2Pi(angle: Radians): Radians {
   return ((angle % twoPi) + twoPi) % twoPi;
 }
 
-/** Normalize any longitude (radians) into (-π, π] — same convention as the
+/** Normalize any longitude (radians) into (-π, π] - same convention as the
  * degrees variant so both call sites agree at the antimeridian. */
 export function normalizeLongitudeRad(lon: Radians): Radians {
   const twoPi = TWO_PI;

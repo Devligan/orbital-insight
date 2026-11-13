@@ -1,57 +1,83 @@
 @import "tailwindcss";
 
 /*
- * Orbital Insight design system.
+ * Orbital Insight: the night sky, and the light satellites catch in it.
  *
- * Night-sky consumer aesthetic: deep navy surfaces, a warm devel\u00f3ped accent,
- * generous radii and breathing room. Engineering density is opt-in (collapsed
- * "technical details" blocks); the default surface speaks in plain words at
- * a comfortable reading size.
- */
-@theme {
-  --color-bg-root: #0b1017;
-  --color-bg-panel: #101722;
-  --color-bg-inset: #0d1420;
-  --color-border-hairline: #1e2a3a;
-  --color-border-strong: #2a3a50;
-  --color-text-primary: #dbe4f0;
-  --color-text-secondary: #8fa3bd;
-  --color-text-muted: #5d7291;
-  --color-accent: #38bdf8;
-  --color-accent-dim: #0e7490;
-  --color-status-good: #34d399;
-  --color-status-warn: #fbbf24;
-  --color-status-bad: #f87171;
+ * - The page is the sky: near-black with a trace of blue, and one sparse star
+ *   field (public/sky.svg, drawn by scripts/make-starfield.mjs) behind
+ *   everything. No glows, no gradients, no nebula wallpaper.
+ * - One warm colour, sunlit amber. A satellite is visible because it's lit by
+ *   a sun that has set for you, so amber marks what you can see and what you
+ *   can act on, and nothing else.
+ * - IBM Plex Sans for reading, Plex Mono for numbers and the small capitals
+ *   that name a readout.
+ * - Surfaces are slightly translucent so the sky shows at their edges; 3px
+ *   corners, hairline rules, cards only for discrete things.
+ *
+ * Contrast (WCAG AA everywhere, computed on the panel colour): primary 15.6:1,
+ * secondary 8.5:1, muted 5.1:1, accent 10.5:1, text on the accent 10.2:1.
+ */@theme {
+  --color-bg-root: #05070b;
+  --color-bg-panel: rgb(11 14 21 / 0.88);
+  --color-bg-inset: rgb(8 10 16 / 0.92);
+  --color-bg-raised: #141925;
+  --color-border-hairline: #1a2030;
+  --color-border-strong: #2a3244;
+  --color-text-primary: #e9e7e1;
+  --color-text-secondary: #a7acb8;
+  --color-text-muted: #7c8394;
+  --color-accent: #f2b544;
+  --color-accent-dim: #8a6524;
+  --color-on-accent: #17120a;
+  --color-status-good: #62c48f;
+  --color-status-warn: #ee8a4a;
+  --color-status-bad: #ef6461;
 
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --font-sans: var(--font-plex-sans), "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
 }
 
 :root {
   color-scheme: dark;
+  /* Native controls (range sliders, checkboxes, progress) take the signal colour. */
+  accent-color: var(--color-accent);
 }
 
 body {
   background-color: var(--color-bg-root);
+  background-image: url("/sky.svg");
+  background-size: 1600px 1100px;
+  background-attachment: fixed;
   color: var(--color-text-primary);
   font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.55;
+  font-feature-settings: "ss02" 1;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Display type for hero headings — the one place with drama. */
-.heading-display {
+code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
   color: var(--color-text-primary);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
 }
 
-/* Softly emphasized secondary line under a display heading. */
+::selection {
+  background: color-mix(in oklab, var(--color-accent) 35%, transparent);
+}
+
+/* Page titles: set, not shouted. */
+.heading-display {
+  color: var(--color-text-primary);
+  font-weight: 500;
+  letter-spacing: -0.028em;
+  line-height: 1.06;
+}
+
 .lede {
   color: var(--color-text-secondary);
-  font-size: 15px;
+  font-size: 16px;
+  line-height: 1.55;
 }
 
 /* Visible, consistent keyboard focus everywhere. */
@@ -77,39 +103,60 @@ body {
   .panel {
     background-color: var(--color-bg-panel);
     border: 1px solid var(--color-border-hairline);
-    border-radius: 10px;
-    box-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset;
+    border-radius: 3px;
   }
 
   .panel-inset {
     background-color: var(--color-bg-inset);
     border: 1px solid var(--color-border-hairline);
-    border-radius: 8px;
+    border-radius: 3px;
   }
 
+  /* The name of a readout or field: small mono capitals. */
   .label {
-    color: var(--color-text-secondary);
-    font-size: 12px;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
     font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* A section's index line above its heading: "01 / Tonight". */
+  .eyebrow {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
   }
 
   .data-value {
     font-family: var(--font-mono);
     font-size: 13px;
     color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
   }
 
   .input {
     background-color: var(--color-bg-inset);
     border: 1px solid var(--color-border-strong);
-    border-radius: 8px;
+    border-radius: 3px;
     padding: 9px 12px;
     font-size: 14px;
     color: var(--color-text-primary);
     width: 100%;
   }
 
+  .input::placeholder {
+    color: var(--color-text-muted);
+  }
+
   .input:hover {
+    border-color: #3a4459;
+  }
+
+  .input:focus {
     border-color: var(--color-accent-dim);
   }
 
@@ -118,33 +165,41 @@ body {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    border-radius: 8px;
+    border-radius: 3px;
     border: 1px solid transparent;
     padding: 10px 18px;
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
     cursor: pointer;
-    transition: background-color 120ms ease, border-color 120ms ease;
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .btn:disabled {
+    cursor: default;
+    opacity: 0.55;
   }
 
   .btn-primary {
     background-color: var(--color-accent);
-    color: #06121f;
+    color: var(--color-on-accent);
   }
 
-  .btn-primary:hover {
-    background-color: #7dd3fc;
+  .btn-primary:hover:not(:disabled) {
+    background-color: #f7c766;
   }
 
   .btn-secondary {
     background-color: transparent;
     border-color: var(--color-border-strong);
-    color: var(--color-text-secondary);
+    color: var(--color-text-primary);
   }
 
-  .btn-secondary:hover {
-    border-color: var(--color-accent-dim);
-    color: var(--color-text-primary);
+  .btn-secondary:hover:not(:disabled) {
+    border-color: var(--color-text-muted);
   }
 
   .btn-danger {
@@ -166,52 +221,110 @@ body {
   .table-technical th {
     text-align: left;
     color: var(--color-text-muted);
+    font-family: var(--font-mono);
     font-weight: 500;
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
     padding: 6px 10px;
-    border-bottom: 1px solid var(--color-border-hairline);
+    border-bottom: 1px solid var(--color-border-strong);
     white-space: nowrap;
   }
 
   .table-technical td {
     padding: 6px 10px;
     font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     border-bottom: 1px solid var(--color-border-hairline);
     white-space: nowrap;
   }
 
-  /* Hero band for the first screen: the sky, not a config panel. */
+  /* First screen: separated by a rule, not lit by a glow. */
   .hero-band {
-    background-image:
-      radial-gradient(80% 55% at 50% -20%, color-mix(in oklab, var(--color-accent) 14%, transparent), transparent),
-      radial-gradient(60% 30% at 85% 0%, rgb(59 91 219 / 0.10), transparent);
     border-bottom: 1px solid var(--color-border-hairline);
   }
 
+  /* Tags and small buttons: square and quiet. Status tags carry colour; plain ones don't. */
   .badge {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 9px;
-    border-radius: 999px;
-    border: 1px solid var(--color-border-hairline);
-    font-size: 11px;
+    gap: 6px;
+    padding: 3px 8px;
+    border-radius: 2px;
+    border: 1px solid var(--color-border-strong);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
   }
 
   .badge-good {
     color: var(--color-status-good);
-    border-color: color-mix(in oklab, var(--color-status-good) 40%, transparent);
+    border-color: color-mix(in oklab, var(--color-status-good) 45%, transparent);
   }
 
   .badge-warn {
     color: var(--color-status-warn);
-    border-color: color-mix(in oklab, var(--color-status-warn) 40%, transparent);
+    border-color: color-mix(in oklab, var(--color-status-warn) 45%, transparent);
   }
 
   .badge-bad {
     color: var(--color-status-bad);
-    border-color: color-mix(in oklab, var(--color-status-bad) 40%, transparent);
+    border-color: color-mix(in oklab, var(--color-status-bad) 45%, transparent);
+  }
+
+  /* A choice in a set (radio-like): square, with the accent only when chosen. */
+  .choice {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 6px 12px;
+    border-radius: 3px;
+    border: 1px solid var(--color-border-strong);
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    line-height: 1.2;
+    transition:
+      border-color 120ms ease,
+      color 120ms ease,
+      background-color 120ms ease;
+  }
+
+  .choice:hover {
+    border-color: #3a4459;
+    color: var(--color-text-primary);
+  }
+
+  .choice[aria-checked="true"],
+  .choice[aria-pressed="true"],
+  .choice[data-selected="true"] {
+    border-color: var(--color-accent);
+    background-color: color-mix(in oklab, var(--color-accent) 12%, transparent);
+    color: var(--color-text-primary);
+  }
+
+  .choice-sm {
+    min-height: 28px;
+    padding: 3px 10px;
+    font-size: 12.5px;
+  }
+
+  /* Long-form text clears its own patch of sky: a star beside a word reads as
+     punctuation, so paragraphs sit on solid night with the stars kept to the margins. */
+  .reading {
+    background-color: var(--color-bg-root);
+    box-shadow: 0 0 0 28px var(--color-bg-root);
+  }
+
+  /* Links in running text: underlined, not coloured. */
+  .link {
+    color: var(--color-text-primary);
+    text-decoration: underline;
+    text-decoration-color: var(--color-border-strong);
+    text-underline-offset: 3px;
+  }
+
+  .link:hover {
+    text-decoration-color: var(--color-accent);
   }
 }

@@ -18,7 +18,7 @@
  *  3. Refinement. Golden-section search on the bracketing interval finds the
  *     time of closest approach (TCA) to well under a millisecond, and the
  *     miss vector is resolved into the target's radial / in-track /
- *     cross-track frame — the components an operator reads first.
+ *     cross-track frame - the components an operator reads first.
  *
  * Pure: bodies come with their own propagator, so tests drive this with exact
  * analytic orbits and the app drives it with SGP4. Frame-agnostic as long as

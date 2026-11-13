@@ -4,7 +4,7 @@
  * Our samples carry Earth-fixed positions in **kilometres** (sample-types.ts);
  * Cesium's Cartesian3 is in **metres**. Passing the km values straight
  * through once placed the followed satellite, its orbit line, and its 3D
- * model ~6.8 km from the centre of the Earth — invisible, for as long as the
+ * model ~6.8 km from the centre of the Earth - invisible, for as long as the
  * globe existed.
  */
 

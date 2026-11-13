@@ -1,5 +1,5 @@
 /**
- * SGP4 adapter — the only module that imports `satellite.js`.
+ * SGP4 adapter - the only module that imports `satellite.js`.
  *
  * Conventions owned here so the rest of the domain never touches library
  * internals:

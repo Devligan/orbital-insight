@@ -1,7 +1,8 @@
 "use client";
 
+import { PAGE, PageHeader } from "@/components/ui/page-header";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { separationProfile, type CloseApproach, type ScreeningResult } from "@/domain/conjunction/screening";
 import { ErrorState, Loading } from "@/components/ui/primitives";
@@ -16,7 +17,7 @@ import { sgp4Body } from "./sgp4-body";
 
 /**
  * Quick picks resolve against the live catalog: fixed ids for the landmarks,
- * and "a Starlink" is the first one found in the 53° shell — a hardcoded
+ * and "a Starlink" is the first one found in the 53° shell - a hardcoded
  * Starlink id would eventually point at a deorbited satellite.
  */
 const QUICK_PICKS: { label: string; resolve: (rows: CatalogRow[], byId: Map<string, CatalogRow>) => string | undefined }[] = [
@@ -64,11 +65,10 @@ function utcLabel(ms: number): string {
   return new Date(ms).toISOString().replace("T", " ").slice(0, 19) + " UTC";
 }
 
-export function ConjunctionsView() {
-  const router = useRouter();
+/** `initialId` comes from the page's ?id= on the server, so the first render is real HTML. */
+export function ConjunctionsView({ initialId }: { initialId?: string | null }) {
   const pathname = usePathname();
-  const params = useSearchParams();
-  const targetId = params.get("id")?.replace(/\D/g, "") || DEFAULT_ID;
+  const [targetId, setTargetId] = useState(() => initialId?.replace(/\D/g, "") || DEFAULT_ID);
   const [hours, setHours] = useState<number>(24);
   const [thresholdKm, setThresholdKm] = useState<number>(25);
   const [catalog, setCatalog] = useState<CatalogState>({ state: "loading" });
@@ -158,20 +158,19 @@ export function ConjunctionsView() {
 
   const choose = (id: string) => {
     setQuery("");
-    router.replace(`${pathname}?id=${id}`, { scroll: false });
+    setTargetId(id);
+    // Keep the URL shareable without a server round trip (Next.js syncs its router with history.replaceState).
+    window.history.replaceState(null, "", `${pathname}?id=${id}`);
   };
 
   const targetName = target?.n ?? `#${targetId}`;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-10">
-      <header className="pt-8 pb-5">
-        <h1 className="heading-display text-[30px] md:text-[40px]">Close approaches</h1>
-        <p className="lede mt-2 max-w-2xl text-[16px]">
-          Pick any satellite and your browser screens it against every other active satellite: which ones pass
-          within a few kilometres in the coming days, exactly when, and from which direction.
-        </p>
-      </header>
+    <div className={PAGE}>
+      <PageHeader eyebrow="Conjunctions" title="Close approaches">
+        Pick any satellite and your browser screens it against every other active satellite: which ones pass within a
+        few kilometres in the coming days, exactly when, and from which direction.
+      </PageHeader>
 
       <section className="panel p-4" aria-label="Screening setup">
         <div className="flex flex-wrap items-center gap-2">
@@ -182,12 +181,7 @@ export function ConjunctionsView() {
               type="button"
               aria-pressed={targetId === pick.id}
               onClick={() => choose(pick.id)}
-              className={
-                "rounded-full border px-3 py-1 text-[13px] " +
-                (targetId === pick.id
-                  ? "border-[var(--color-accent)] bg-[var(--color-bg-inset)] text-[var(--color-text-primary)]"
-                  : "border-[var(--color-border-strong)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]")
-              }
+              className="choice"
             >
               {pick.label}
             </button>
@@ -321,7 +315,7 @@ function Segmented<T extends number>({
   return (
     <div role="group" aria-label={label} className="flex items-center gap-2">
       <span className="label">{label}</span>
-      <div className="flex rounded-lg border border-[var(--color-border-strong)] p-0.5">
+      <div className="flex rounded-[3px] border border-[var(--color-border-strong)] p-0.5">
         {options.map((option) => (
           <button
             key={option.value}
@@ -329,9 +323,9 @@ function Segmented<T extends number>({
             aria-pressed={option.value === value}
             onClick={() => onChange(option.value)}
             className={
-              "rounded-md px-2.5 py-1 " +
+              "rounded-[2px] px-2.5 py-1 " +
               (option.value === value
-                ? "bg-[var(--color-bg-inset)] font-semibold text-[var(--color-text-primary)]"
+                ? "bg-[var(--color-bg-raised)] font-medium text-[var(--color-text-primary)]"
                 : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]")
             }
           >
@@ -350,8 +344,8 @@ function Progress({ done, total }: { done: number; total: number }) {
       <div className="text-[13px] text-[var(--color-text-secondary)]">
         {total > 0 ? `Propagating ${n(total)} candidates with SGP4… ${Math.round(fraction * 100)}%` : "Compiling element sets…"}
       </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--color-bg-inset)]">
-        <div className="h-full rounded-full bg-[var(--color-accent)] transition-[width]" style={{ width: `${fraction * 100}%` }} />
+      <div className="mt-2 h-1 overflow-hidden bg-[var(--color-bg-inset)]">
+        <div className="h-full bg-[var(--color-accent)] transition-[width]" style={{ width: `${fraction * 100}%` }} />
       </div>
     </div>
   );
@@ -544,25 +538,25 @@ function EncounterDetail({
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[640px]" role="img" aria-label={`Separation between ${targetRow.n} and ${approach.name} from ${offsetLabel(-halfWindowMs).slice(1)} before to ${offsetLabel(halfWindowMs).slice(1)} after closest approach; minimum ${approach.missKm.toFixed(2)} km.`}>
         {[0, 0.5, 1].map((f) => (
           <g key={f}>
-            <line x1={M.left} x2={W - M.right} y1={y(yMax * f)} y2={y(yMax * f)} stroke="#1e2a3a" />
-            <text x={M.left - 6} y={y(yMax * f)} fill="#5d7291" fontSize={11} textAnchor="end" dominantBaseline="middle">
+            <line x1={M.left} x2={W - M.right} y1={y(yMax * f)} y2={y(yMax * f)} stroke="var(--color-border-hairline)" />
+            <text x={M.left - 6} y={y(yMax * f)} fill="var(--color-text-muted)" fontSize={11} textAnchor="end" dominantBaseline="middle">
               {n(Math.round(yMax * f))} km
             </text>
           </g>
         ))}
-        <line x1={M.left} x2={W - M.right} y1={y(thresholdKm)} y2={y(thresholdKm)} stroke="#5d7291" strokeDasharray="4 4" />
-        <text x={W - M.right} y={y(thresholdKm) - 5} fill="#8fa3bd" fontSize={11} textAnchor="end">
+        <line x1={M.left} x2={W - M.right} y1={y(thresholdKm)} y2={y(thresholdKm)} stroke="var(--color-text-muted)" strokeDasharray="4 4" />
+        <text x={W - M.right} y={y(thresholdKm) - 5} fill="var(--color-text-secondary)" fontSize={11} textAnchor="end">
           {thresholdKm} km
         </text>
-        <line x1={x(approach.tcaMs)} x2={x(approach.tcaMs)} y1={M.top} y2={H - M.bottom} stroke="#2a3a50" />
-        <path d={path} fill="none" stroke="#38bdf8" strokeWidth={2} strokeLinejoin="round" />
-        <circle cx={x(approach.tcaMs)} cy={y(approach.missKm)} r={4} fill="#38bdf8" stroke="#0d1420" strokeWidth={2} />
+        <line x1={x(approach.tcaMs)} x2={x(approach.tcaMs)} y1={M.top} y2={H - M.bottom} stroke="var(--color-border-strong)" />
+        <path d={path} fill="none" stroke="var(--color-accent)" strokeWidth={2} strokeLinejoin="round" />
+        <circle cx={x(approach.tcaMs)} cy={y(approach.missKm)} r={4} fill="var(--color-accent)" stroke="var(--color-bg-inset)" strokeWidth={2} />
         {[-1, -0.5, 0, 0.5, 1].map((f, i, all) => (
           <text
             key={f}
             x={x(approach.tcaMs + f * halfWindowMs)}
             y={H - 8}
-            fill="#5d7291"
+            fill="var(--color-text-muted)"
             fontSize={11}
             textAnchor={i === 0 ? "start" : i === all.length - 1 ? "end" : "middle"}
           >

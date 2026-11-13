@@ -1,14 +1,19 @@
 name: Post-deploy checks
 
 # Vercel's Git integration reports each deployment back to GitHub as a
-# deployment status. When one succeeds — a PR preview or production — this
-# workflow smoke-tests that exact URL and runs Lighthouse against it, so a
-# deployment that builds but doesn't work (the globe once shipped broken only
-# in production minified output) is caught on the PR, not by a visitor.
+# deployment status. When one succeeds, this workflow smoke-tests it in a real
+# browser, and for production also runs Lighthouse, so a deployment that builds
+# but doesn't work (the globe once shipped broken only in production minified
+# output) is caught by a check, not by a visitor.
 #
-# Previews behind Vercel Deployment Protection need the project's
-# "Protection Bypass for Automation" secret stored as the repository secret
-# VERCEL_AUTOMATION_BYPASS_SECRET; production needs nothing.
+# Which URL gets tested matters. Every deployment's own URL
+# (orbital-insight-<hash>.vercel.app) sits behind Vercel Deployment
+# Protection, so a check against it only sees Vercel's login page. Production
+# is therefore checked on its public domain, after waiting until that domain
+# serves the commit being checked (GET /api/version). Previews are checked on
+# their own URL with the project's "Protection Bypass for Automation" secret,
+# stored as the repository secret VERCEL_AUTOMATION_BYPASS_SECRET; without it
+# they are skipped with a notice rather than failed.
 
 on:
   deployment_status:
@@ -17,38 +22,69 @@ permissions:
   contents: read
   deployments: read
 
+env:
+  # The public production domain. Override with the repository variable
+  # PRODUCTION_URL when a custom domain is added.
+  PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://orbital-insight-drab.vercel.app' }}
+
 jobs:
   smoke:
     if: github.event.deployment_status.state == 'success'
     name: Smoke test · ${{ github.event.deployment.environment }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
-      E2E_BASE_URL: ${{ github.event.deployment_status.environment_url }}
+      IS_PRODUCTION: ${{ github.event.deployment.environment == 'Production' }}
+      PREVIEW_URL: ${{ github.event.deployment_status.environment_url }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-      # A protected preview can't be reached without the bypass secret: a 401
-      # there says nothing about the deployment, so skip with a notice
-      # instead of failing the PR. Production is public and always checked.
-      REACHABLE: ${{ github.event.deployment.environment == 'Production' || secrets.VERCEL_AUTOMATION_BYPASS_SECRET != '' }}
+      HAS_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET != '' }}
+      COMMIT: ${{ github.event.deployment.sha }}
     steps:
-      - name: Protected preview without a bypass secret
-        if: env.REACHABLE != 'true'
+      - name: Pick the URL to test
+        id: target
         run: |
-          echo "::notice title=Smoke test skipped::${E2E_BASE_URL} is behind Vercel Deployment Protection and the repository has no VERCEL_AUTOMATION_BYPASS_SECRET. Add it (Vercel → Settings → Deployment Protection → Protection Bypass for Automation) to smoke-test previews."
+          if [ "$IS_PRODUCTION" = "true" ]; then
+            echo "url=${PRODUCTION_URL}" >> "$GITHUB_OUTPUT"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [ "$HAS_BYPASS" = "true" ]; then
+            echo "url=${PREVIEW_URL}" >> "$GITHUB_OUTPUT"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Smoke test skipped::${PREVIEW_URL} is behind Vercel Deployment Protection and the repository has no VERCEL_AUTOMATION_BYPASS_SECRET. Add it (Vercel → Settings → Deployment Protection → Protection Bypass for Automation) to smoke-test previews."
+          fi
+
+      - name: Wait until production serves this commit
+        if: steps.target.outputs.run == 'true' && env.IS_PRODUCTION == 'true'
+        run: |
+          for attempt in $(seq 1 30); do
+            served=$(curl -fsS "${PRODUCTION_URL}/api/version" | sed -n 's/.*"commit":"\([0-9a-f]*\)".*/\1/p' || true)
+            if [ "$served" = "$COMMIT" ]; then
+              echo "Production serves ${COMMIT}."
+              exit 0
+            fi
+            echo "Attempt ${attempt}: production serves '${served:-unknown}', waiting for ${COMMIT}"
+            sleep 10
+          done
+          echo "::error::${PRODUCTION_URL} never served ${COMMIT} within 5 minutes"
+          exit 1
+
       - uses: actions/checkout@v4
-        if: env.REACHABLE == 'true'
+        if: steps.target.outputs.run == 'true'
       - uses: actions/setup-node@v4
-        if: env.REACHABLE == 'true'
+        if: steps.target.outputs.run == 'true'
         with:
           node-version: 24
           cache: npm
       - run: npm ci
-        if: env.REACHABLE == 'true'
+        if: steps.target.outputs.run == 'true'
       - name: Install Chromium
-        if: env.REACHABLE == 'true'
+        if: steps.target.outputs.run == 'true'
         run: npx playwright install --with-deps chromium
       - name: Smoke journeys against the deployment
-        if: env.REACHABLE == 'true'
+        if: steps.target.outputs.run == 'true'
+        env:
+          E2E_BASE_URL: ${{ steps.target.outputs.url }}
         run: npx playwright test tests/e2e/smoke.spec.ts
       - name: Upload report
         if: failure()
@@ -60,22 +96,33 @@ jobs:
             test-results/
           retention-days: 14
 
-  # Production only: previews sit behind Deployment Protection, and a bypass
-  # secret in a Lighthouse URL would end up in the publicly stored report.
+  # Production only, on the public domain: a bypass secret in a Lighthouse URL
+  # would end up in the publicly stored report.
   lighthouse:
     if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'
     name: Lighthouse · production
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      COMMIT: ${{ github.event.deployment.sha }}
     steps:
+      - name: Wait until production serves this commit
+        run: |
+          for attempt in $(seq 1 30); do
+            served=$(curl -fsS "${PRODUCTION_URL}/api/version" | sed -n 's/.*"commit":"\([0-9a-f]*\)".*/\1/p' || true)
+            if [ "$served" = "$COMMIT" ]; then exit 0; fi
+            sleep 10
+          done
+          echo "::error::${PRODUCTION_URL} never served ${COMMIT} within 5 minutes"
+          exit 1
       - uses: actions/checkout@v4
       - name: Lighthouse CI
         uses: treosh/lighthouse-ci-action@v12
         with:
           urls: |
-            ${{ github.event.deployment_status.environment_url }}/
-            ${{ github.event.deployment_status.environment_url }}/atlas
-            ${{ github.event.deployment_status.environment_url }}/methodology
+            ${{ env.PRODUCTION_URL }}/
+            ${{ env.PRODUCTION_URL }}/atlas
+            ${{ env.PRODUCTION_URL }}/methodology
           configPath: ./lighthouserc.json
           uploadArtifacts: true
           temporaryPublicStorage: true

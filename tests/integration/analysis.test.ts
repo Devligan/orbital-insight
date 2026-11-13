@@ -6,9 +6,9 @@ import { parseTle } from "@/domain/orbit/tle";
 import { vanguardTle, withCatalogNumber } from "../helpers/tles";
 
 /**
- * Regression tests for issues found in the independent engineering audit:
+ * Regression tests for issues found in review:
  *  - pass prediction was unbounded in compute (satellites × window-hours);
- *    a budget validation was added (see docs/engineering-audit.md §C).
+ *    a budget validation was added.
  *  - element-set comparison needed a pinned identity property: comparing a
  *    satellite against itself must produce ~zero propagated deltas, proving
  *    the deltas measure element-set differences, not rounding noise.
@@ -95,7 +95,7 @@ describe("element-set comparison identity property (regression)", () => {
     });
     const maxDelta = Math.max(...result.positionDeltas.map((d) => d.deltaKm));
     // Both element sets share the epoch in this fixture (only the catalog
-    // number differs), so element-derived propagation is identical here —
+    // number differs), so element-derived propagation is identical here -
     // the comparison relies on element-field metrics; assert the deltas are
     // honest small values and notes are present.
     expect(maxDelta).toBeGreaterThanOrEqual(0);

@@ -1,6 +1,6 @@
 /**
  * Route-handler tests (direct invocation, no HTTP listen): request
- * validation, bounds, and failure translation — the server-side safety net.
+ * validation, bounds, and failure translation - the server-side safety net.
  * Services here hit a fake provider through module construction where
  * needed; persistence-independent paths run as-is.
  */

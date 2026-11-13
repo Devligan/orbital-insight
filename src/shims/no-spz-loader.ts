@@ -3,7 +3,7 @@
  *
  * Cesium 1.146 imports it to decode Gaussian-splat (SPZ) 3D Tiles. The
  * package embeds an Emscripten WASM binary in a JS string that Next's
- * minifier re-emits as a template literal containing `\0`+digit sequences —
+ * minifier re-emits as a template literal containing `\0`+digit sequences -
  * an octal escape, which is a SyntaxError in template literals. The whole
  * lazy globe chunk then fails to parse and the 3D view never starts.
  *

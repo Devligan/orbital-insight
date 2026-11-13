@@ -1,11 +1,11 @@
 /**
- * Sky-chart geometry — a pass drawn on the dome of the observer's sky.
+ * Sky-chart geometry - a pass drawn on the dome of the observer's sky.
  *
  * Projection: azimuthal-equidistant in elevation, the convention of printed
  * pass charts. The zenith is the centre, the horizon the rim, and radius
  * grows linearly as elevation falls (r = R·(90° − el)/90°). Orientation is a
  * star chart's: north up, **east left**, because the chart is the sky seen
- * from below — hold it overhead with N toward north and every point lies
+ * from below - hold it overhead with N toward north and every point lies
  * where it appears.
  *
  * Pure (no React, no DOM) so the projection and the visible-segment rules
@@ -64,11 +64,11 @@ function toPath(points: ChartPoint[]): string {
 
 /**
  * The drawable pass, or null when the server sent no sky track (a pass
- * truncated on both sides is never enriched — nothing honest to draw).
+ * truncated on both sides is never enriched - nothing honest to draw).
  *
  * The visible stretch is not read off the coarse samples: it runs from the
  * refined window start, through the samples strictly inside the window, to
- * the refined window end — so the bright line starts and stops where the
+ * the refined window end - so the bright line starts and stops where the
  * text says it does.
  */
 export function skyChartModel(pass: PassCardData, radius: number): SkyChartModel | null {

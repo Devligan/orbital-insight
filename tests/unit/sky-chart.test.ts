@@ -125,8 +125,8 @@ describe("skyChartModel", () => {
     const sample = track()[5]!;
     const moment = { timeIso: sample.timeIso, azimuthDeg: sample.azimuthDeg, elevationDeg: sample.elevationDeg };
     const model = skyChartModel(pass({ start: moment, end: moment, startsFromShadow: false, endsInShadow: false }), R)!;
-    // The heading comes from the earlier track — the pass's own motion
-    // (SW → S, leftward near the top of the arc) — not the zero-length stretch.
+    // The heading comes from the earlier track - the pass's own motion
+    // (SW → S, leftward near the top of the arc) - not the zero-length stretch.
     expect(Math.abs(model.heading.angleDeg)).toBeGreaterThan(90);
     close(model.heading.tip, ...(Object.values(projectSky(sample.azimuthDeg, sample.elevationDeg, R)) as [number, number]));
   });

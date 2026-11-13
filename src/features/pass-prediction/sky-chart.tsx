@@ -1,10 +1,10 @@
 /**
- * "Where to look" — one pass on a chart of the observer's sky.
+ * "Where to look" - one pass on a chart of the observer's sky.
  *
  * Centre is straight up, the rim is the horizon, rings mark 30° and 60° of
  * elevation, and east sits on the left (the sky seen from below; see
  * ./sky-chart-geometry). The whole pass is a faint dashed arc; the stretch a
- * person can actually see — satellite sunlit, sky dark — is the bright line,
+ * person can actually see - satellite sunlit, sky dark - is the bright line,
  * starting at a dot and ending in an arrow, or in a hollow ring where the
  * satellite slips into Earth's shadow mid-sky.
  *

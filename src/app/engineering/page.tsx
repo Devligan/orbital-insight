@@ -1,18 +1,20 @@
 import Link from "next/link";
+import { AUTHOR_NAME, AUTHOR_URL, REPO_URL } from "@/lib/site";
+import { PAGE, PageHeader } from "@/components/ui/page-header";
 
 export const metadata = {
-  title: "How it's built — Orbital Insight",
+  title: "How it's built · Orbital Insight",
   description:
-    "The engineering behind Orbital Insight: SGP4 validated against the official reference suite, client-side conjunction screening, a CI/CD pipeline that smoke-tests every deployment, and the bugs that shaped it.",
+    "How Orbital Insight works: where the computation happens, how the orbit maths is checked, and the bugs that shaped it.",
 };
 
-const REPO_URL = process.env.NEXT_PUBLIC_REPO_URL ?? "https://github.com/Devligan/orbital-insight";
+
 
 const NUMBERS = [
   { value: "~16,000", label: "satellites propagated with SGP4 in your browser, live" },
   { value: "700 / 700", label: "rows of the official SGP4 test suite reproduced within 2 × 10⁻⁷" },
   { value: "~2.5 s", label: "to screen the ISS against every active satellite for 24 h" },
-  { value: "220+", label: "automated tests, from orbital maths to real-browser journeys" },
+  { value: "~780k", label: "SGP4 runs to answer one \"what did I just see?\", in a second or two" },
 ] as const;
 
 const STORIES = [
@@ -56,10 +58,18 @@ const STORIES = [
       "Time is pinned relative to the snapshot, and the opposite edge (past the horizon, the service must refuse) got its own test.",
     evidence: "tests/integration/satellite-service.test.ts.",
   },
+  {
+    title: "A 27 kB validator for a 1 kB answer",
+    problem:
+      "Town search and the cloud forecast validated their small responses with Zod in the browser. The home page's JavaScript jumped from 122 kB to 150 kB, a hair under its budget, and every visitor would have paid for it.",
+    decision:
+      "The server keeps Zod; the two browser clients check the same rules by hand with three small guards. The budget gate stays as the alarm.",
+    evidence: "Home back to 126 kB; CI's bundle-budget step fails any page over its limit, and the rejection tests still cover every malformed shape.",
+  },
 ] as const;
 
 const PIPELINE = [
-  ["Pull request", "Types, lint, 190+ unit and integration tests, production build, bundle-size budget, 30+ browser journeys"],
+  ["Pull request", "Types, lint, unit and integration tests, a production build, a bundle-size budget, and browser journeys"],
   ["Preview deployment", "Vercel builds the branch; the smoke suite runs against the preview URL"],
   ["Merge to main", "Production deploys; smoke suite and Lighthouse run against production"],
   ["Every two days", "A runner refreshes the bundled orbital data and commits it, which redeploys"],
@@ -67,12 +77,22 @@ const PIPELINE = [
 
 export default function EngineeringPage() {
   return (
-    <div className="mx-auto max-w-5xl px-4 pb-12">
-      <header className="pt-8 pb-6">
-        <h1 className="heading-display text-[30px] md:text-[40px]">How it&apos;s built</h1>
-        <p className="lede mt-2 max-w-2xl text-[16px]">
-          Real orbital data, maths checked against published references, every limitation stated, and nothing shipped
-          without passing the same gates every time.
+    <div className={PAGE}>
+      <PageHeader eyebrow="Engineering" title="How it&apos;s built">
+        <p>
+          Notes on where the work happens, how the orbit maths is checked, and the problems that shaped the site. The
+          longer version is in the repository&apos;s{" "}
+          <a href={`${REPO_URL}/blob/main/docs/architecture.md`} className="link">
+            architecture notes
+          </a>
+          .
+        </p>
+        <p className="mt-3 text-[14px]" data-testid="author-credit">
+          Designed and built by{" "}
+          <a href={AUTHOR_URL} className="link">
+            {AUTHOR_NAME}
+          </a>
+          .
         </p>
         <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[14px]">
           <a href={REPO_URL} className="text-[var(--color-accent)] hover:underline">
@@ -82,13 +102,16 @@ export default function EngineeringPage() {
             Methodology and limits →
           </Link>
         </p>
-      </header>
+      </PageHeader>
 
-      <section aria-label="In numbers" className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <section
+        aria-label="In numbers"
+        className="grid grid-cols-2 border-y border-[var(--color-border-hairline)] md:grid-cols-4"
+      >
         {NUMBERS.map((n) => (
-          <div key={n.label} className="panel px-4 py-3">
-            <div className="text-[24px] font-bold tracking-tight md:text-[28px]">{n.value}</div>
-            <div className="text-[13px] text-[var(--color-text-secondary)]">{n.label}</div>
+          <div key={n.label} className="border-[var(--color-border-hairline)] py-5 pr-5 md:border-r md:pl-5 md:first:pl-0 md:last:border-r-0">
+            <div className="font-mono text-[26px] tracking-tight text-[var(--color-text-primary)]">{n.value}</div>
+            <div className="mt-1 text-[13px] text-[var(--color-text-secondary)]">{n.label}</div>
           </div>
         ))}
       </section>
@@ -121,8 +144,14 @@ export default function EngineeringPage() {
           />
           <Arrow />
           <ArchColumn
-            title="CelesTrak"
-            items={[["Public GP data", "Asked politely: ≥ 2 s between requests, 15 s timeout, back-off after failures"]]}
+            title="Public data"
+            items={[
+              ["CelesTrak GP data", "Asked by the server, politely: ≥ 2 s between requests, 15 s timeout, back-off after failures"],
+              [
+                "Open-Meteo",
+                "Town search and cloud forecasts, asked by your browser directly: its free tier is limited per IP, which a shared server address would exhaust",
+              ],
+            ]}
           />
         </div>
       </section>
@@ -187,13 +216,13 @@ export default function EngineeringPage() {
 
 function ArchColumn({ title, items }: { title: string; items: readonly (readonly [string, string])[] }) {
   return (
-    <div className="panel p-4">
-      <div className="label uppercase tracking-wide">{title}</div>
-      <ul className="mt-2 space-y-2">
+    <div className="panel px-4 pb-1 pt-3">
+      <div className="label">{title}</div>
+      <ul className="mt-2 divide-y divide-[var(--color-border-hairline)]">
         {items.map(([name, detail]) => (
-          <li key={name} className="panel-inset px-3 py-2">
-            <div className="text-[14px] font-semibold">{name}</div>
-            <div className="text-[12px] text-[var(--color-text-secondary)]">{detail}</div>
+          <li key={name} className="py-2.5">
+            <div className="text-[14px] font-medium">{name}</div>
+            <div className="text-[13px] text-[var(--color-text-secondary)]">{detail}</div>
           </li>
         ))}
       </ul>

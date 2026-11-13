@@ -24,7 +24,7 @@ test.describe("explorer journey", () => {
       await page.getByRole("button", { name }).first().click();
       await page.waitForTimeout(700);
     }
-    // Engineering prose is collapsed by default in the redesigned surface —
+    // Engineering prose is collapsed by default in the redesigned surface -
     // open the technical panel to reach epoch/provenance assertions.
     await page.getByText(/Technical details & provenance/i).click();
     await expect(page.getByText(/Element epoch:/i)).toBeVisible({ timeout: 30_000 });
@@ -43,12 +43,12 @@ test.describe("explorer journey", () => {
   test("loads a real satellite with orbital characteristics and provenance", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "ISS (ZARYA)" }).first().click();
-    // Engineering prose is collapsed by default in the redesigned surface —
+    // Engineering prose is collapsed by default in the redesigned surface -
     // open the technical panel, then verify the full data contract.
     await page.getByText(/Technical details & provenance/i).click();
     await expect(page.getByText(/Element epoch:/i)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/Retrieved:/i)).toBeVisible();
-    // Plain-language honesty line (rephrased deliberately — same contract:
+    // Plain-language honesty line (rephrased deliberately - same contract:
     // a prediction, not live telemetry).
     await expect(page.getByText(/Position shown is calculated/i)).toBeVisible();
     // Provenance link is always visible (uncollapsed) on the redesigned aside.
@@ -120,7 +120,7 @@ test.describe("detail + search journey", () => {
     await expect(page.getByRole("option").first()).toBeVisible({ timeout: 5_000 });
     await page.getByRole("option").first().click();
     // The detail route is server-rendered with provider-backed data; under
-    // full-suite load the transition can exceed the default 15 s — every
+    // full-suite load the transition can exceed the default 15 s - every
     // other provider-dependent assertion here already uses longer timeouts.
     await expect(page).toHaveURL(/\/satellites\/\d+$/, { timeout: 60_000 });
     await expect(page.getByText(/Original GP record on CelesTrak/i)).toBeVisible({ timeout: 30_000 });
@@ -129,31 +129,73 @@ test.describe("detail + search journey", () => {
 
   test("search answers instantly from the shipped catalog snapshot", async ({ page }) => {
     // The curated catalog ships with the deployment, so options appear without
-    // waiting on any provider call — verified even minutes after a cold boot.
+    // waiting on any provider call - verified even minutes after a cold boot.
     await page.goto("/");
     await page.getByPlaceholder(/Search satellites/i).fill("ZARYA");
     await expect(page.getByRole("option", { name: /ISS \(ZARYA\)/ })).toBeVisible({ timeout: 5_000 });
   });
 
-  test("overhead computation answers from the hero's manual coordinates", async ({ page }) => {
+  test("overhead computation answers from coordinates typed into the place box", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: /What's flying over you tonight/i })).toBeVisible();
     const hero = page.getByRole("region", { name: "What's in the sky" });
-    await hero.getByLabel("Manual latitude").fill("28.5");
-    await hero.getByLabel("Manual longitude").fill("-80.6"); // Florida
-    await hero.getByRole("button", { name: "Go" }).click();
+    // Coordinates resolve locally: no geocoder request is involved.
+    await hero.getByTestId("place-search").fill("28.5, -80.6"); // Florida
+    await hero.getByRole("option", { name: /Use 28\.5000°N, 80\.6000°W/ }).click();
     // The observer chip appears either way; the honest named-or-empty lines
     // follow (never a spinner forever).
     await expect(page.getByText(/watching from 28\.5/i)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/ISS|CSS|Nothing bright is above 15/i).first()).toBeVisible({ timeout: 30_000 });
+  });
+
+  test("finds a town by name, remembers it, and carries it to /passes", async ({ page }) => {
+    // The geocoder is a third party called from the browser; answer it here
+    // so the journey tests our handling, not their uptime.
+    await page.route("https://geocoding-api.open-meteo.com/**", (route) =>
+      route.fulfill({
+        json: {
+          results: [
+            { id: 4164138, name: "Miami", latitude: 25.77427, longitude: -80.19366, country: "United States", admin1: "Florida" },
+          ],
+        },
+      }),
+    );
+    await page.goto("/");
+    const hero = page.getByRole("region", { name: "What's in the sky" });
+    await hero.getByTestId("place-search").fill("Miami");
+    await hero.getByRole("option", { name: /Miami, Florida, United States/ }).click();
+    await expect(hero.getByText("Watching from Miami, Florida, United States")).toBeVisible();
+
+    // A returning visitor isn't asked again.
+    await page.reload();
+    await expect(
+      page.getByRole("region", { name: "What's in the sky" }).getByText("Watching from Miami, Florida, United States"),
+    ).toBeVisible({ timeout: 30_000 });
+
+    // /passes opens on an answer for the same spot, not an empty form.
+    await page.goto("/passes");
+    await expect(page.getByTestId("passes-spot")).toHaveText("Miami, Florida, United States");
+    await expect(page.getByLabel(/^Latitude/)).toHaveValue("25.7743");
+    await expect(page.getByText(/No passes above/i).or(page.getByRole("table")).first()).toBeVisible({ timeout: 60_000 });
+  });
+
+  test("says so when place search is down, and coordinates still work", async ({ page }) => {
+    await page.route("https://geocoding-api.open-meteo.com/**", (route) => route.fulfill({ status: 503, body: "" }));
+    await page.goto("/");
+    const hero = page.getByRole("region", { name: "What's in the sky" });
+    await hero.getByTestId("place-search").fill("Miami");
+    await expect(hero.getByRole("status")).toContainText(/HTTP 503.*type coordinates/i);
+    await hero.getByTestId("place-search").fill("25.77, -80.19");
+    await hero.getByRole("option", { name: /Use 25\.7700°N/ }).click();
+    await expect(hero.getByText(/watching from 25\.8°N/i)).toBeVisible();
   });
 });
 
 test.describe("pass prediction journey", () => {
   test("calculates passes for a location and satellite", async ({ page }) => {
     await page.goto("/passes");
-    await page.getByLabel(/Observer latitude/i).fill("28.5");
-    await page.getByLabel(/Observer longitude/i).fill("-80.6"); // Florida
+    await page.getByLabel(/^Latitude/).fill("28.5");
+    await page.getByLabel(/^Longitude/).fill("-80.6"); // Florida
     await page.getByLabel(/Catalog IDs/i).fill("25544");
     await page.getByRole("button", { name: /Predict passes/i }).click();
     const outcome = page.getByText(/No passes above/i).or(page.getByRole("table"));
@@ -168,11 +210,11 @@ test.describe("pass prediction journey", () => {
 
   test("exports pass predictions as a CSV download", async ({ page }) => {
     await page.goto("/passes");
-    await page.getByLabel(/Observer latitude/i).fill("28.5");
-    await page.getByLabel(/Observer longitude/i).fill("-80.6");
+    await page.getByLabel(/^Latitude/).fill("28.5");
+    await page.getByLabel(/^Longitude/).fill("-80.6");
     await page.getByLabel(/Catalog IDs/i).fill("25544");
     await page.getByRole("button", { name: /Predict passes/i }).click();
-    // The export fires the download synchronously with the click — register
+    // The export fires the download synchronously with the click - register
     // the listener BEFORE clicking so the event cannot be missed.
     const downloadPromise = page.waitForEvent("download", { timeout: 30_000 });
     await page.getByRole("button", { name: /Export CSV/i }).click();
@@ -232,7 +274,7 @@ test.describe("2D fallback journey", () => {
     });
     await page.goto("/");
     await page.getByRole("button", { name: "ISS (ZARYA)" }).first().click();
-    // The globe failure fallback appears — an honest failure message naming the
+    // The globe failure fallback appears - an honest failure message naming the
     // 2D swap-in, not a spinner forever.
     await expect(page.getByText(/same orbit drawn in 2D/i)).toBeVisible({ timeout: 60_000 });
     // And the computed 2D ground track actually swaps in.
@@ -256,7 +298,7 @@ test.describe("provider failure handling", () => {
     // are honest outcomes. What must NEVER happen is fake/simulated data.
     await page.goto("/satellites/25544");
     // The detail page labels fields without a trailing colon (styled
-    // uppercase) — the colon form only exists on the explorer aside.
+    // uppercase) - the colon form only exists on the explorer aside.
     const loaded = page.getByText(/Element epoch/i);
     const honestFailure = page.getByText(/Satellite data unavailable/i);
     await expect(loaded.or(honestFailure).first()).toBeVisible({ timeout: 60_000 });
@@ -282,7 +324,7 @@ test.describe("provider failure handling", () => {
     });
     await page.goto("/");
     await page.waitForTimeout(8_000);
-    // Uncaught page errors are never acceptable, whatever their wording — a
+    // Uncaught page errors are never acceptable, whatever their wording - a
     // filtered check here once let a SyntaxError that killed the globe ship.
     expect(pageErrors).toEqual([]);
     expect(errors.filter((entry) => /exception|Error:/.test(entry))).toEqual([]);
@@ -291,14 +333,14 @@ test.describe("provider failure handling", () => {
 
 test.describe("location-first + shareable moments", () => {
   test("one click on 'my location' yields tonight's passes from that spot", async ({ page }) => {
-    // Grant a fixed device location (equator — the ISS crosses it twice per
+    // Grant a fixed device location (equator - the ISS crosses it twice per
     // orbit, so a 24 h window reliably contains passes above 10°).
     await page.context().grantPermissions(["geolocation"]);
     await page.context().setGeolocation({ latitude: 0, longitude: 0 });
     await page.goto("/");
     await page.getByRole("button", { name: /Show me tonight's passes/i }).click();
     // The headline answer arrives: visible passes, or the truthful reason
-    // there are none — never a spinner forever and never fabricated times.
+    // there are none - never a spinner forever and never fabricated times.
     await expect(
       page.locator('[data-testid="tonight-visible-list"]').or(page.locator('[data-testid="tonight-visible-empty"]')).first(),
     ).toBeVisible({ timeout: 90_000 });
@@ -313,10 +355,12 @@ test.describe("location-first + shareable moments", () => {
     }
   });
 
-  test("a visible pass shows where to look on a sky chart and goes into the calendar", async ({ page }) => {
-    // Whether a real pass is visible depends on the date, so this pins the
-    // UI half with a contract-shaped response; the physics behind it is
-    // unit-tested (visible-window, sky-chart, pass-calendar).
+  /**
+   * Whether a real pass is visible depends on the date, so these pin the UI
+   * half with a contract-shaped response; the physics behind it is
+   * unit-tested (visible-window, sky-chart, pass-calendar).
+   */
+  async function mockVisibleIssPass(page: import("@playwright/test").Page) {
     const now = Date.now();
     const at = (seconds: number) => new Date(now + 30 * 60_000 + seconds * 1000).toISOString();
     const skyTrack = Array.from({ length: 24 }, (_, i) => {
@@ -371,6 +415,19 @@ test.describe("location-first + shareable moments", () => {
         },
       }),
     );
+  }
+
+  /** An hourly cloud forecast from an hour ago for a day, every hour at `pct`. */
+  function cloudForecastJson(pct: number) {
+    const hour = 3_600_000;
+    const first = Math.floor(Date.now() / hour) * hour - hour;
+    const time = Array.from({ length: 26 }, (_, i) => (first + i * hour) / 1000);
+    return { hourly: { time, cloud_cover: time.map(() => pct) } };
+  }
+
+  test("a visible pass shows where to look on a sky chart and goes into the calendar", async ({ page }) => {
+    await mockVisibleIssPass(page);
+    await page.route("https://api.open-meteo.com/v1/forecast**", (route) => route.fulfill({ json: cloudForecastJson(90) }));
     await page.context().grantPermissions(["geolocation"]);
     await page.context().setGeolocation({ latitude: 40.7, longitude: -74 });
     await page.goto("/");
@@ -395,6 +452,23 @@ test.describe("location-first + shareable moments", () => {
     expect(ics).toContain("SUMMARY:ISS visible — look SW");
     expect(ics).toContain("TRIGGER:-PT10M");
     expect(ics).toContain("LOCATION:40.7°N\\, 74.0°W");
+
+    // The cloud forecast labels the pass without removing it.
+    await expect(row.getByTestId("tonight-cloud")).toHaveText("Overcast forecast · 90% cloud, likely hidden");
+    await expect(row.getByTestId("tonight-cloud")).toHaveAttribute("data-sky", "overcast");
+  });
+
+  test("a cloud-forecast outage is labelled and never hides the passes", async ({ page }) => {
+    await mockVisibleIssPass(page);
+    await page.route("https://api.open-meteo.com/v1/forecast**", (route) => route.fulfill({ status: 503, body: "" }));
+    await page.context().grantPermissions(["geolocation"]);
+    await page.context().setGeolocation({ latitude: 40.7, longitude: -74 });
+    await page.goto("/");
+    await page.getByRole("button", { name: /Show me tonight's passes/i }).click();
+    const row = page.locator('[data-testid="tonight-visible-pass"]').first();
+    await expect(row).toBeVisible({ timeout: 60_000 });
+    await expect(row.getByText("cloud forecast unavailable right now")).toBeVisible();
+    await expect(row.getByTestId("tonight-cloud")).toHaveCount(0);
   });
 
   test("the URL names the viewed object and instant, and reopening reproduces it", async ({ page }) => {
@@ -416,7 +490,7 @@ test.describe("location-first + shareable moments", () => {
     const shared = await page.evaluate(() => navigator.clipboard.readText());
     expect(shared).toMatch(/\/?cat=20580&t=12$/);
     // Deep-linking the shared URL lands on that object at that offset: the
-    // slider starts at step 12, not 0. (ISS 25544 for the deep link — it must
+    // slider starts at step 12, not 0. (ISS 25544 for the deep link - it must
     // always have loadable elements; curated neighbors may rotate over time.)
     await page.goto("/?cat=25544&t=12");
     const slider = page.getByRole("slider");
@@ -430,7 +504,7 @@ test.describe("phone layout", () => {
     // A single unbreakable line (TLE text, a wide table) inside an `auto`
     // grid column once pushed the whole detail page off-screen on phones.
     await page.setViewportSize({ width: 390, height: 844 });
-    for (const path of ["/", "/passes", "/satellites/25544", "/compare", "/watchlist", "/methodology"]) {
+    for (const path of ["/", "/identify", "/passes", "/satellites/25544", "/compare", "/watchlist", "/methodology", "/engineering"]) {
       await page.goto(path);
       await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {
         /* long-lived requests (catalog, imagery) may keep the network busy; layout is settled by now */
@@ -445,8 +519,8 @@ test.describe("pass cards on phones", () => {
   test("a phone-width viewport renders passes as cards, not a 7-column table", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/passes");
-    await page.getByLabel(/Observer latitude/i).fill("0");
-    await page.getByLabel(/Observer longitude/i).fill("0");
+    await page.getByLabel(/^Latitude/).fill("0");
+    await page.getByLabel(/^Longitude/).fill("0");
     await page.getByLabel(/Catalog IDs/i).fill("25544");
     await page.getByRole("button", { name: /Predict passes/i }).click();
     // A stable test id, not styling classes: a visual redesign once broke a
@@ -505,7 +579,7 @@ test.describe("constellation atlas", () => {
 
     // Take a real Starlink from the same feed and click exactly where it must
     // be drawn: inclination and mean altitude straight from its TLE line 2,
-    // mapped through the plot's published scales. (Data-driven on purpose —
+    // mapped through the plot's published scales. (Data-driven on purpose -
     // a hardcoded "550 km shell" went stale when SpaceX lowered the shell.)
     const catalog = await (await page.request.get("/api/sky/catalog")).json();
     const starlink = (catalog.data.entries as { n: string; l2: string }[]).find((e) => e.n.startsWith("STARLINK"))!;
@@ -559,6 +633,57 @@ test.describe("close-approach screening", () => {
   });
 });
 
+test.describe("what did I just see", () => {
+  // datetime-local is read on the browser's clock; pin it to the spot's zone.
+  test.use({ timezoneId: "America/New_York" });
+
+  /** "YYYY-MM-DDTHH:00" for yesterday at `hour`, New York time. */
+  function yesterdayAt(hour: number): string {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" })
+      .format(new Date(Date.now() - 24 * 3_600_000))
+      .split("-");
+    return `${parts[0]}-${parts[1]}-${parts[2]}T${String(hour).padStart(2, "0")}:00`;
+  }
+
+  async function describeSighting(page: import("@playwright/test").Page, local: string) {
+    await page.goto("/identify");
+    await page.getByTestId("place-search").fill("40.7, -74");
+    await page.getByRole("option", { name: /Use 40\.7000°N, 74\.0000°W/ }).click();
+    await expect(page.getByTestId("identify-spot")).toBeVisible();
+    await page.getByRole("radio", { name: "Earlier…" }).click();
+    await page.getByLabel("Date and time you saw it").fill(local);
+  }
+
+  test("names real candidates for a dark-sky sighting and draws their paths", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    // 10 pm in New York is past civil twilight in every season.
+    await describeSighting(page, yesterdayAt(22));
+    // "Not sure" on both: every sunlit, moving object in the dark sky qualifies,
+    // so a real catalog always yields matches. The physics is unit-tested.
+    await page.getByTestId("identify-submit").click();
+    const answer = page.getByTestId("identify-answer");
+    await expect(answer).toBeVisible({ timeout: 90_000 });
+    await expect(answer.getByRole("heading", { level: 2 }).first()).toHaveText(/fit|matches/);
+    const entries = answer.locator('[data-testid="identify-candidate"], [data-testid="identify-group"]');
+    expect(await entries.count()).toBeGreaterThan(0);
+    await expect(entries.first()).toContainText(/up in the (N|NE|E|SE|S|SW|W|NW)/);
+    await expect(answer.getByTestId("sighting-chart")).toBeVisible();
+    expect(await answer.getByTestId("sighting-chart-track").count()).toBeGreaterThan(0);
+    await expect(answer.getByText(/SGP4 propagations in/)).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test("says the sky was too bright instead of guessing, for a midday sighting", async ({ page }) => {
+    await describeSighting(page, yesterdayAt(13));
+    await page.getByRole("radiogroup", { name: "Direction you were looking" }).getByRole("radio", { name: "NW" }).click();
+    await page.getByTestId("identify-submit").click();
+    await expect(page.getByTestId("identify-bright-sky")).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByText(/the sun was up/)).toBeVisible();
+    await expect(page.locator('[data-testid="identify-candidate"]')).toHaveCount(0);
+  });
+});
+
 test.describe("methodology page", () => {
   test("documents limitations and data sources", async ({ page }) => {
     await page.goto("/methodology");
@@ -566,13 +691,22 @@ test.describe("methodology page", () => {
     await expect(page.getByText(/Predictions, not measurements/i)).toBeVisible();
     await expect(page.getByText(/Not for collision avoidance/i)).toBeVisible();
   });
+
+  test("every page credits its author, and /engineering says who built it", async ({ page }) => {
+    await page.goto("/methodology");
+    const footer = page.locator("footer");
+    await expect(footer.getByRole("link", { name: "Devligan" })).toHaveAttribute("href", "https://github.com/Devligan");
+    await expect(footer.getByRole("link", { name: "source" })).toHaveAttribute("href", /github\.com\/Devligan\/orbital-insight/);
+    await page.goto("/engineering");
+    await expect(page.getByTestId("author-credit")).toHaveText("Designed and built by Devligan.");
+  });
 });
 
 test.describe("whole-sky globe", () => {
   test("the active-catalog API serves the full sky with compact propagation-ready rows", async ({ page }) => {
     // The provider is the live dependency; a rate-limited IP gets the typed
     // provider failure (honest 502, no fabricated sky). Both states assert
-    // their shape — full data must be compact and complete wherever it is
+    // their shape - full data must be compact and complete wherever it is
     // present.
     const res = await page.request.get("/api/sky/catalog", { timeout: 120_000 });
     const body = (await res.json()) as {
@@ -585,7 +719,7 @@ test.describe("whole-sky globe", () => {
       expect(data.count).toBeGreaterThanOrEqual(5_000);
       expect(data.entries).toHaveLength(data.count);
       const first = data.entries[0]; // noUncheckedIndexedAccess
-      // Compact shape: catalog number, name, both TLE lines — and nothing else.
+      // Compact shape: catalog number, name, both TLE lines - and nothing else.
       expect(Object.keys(first!).sort()).toEqual(["i", "l1", "l2", "n"]);
       expect(String(first!.l1)).toMatch(/^1 \d{5}/);
       expect(String(first!.l2)).toMatch(/^2 \d{5}/);
@@ -598,7 +732,7 @@ test.describe("whole-sky globe", () => {
   test("the whole-sky toggle keeps the orbit view honest on any GPU outcome", async ({ page }) => {
     // Environments differ: headless runners often lack WebGL entirely. What
     // must hold everywhere: no crashes on toggle, and either the animated
-    // cloud commentary or the honest 3D-unavailable fallback — never blank.
+    // cloud commentary or the honest 3D-unavailable fallback - never blank.
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(String(error)));
     await page.goto("/");
@@ -607,14 +741,14 @@ test.describe("whole-sky globe", () => {
     await page.getByRole("button", { name: "Whole sky: on" }).click();
     await page.getByRole("button", { name: "Whole sky: off" }).click();
     // WebGL available: Cesium's canvas renders. WebGL off: the parent's honest
-    // 2D fallback. Both are acceptable, named outcomes — the "couldn't start"
+    // 2D fallback. Both are acceptable, named outcomes - the "couldn't start"
     // panel is not: it means the 3D runtime itself is broken.
     await expect(
       page.locator('[aria-label^="3D globe showing"] canvas').or(page.locator('[data-testid="ground-track-marker"]')).first(),
     ).toBeVisible({ timeout: 60_000 });
     await expect(page.locator('[data-testid="globe-failed"]')).toHaveCount(0);
     // Cesium reports render-loop failures in its own panel, not as page
-    // errors — a date-line geometry crash once froze the globe this way.
+    // errors - a date-line geometry crash once froze the globe this way.
     await page.waitForTimeout(15_000);
     await expect(page.locator(".cesium-widget-errorPanel")).toHaveCount(0);
     expect(errors).toEqual([]);

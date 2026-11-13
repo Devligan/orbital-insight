@@ -2,7 +2,7 @@
  * The delivery pipeline's own config (.github/), checked like code.
  *
  * GitHub rejects an unparseable workflow outright ("Invalid workflow file")
- * and never runs it — which is how the data-refresh job once sat dead: an
+ * and never runs it - which is how the data-refresh job once sat dead: an
  * unquoted "polite: one request…" in a step name is a YAML mapping error.
  * Windows-side gates never read these files, so this test does.
  */
@@ -60,6 +60,24 @@ describe("GitHub Actions workflows", () => {
       });
     });
   }
+
+  it("checks production on its public domain, once that domain serves the commit", () => {
+    // Every deployment's own URL is behind Vercel Deployment Protection. The
+    // production smoke test once ran against it and saw only Vercel's login
+    // page (HTML where the catalog JSON should be), and Lighthouse audited
+    // that login page and "passed".
+    const { value } = load(`${WORKFLOW_DIR}/post-deploy.yml`);
+    const text = readFileSync(`${WORKFLOW_DIR}/post-deploy.yml`, "utf8");
+    const jobs = value.jobs as Record<string, { steps?: (Step & { with?: Record<string, string> })[] }>;
+    const lighthouse = jobs.lighthouse!.steps!.find((s) => s.uses?.startsWith("treosh/lighthouse-ci-action"))!;
+    expect(lighthouse.with!.urls).not.toContain("environment_url");
+    expect(lighthouse.with!.urls).toContain("PRODUCTION_URL");
+    for (const id of ["smoke", "lighthouse"]) {
+      const names = (jobs[id]!.steps ?? []).map((s) => s.name ?? "");
+      expect(names, id).toContain("Wait until production serves this commit");
+    }
+    expect(text).toContain("/api/version");
+  });
 
   it("Dependabot config parses", () => {
     expect(load(".github/dependabot.yml").errors).toEqual([]);

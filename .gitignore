@@ -49,3 +49,7 @@ public/cesium/ThirdParty/
 
 .vercel
 .env*
+
+# Local working notes (not part of the project)
+docs/AI-HANDOFF.md
+.notes/

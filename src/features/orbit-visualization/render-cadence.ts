@@ -1,19 +1,19 @@
 /**
- * How often the globe redraws for the passage of time — pure, JSX-free,
+ * How often the globe redraws for the passage of time - pure, JSX-free,
  * unit-tested.
  *
  * The globe renders on demand (Cesium `requestRenderMode`): camera input
  * redraws by itself; the clock redraws once simulated time has moved
  * `simSecondsPerRedraw` seconds. That step is sized so the fastest common
  * object (low Earth orbit, ~7.8 km/s) moves under a pixel per redraw at the
- * current zoom — no visible stepping, and no redraws nobody could see:
+ * current zoom - no visible stepping, and no redraws nobody could see:
  *
  *   whole-Earth view, live  → about one redraw every 2 s
  *   whole-Earth view, 60×   → ~25 redraws/s
  *   zoomed in close         → up to 30 redraws/s
  *
  * (Before: a fixed ~7 clock redraws/s plus ~7 more for whole-sky batches,
- * whether or not anything had visibly moved — a laptop's main thread spent
+ * whether or not anything had visibly moved - a laptop's main thread spent
  * a quarter of its time redrawing an unchanged picture.)
  */
 

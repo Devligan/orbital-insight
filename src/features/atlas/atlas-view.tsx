@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE, PageHeader } from "@/components/ui/page-header";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -85,10 +86,8 @@ export function AtlasView() {
   }, [load]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-10">
-      <header className="pt-8 pb-6">
-        <h1 className="heading-display text-[30px] md:text-[40px]">Who&apos;s in orbit</h1>
-        <p className="lede mt-2 max-w-2xl text-[16px]">
+    <div className={PAGE}>
+      <PageHeader eyebrow="Atlas" title="Who&apos;s in orbit">
           Every active satellite in the public catalog, placed by the shape of its orbit.{" "}
           {/* While loading, the sentence's space is held so nothing below moves when the figure arrives. */}
           <span className={summary ? undefined : "invisible"} aria-hidden={summary ? undefined : true}>
@@ -98,8 +97,7 @@ export function AtlasView() {
             </strong>{" "}
             of them.
           </span>
-        </p>
-      </header>
+      </PageHeader>
 
       {/* The charts below are ~3 000 px tall. Holding a screen's height while the catalog loads keeps the footer
           out of view, so the page doesn't lurch when they arrive (Lighthouse measured CLS 0.85 without it). */}
@@ -131,7 +129,7 @@ export function AtlasView() {
           </section>
           <p className="mt-2 text-[12px] text-[var(--color-text-muted)]">
             CelesTrak active catalog, fetched {ageLabel(load.generatedAt)}
-            {load.stale ? " — the provider is unreachable, so this is the last good copy" : ""}.
+            {load.stale ? ". The provider is unreachable, so this is the last good copy" : ""}.
             {load.skipped > 0 ? ` ${count(load.skipped)} rows with unreadable elements left out.` : ""}
           </p>
 
@@ -287,12 +285,7 @@ function FocusChip({
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={
-        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[13px] transition-colors " +
-        (active
-          ? "border-[var(--color-accent)] bg-[var(--color-bg-inset)] text-[var(--color-text-primary)]"
-          : "border-[var(--color-border-strong)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]")
-      }
+      className="choice gap-2"
     >
       {swatch ? <span aria-hidden="true" className="inline-block size-2.5 rounded-sm" style={{ background: swatch }} /> : null}
       {label}

@@ -1,19 +1,17 @@
 import { PassPredictionsForm } from "@/features/pass-prediction/pass-form";
+import { PAGE, PageHeader } from "@/components/ui/page-header";
 
 export const metadata = {
-  title: "Pass predictions — Orbital Insight",
+  title: "Pass predictions · Orbital Insight",
 };
 
 export default function PassesPage() {
   return (
-    <div className="p-3">
-      <div className="mb-3">
-        <h1 className="text-[16px] font-semibold">Pass predictions</h1>
-        <p className="text-[12px] text-[var(--color-text-muted)]">
-          SGP4 pass predictions with modeled sunlight geometry (shadow + sky darkness + brightness estimate) —
-          still not an observing forecast: weather and eyesight aren&apos;t modeled.
-        </p>
-      </div>
+    <div className={PAGE}>
+      <PageHeader eyebrow="Passes" title="Every pass, in detail">
+        Rise, peak and set for any satellite from any place, with whether each pass can actually be seen. Clouds and
+        eyesight aren&apos;t part of the calculation.
+      </PageHeader>
       <PassPredictionsForm />
     </div>
   );

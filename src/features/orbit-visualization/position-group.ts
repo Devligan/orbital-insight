@@ -3,7 +3,7 @@
 /**
  * Client-side aggregation of the /positions + /ground-track API payloads
  * into the shapes the globe and track components consume. Pure data shaping
- * (no physics) — propagation lives in the domain, computed server-side.
+ * (no physics) - propagation lives in the domain, computed server-side.
  */
 
 import type { EciSample } from "./sample-types";

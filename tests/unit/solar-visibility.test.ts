@@ -3,7 +3,7 @@
  *
  * Known-value anchors (not implementation mirrors):
  *  - Solstice/equinox solar declination from the low-precision ephemeris
- *    must land within ±0.5° of published values (±23.44° / 0°) — the
+ *    must land within ±0.5° of published values (±23.44° / 0°) - the
  *    documented algorithm accuracy is ~0.01°, so this keeps the test honest
  *    about physics rather than about our own coefficients.
  *  - Shadow test on hand-built geometry vectors (sun side / night side /
@@ -125,10 +125,10 @@ describe("satellite illumination (cylindrical shadow)", () => {
 });
 
 describe("phase angle", () => {
-  // Synthetic collinear geocentric vectors (the function is pure math — the
+  // Synthetic collinear geocentric vectors (the function is pure math - the
   // "observer" vectors here need not be on Earth's surface).
   it("is ~0° when the observer lies beyond the satellite, same side as the sun", () => {
-    // Satellite sees the sun and the observer in the same direction — the
+    // Satellite sees the sun and the observer in the same direction - the
     // fully lit face faces the observer (like a full moon).
     const date = new Date("2026-10-16T12:00:00Z");
     const s = sunDirection(date);
@@ -138,8 +138,8 @@ describe("phase angle", () => {
   });
 
   it("is ~180° when the observer sits between the satellite and the sun", () => {
-    // The observer then looks at the satellite's dark face — new-moon
-    // geometry — which is also why overhead passes near local noon are
+    // The observer then looks at the satellite's dark face - new-moon
+    // geometry - which is also why overhead passes near local noon are
     // invisible even with the satellite fully sunlit above the atmosphere.
     const date = new Date("2026-10-16T12:00:00Z");
     const s = sunDirection(date);

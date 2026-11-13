@@ -1,7 +1,7 @@
 /**
  * Orbit-band classification for the whole-sky cloud.
  *
- * Derived from the element set itself (mean motion + eccentricity) — no
+ * Derived from the element set itself (mean motion + eccentricity) - no
  * provider side-channel decides what an object "is". Bands follow the standard
  * regime boundaries: LEO below a ~129-minute period, the GEO belt within a
  * window around the 23.93-hour geostationary period, strongly eccentric
@@ -17,7 +17,13 @@ export const CATEGORY_LABELS = [
   "High orbit / elliptical",
 ] as const;
 
-export const CATEGORY_COLORS = ["#38bdf8", "#a78bfa", "#fbbf24", "#34d399"] as const;
+/**
+ * Low orbit (nearly the whole catalog) is a warm grey dust, so the rare bands
+ * stand out against it. The three hues are the atlas's validated categorical
+ * set (src/features/atlas/palette.ts), reused so the product has one palette.
+ * Amber is kept out of the cloud: it marks the followed object and anything sunlit.
+ */
+export const CATEGORY_COLORS = ["#a9a79f", "#3987e5", "#199e70", "#d95926"] as const;
 
 export interface ClassificationInput {
   /** satellite.js v7: mean motion in rad/min (the `no` field). */
@@ -30,7 +36,7 @@ const TWO_PI = 2 * Math.PI;
 const MINUTES_PER_DAY = 1440;
 
 export function categoryOf(rec: ClassificationInput): SkyCategory {
-  // Missing mean motion: it cannot be classified honestly — default to the
+  // Missing mean motion: it cannot be classified honestly - default to the
   // LEO band, where almost all of the active catalog falls anyway.
   const radPerMin = rec.no ?? 0;
   if (radPerMin <= 0) return 0;

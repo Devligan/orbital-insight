@@ -35,7 +35,7 @@ function normalizeTleLine(raw: string, lineNo: 1 | 2): string {
   const trimmed = raw.replace(/\s+$/, "");
   if (trimmed.length === TLE_LINE_LENGTH) return trimmed;
   if (trimmed.length < 68) {
-    // Not enough columns for a body — malformed (e.g. truncated fetch).
+    // Not enough columns for a body - malformed (e.g. truncated fetch).
     throw new AppError("validation", `TLE line ${lineNo} is too short (${trimmed.length} chars, need ≥68)`);
   }
   if (trimmed.length > TLE_LINE_LENGTH) {

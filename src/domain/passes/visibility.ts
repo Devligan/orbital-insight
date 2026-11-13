@@ -1,5 +1,5 @@
 /**
- * Pass visibility — "can a human actually see this pass?"
+ * Pass visibility - "can a human actually see this pass?"
  *
  * A geometric pass (satellite above the horizon) says nothing about whether
  * anyone can observe it: a satellite crossing a sunlit sky is invisible, and
@@ -7,7 +7,7 @@
  * pass against the physics that actually decides visibility:
  *
  *   1. The satellite must be in sunlight (cylindrical shadow test).
- *   2. The observer's sky must be dark (sun below `−6°` elevation — civil
+ *   2. The observer's sky must be dark (sun below `−6°` elevation - civil
  *      twilight; stars are still fading but bright objects read clearly).
  *   3. The satellite must be above the pass elevation threshold at that
  *      moment (it is, by construction, between rise and set of the pass).
@@ -37,13 +37,12 @@ import {
   observerEciKm,
   type EciVectorKm,
 } from "@/domain/light/solar";
+import { estimateMagnitude } from "@/domain/light/magnitude";
 import type { PassResult } from "./types";
 
-/** Sky-darkness threshold: civil twilight — the satellite reads if it is bright. */
+/** Sky-darkness threshold: civil twilight - the satellite reads if it is bright. */
 const SKY_DARKNESS_SUN_ELEVATION_DEG = -6;
 
-/** 2.5·log₁₀(0.5): moves the phase term's zero from full phase to 90°. */
-const HALF_PHASE_NORMALIZATION = 2.5 * Math.log10(0.5);
 
 /** Samples per pass for the light sweep. Passes are 5–15 min for LEO. */
 const SAMPLES_PER_PASS = 24;
@@ -51,7 +50,7 @@ const SAMPLES_PER_PASS = 24;
 /**
  * Bisection steps used to refine each edge of the visible window between two
  * bracketing samples: the sample gap (≤ ~40 s for LEO passes) shrinks by 2⁶,
- * to about a second — the same order as the cylindrical-shadow model's own
+ * to about a second - the same order as the cylindrical-shadow model's own
  * timing error, so further refinement would only add false precision.
  */
 const EDGE_REFINEMENT_STEPS = 6;
@@ -88,7 +87,7 @@ export interface PassVisibility {
   bestEstimatedMagnitude: number | null;
   /** Instant of the brightest visible sample (epoch ms), null when never visible. */
   bestTimeMs: number | null;
-  /** Sun elevation at the observer at the pass apex — sky-darkness context. */
+  /** Sun elevation at the observer at the pass apex - sky-darkness context. */
   sunElevationDegAtApex: number;
   /** Whether the satellite was inside Earth's shadow at the apex. */
   satelliteInShadowAtApex: boolean;
@@ -163,15 +162,6 @@ function toMoment(sample: LightSample): VisibleMoment {
   };
 }
 
-/** Apparent magnitude from a standard magnitude (1 000 km, 90° phase). */
-function estimateMagnitude(stdMag: number, rangeKm: number, phaseDeg: number): number {
-  const rangeTerm = 5 * Math.log10(Math.max(rangeKm, 1));
-  const cosPhase = Math.cos((phaseDeg * Math.PI) / 180);
-  // Illuminated fraction, zeroed at 90°: full phase (φ=0) → −0.75 (brighter),
-  // half phase → 0, crescent (φ>90°) → dimmer.
-  const phaseTerm = -2.5 * Math.log10(Math.max((1 + cosPhase) / 2, 1e-6)) + HALF_PHASE_NORMALIZATION;
-  return stdMag - 15 + rangeTerm + phaseTerm;
-}
 
 /**
  * Evaluate pass visibility for one geometric pass. `satrec` is the compiled
@@ -194,7 +184,7 @@ export function enrichPassVisibility(params: {
   const apexMs = pass.max.getTime();
 
   // Uniform rise→set samples, clamped to the serving window (`truncated`
-  // passes only expose their in-window half — we cannot compute light state
+  // passes only expose their in-window half - we cannot compute light state
   // for times outside what we can honestly predict).
   const lo = Math.max(riseMs, windowStart.getTime());
   const hi = Math.min(setMs, windowEnd.getTime());

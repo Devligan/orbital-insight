@@ -1,7 +1,7 @@
 /**
  * Visible-window tests (src/domain/passes/visibility.ts).
  *
- * Real input, physical checks — not implementation mirrors:
+ * Real input, physical checks - not implementation mirrors:
  *  - Vanguard 1 from the official SGP4-VER.TLE fixture, propagated over 24 h
  *    from its epoch for observers spread in longitude, so passes land at
  *    dusk, dawn, night, and day.
@@ -67,7 +67,7 @@ describe("brightness honesty", () => {
 
   it("estimates one when a standard magnitude is supplied, without changing the verdict or window", () => {
     // Vanguard 1 is listed by Heavens-Above at 10.3 (1000 km, 50% illuminated)
-    // — a value used here only as an input, not asserted as truth.
+    // - a value used here only as an input, not asserted as truth.
     for (const { observer, pass, visibility } of visible) {
       const withStd = enrichPassVisibility({ satrec: vanguard.satrec, pass, observer, windowStart, windowEnd, standardMagnitude: 10.3 });
       expect(withStd.bestEstimatedMagnitude).not.toBeNull();
