@@ -34,7 +34,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Fetch snapshots (polite: one request per group, spaced)
+      - name: "Fetch snapshots (polite: one request per group, spaced)"
         env:
           SEARCH_INDEX_FORCE_REFRESH: "1"
           SKY_SNAPSHOT_FORCE_REFRESH: "1"
