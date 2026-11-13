@@ -516,7 +516,7 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
               your horizon aren&apos;t modeled; brightness estimates are rough (attitude, solar arrays). Sky charts: the
               centre is straight up and the rim your horizon, with
               east on the left — hold one overhead with N to the north. The bright line is the part you can see; a
-              ring marks where it slips into Earth&apos;s shadow.{" "}
+              ring marks where it slips into Earth&apos;s shadow. Heights are in fists: one held at arm&apos;s length covers about 10°.{" "}
               <Link href="/methodology" className="hover:underline">
                 How this works
               </Link>

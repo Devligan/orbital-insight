@@ -280,6 +280,8 @@ const SECTIONS = [
           north every point sits where it will appear. The dashed arc is the same 24 rise-to-set samples the
           visibility test uses; the bright line runs between the refined window edges above, not between coarse
           samples, so it starts and ends where the text says. A ring marks a mid-sky entry into Earth&apos;s shadow.
+          The peak is also given in fists at arm&apos;s length, about 10° each and rounded to half a fist (hands vary,
+          so finer would be false precision), and from 75° up simply as &ldquo;nearly straight overhead&rdquo;.
         </li>
         <li>
           <strong>Calendar events.</strong> &ldquo;Add to calendar&rdquo; builds an iCalendar (RFC 5545) file in
