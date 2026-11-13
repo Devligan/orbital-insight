@@ -9,6 +9,6 @@
 - [ ] UI change: looked at the **production build** at 1440 px and 390 px (dev mode hides minifier bugs)
 - [ ] An approximation changed: `/methodology` updated to match
 
-## Honesty contracts
+## Data integrity
 
 - [ ] No fabricated data paths: provider failures stay typed failures, stale data stays labelled

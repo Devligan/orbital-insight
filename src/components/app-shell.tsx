@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { CatalogSearch } from "@/components/catalog-search";
 
 /**
- * App shell — consumer-app framing.
+ * App shell - consumer-app framing.
  *
  * One unobtrusive top bar (brand → search → nav) and an honest footer for the
  * engineering fine print. The old sidebar rail advertised SGP4/CelesTrak

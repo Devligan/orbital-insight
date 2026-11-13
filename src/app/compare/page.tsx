@@ -1,18 +1,16 @@
 import { CompareView } from "@/features/comparisons/compare-view";
+import { PAGE, PageHeader } from "@/components/ui/page-header";
 
 export const metadata = {
-  title: "Orbital comparison · Orbital Insight",
+  title: "Compare orbits · Orbital Insight",
 };
 
 export default function ComparePage() {
   return (
-    <div className="p-3">
-      <div className="mb-3">
-        <h1 className="text-[16px] font-semibold">Orbital comparison</h1>
-        <p className="text-[12px] text-[var(--color-text-muted)]">
-          Element sets and SGP4 predictions for two catalog objects. Deltas are computed at common timestamps.
-        </p>
-      </div>
+    <div className={PAGE}>
+      <PageHeader eyebrow="Compare" title="Two orbits, side by side">
+        The published element sets for two objects, and how far apart SGP4 puts them over time.
+      </PageHeader>
       <CompareView initialLeft="25544" initialRight="48274" />
     </div>
   );

@@ -34,7 +34,7 @@ export async function loadSatelliteDetail(satelliteNumber: string): Promise<Sate
 
   // Opportunistic snapshot persistence: when Supabase is configured, record
   // the element set actually served. The database-side unique constraint
-  // (satellite_number, epoch) makes this idempotent — page views never
+  // (satellite_number, epoch) makes this idempotent - page views never
   // inflate history. Fire-and-forget: snapshot failure must never fail the
   // page load, but it is logged rather than swallowed.
   void saveSnapshot({

@@ -10,7 +10,7 @@
  *
  * Accuracy contract (documented and honest):
  *  - Sun position: low-precision Astronomical Almanac approximation,
- *    ~0.01° in direction — far better than the elevation thresholds we
+ *    ~0.01° in direction - far better than the elevation thresholds we
  *    compare against. Never used for timing.
  *  - Shadow: cylindrical umbra (Earth radius, no penumbra/umbra-lobe
  *    geometry, no atmosphere). Penumbra timing is off by seconds; for the
@@ -43,7 +43,7 @@ export interface EciVectorKm {
 
 /**
  * Geocentric sun position in ECI, km. Equatorial frame (same TEME axes the
- * rest of this project uses — TEME and true-of-date equatorial differ by
+ * rest of this project uses - TEME and true-of-date equatorial differ by
  * arcseconds for this purpose).
  */
 export function sunEciKm(date: Date): EciVectorKm {
@@ -117,7 +117,7 @@ export function satelliteInSunlight(satEci: EciVectorKm, date: Date): boolean {
 export function phaseAngleDeg(satEci: EciVectorKm, observerEci: EciVectorKm, date: Date): Degrees {
   const sun = sunEciKm(date);
   // Source vectors measured FROM the satellite (km scale, not unit vectors
-  // — the earlier unit-vector mix-up made the angle degenerate to ~0).
+  // - the earlier unit-vector mix-up made the angle degenerate to ~0).
   const toSun = { x: sun.x - satEci.x, y: sun.y - satEci.y, z: sun.z - satEci.z };
   const toObs = { x: observerEci.x - satEci.x, y: observerEci.y - satEci.y, z: observerEci.z - satEci.z };
   const n1 = Math.hypot(toSun.x, toSun.y, toSun.z);
@@ -128,7 +128,7 @@ export function phaseAngleDeg(satEci: EciVectorKm, observerEci: EciVectorKm, dat
 }
 
 /**
- * Temporary helper — observer position as a geocentric ECI km vector at a
+ * Temporary helper - observer position as a geocentric ECI km vector at a
  * given instant (rotates the observer's ECF location into ECI). Used for
  * phase-angle geometry; simplicity over sub-km rigor.
  */

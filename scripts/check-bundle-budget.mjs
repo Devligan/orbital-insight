@@ -5,7 +5,7 @@
  * Sums the gzipped JavaScript each page loads up front (layout + page chunks
  * from Next's app-build-manifest) and fails when a page exceeds its budget.
  * The point is the home page: the 1.3 MB Cesium globe must stay a lazy chunk
- * that mounts only when the globe scrolls into view — an accidental static
+ * that mounts only when the globe scrolls into view - an accidental static
  * import would silently put it on every visitor's critical path.
  *
  * Budgets are gzip kB, a little above today's measured size so ordinary

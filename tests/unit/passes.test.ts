@@ -4,7 +4,7 @@ import { findPasses } from "@/domain/passes/finder";
 import { compileElementSet } from "@/domain/orbit/propagation";
 import { parseTle } from "@/domain/orbit/tle";
 
-// Vanguard 1 (00005) from the official SGP4 verification fixture —
+// Vanguard 1 (00005) from the official SGP4 verification fixture -
 // a real, published element set. Its epoch is 2000-06-27 18:50 UTC, so the
 // test windows sit within hours of the epoch where prediction accuracy is
 // best-defined.
@@ -132,7 +132,7 @@ describe("pass finder", () => {
         ...window("2000-06-28T00:00:00Z", 24),
         minElevationDeg: 10,
       });
-      // Either passes were computed, or the failure is surfaced honestly —
+      // Either passes were computed, or the failure is surfaced honestly -
       // never an empty array with no failure record.
       const entry = result[0];
       expect(entry).toBeTruthy();

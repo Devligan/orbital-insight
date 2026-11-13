@@ -4,7 +4,7 @@ import { ExplorerView } from "@/features/satellites/explorer-view";
 import { Loading } from "@/components/ui/primitives";
 
 /**
- * Home / Explorer — opens directly into a usable satellite explorer with the
+ * Home / Explorer - opens directly into a usable satellite explorer with the
  * ISS as the default real-data example. No marketing gate, no sign-in.
  *
  * Suspense boundary: the explorer reads share-link query params

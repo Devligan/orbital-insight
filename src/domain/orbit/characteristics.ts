@@ -19,7 +19,7 @@ export interface OrbitalCharacteristics {
   inclinationDeg: number;
   eccentricity: number;
   meanMotionRevPerDay: number;
-  /** [0, 1] — sometimes reported in TLE as an all-digit-with-implied-decimal string. */
+  /** [0, 1] - sometimes reported in TLE as an all-digit-with-implied-decimal string. */
   /** Approximate period in minutes; 2π/mean-motion in the Keplerian sense. */
   periodMinutes: number;
   argPerigeeDeg: number;

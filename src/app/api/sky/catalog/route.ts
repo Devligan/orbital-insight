@@ -4,7 +4,7 @@
  * The whole-sky feed for the animated 3D globe: element sets for every
  * active object (provider: CelesTrak GROUP=active), cached server-side with a
  * shared in-flight fetch. Failures serve the previous copy labelled `"stale"`
- * — the client renders the honest message, never fabricated orbits.
+ * - the client renders the honest message, never fabricated orbits.
  *
  * Payload shape is compact (`{i, n, l1, l2}` per entry): the browser
  * propagates positions itself in a web worker, so no per-object server work

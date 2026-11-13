@@ -12,7 +12,7 @@
  * Policy (same spirit as build-search-index.mjs):
  *  - reuse a snapshot younger than 6 h (provider politeness; the provider
  *    updates GP data a few times a day) unless SKY_SNAPSHOT_FORCE_REFRESH=1;
- *  - replace it only with a complete, validated feed (≥ 5,000 objects —
+ *  - replace it only with a complete, validated feed (≥ 5,000 objects -
  *    smaller answers are truncated feeds, not the sky);
  *  - never fail the build and never clobber a good snapshot on provider
  *    trouble. With no snapshot at all, nothing is written and the app keeps

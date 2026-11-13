@@ -10,6 +10,7 @@
  * along with the usual non-satellite explanations.
  */
 
+import { PAGE, PageHeader } from "@/components/ui/page-header";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { HeightBand, LaunchGroup, SightingCandidate, SightingResult } from "@/domain/sighting/identify";
@@ -182,14 +183,11 @@ export function IdentifyView() {
   const busy = search.status === "loading-catalog" || search.status === "searching";
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 pb-12 pt-8">
-      <header>
-        <h1 className="heading-display text-[30px] sm:text-[38px]">What did I just see?</h1>
-        <p className="lede mt-2 max-w-2xl">
-          A steady light gliding across the night sky is usually a satellite catching the sun. Say when and where you
-          saw it, and every satellite in the public catalog is checked against your sky, right here in your browser.
-        </p>
-      </header>
+    <div className={`${PAGE} flex flex-col gap-6`}>
+      <PageHeader eyebrow="Identify" title="What did I just see?">
+        A steady light gliding across the night sky is usually a satellite catching the sun. Say when and where you saw
+        it, and every satellite in the public catalog is checked against your sky, right here in your browser.
+      </PageHeader>
 
       <section aria-label="Your sighting" className="panel flex flex-col gap-5 p-4">
         <Question number={1} title="Where were you?">

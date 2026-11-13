@@ -1,5 +1,6 @@
 "use client";
 
+import { INK } from "@/lib/ink";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { constellationRule, type AtlasPoint, type ConstellationId } from "@/domain/catalog/atlas";
@@ -126,9 +127,9 @@ export function OrbitScatter({ points, focus }: OrbitScatterProps) {
     ctx.fillRect(scales.x(96), plotTop, scales.x(100) - scales.x(96), plotBottom - plotTop);
 
     // Recessive grid + tick labels.
-    ctx.strokeStyle = "#232327";
+    ctx.strokeStyle = INK.hairline;
     ctx.lineWidth = 1;
-    ctx.fillStyle = "#8a8983";
+    ctx.fillStyle = INK.muted;
     ctx.font = "11px system-ui, -apple-system, Segoe UI, sans-serif";
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
@@ -154,7 +155,7 @@ export function OrbitScatter({ points, focus }: OrbitScatterProps) {
       ctx.fillText(`${incl}°`, x, plotBottom + 6);
     }
     // Axis titles.
-    ctx.fillStyle = "#b0afa8";
+    ctx.fillStyle = INK.secondary;
     ctx.font = "12px system-ui, -apple-system, Segoe UI, sans-serif";
     ctx.fillText("Inclination: angle of the orbit to the equator", (plotLeft + plotRight) / 2, plotBottom + 24);
     ctx.save();
@@ -187,7 +188,7 @@ export function OrbitScatter({ points, focus }: OrbitScatterProps) {
     };
     draw(background, focus ? 0.35 : 0.6, () => GROUP_COLORS.other);
     // Plain compositing on purpose: additive blending saturated dense shells
-    // to white, and white belongs to no group — colour must keep identity.
+    // to white, and white belongs to no group - colour must keep identity.
     draw(foreground, 0.85, (p) => GROUP_COLORS[constellationRule(p.constellation).group]);
     ctx.globalAlpha = 1;
 
@@ -195,7 +196,7 @@ export function OrbitScatter({ points, focus }: OrbitScatterProps) {
     ctx.font = "11px system-ui, -apple-system, Segoe UI, sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = "#b0afa8";
+    ctx.fillStyle = INK.secondary;
     const label = (text: string, incl: number, alt: number, dx = 8) => {
       const x = scales.x(incl) + dx;
       const y = scales.y(alt);
@@ -209,12 +210,12 @@ export function OrbitScatter({ points, focus }: OrbitScatterProps) {
     if (iss >= 0) {
       const x = layout.xs[iss]!;
       const y = layout.ys[iss]!;
-      ctx.strokeStyle = "#ecebe6";
+      ctx.strokeStyle = INK.primary;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(x, y, 5, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.fillStyle = "#ecebe6";
+      ctx.fillStyle = INK.primary;
       ctx.fillText("ISS", x - 26, y + 1);
     }
 

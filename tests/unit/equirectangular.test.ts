@@ -1,5 +1,5 @@
 /**
- * 2D ground-track projection: north up, west left — the convention every
+ * 2D ground-track projection: north up, west left - the convention every
  * map reader assumes. Pinned because the plot once rendered upside down.
  */
 

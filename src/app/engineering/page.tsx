@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AUTHOR_NAME, AUTHOR_URL, REPO_URL } from "@/lib/site";
+import { PAGE, PageHeader } from "@/components/ui/page-header";
 
 export const metadata = {
   title: "How it's built · Orbital Insight",
@@ -76,10 +77,9 @@ const PIPELINE = [
 
 export default function EngineeringPage() {
   return (
-    <div className="mx-auto max-w-5xl px-4 pb-12">
-      <header className="pt-8 pb-6">
-        <h1 className="heading-display text-[30px] md:text-[40px]">How it&apos;s built</h1>
-        <p className="lede mt-2 max-w-2xl text-[16px]">
+    <div className={PAGE}>
+      <PageHeader eyebrow="Engineering" title="How it&apos;s built">
+        <p>
           Notes on where the work happens, how the orbit maths is checked, and the problems that shaped the site. The
           longer version is in the repository&apos;s{" "}
           <a href={`${REPO_URL}/blob/main/docs/architecture.md`} className="link">
@@ -87,9 +87,9 @@ export default function EngineeringPage() {
           </a>
           .
         </p>
-        <p className="mt-3 text-[14px] text-[var(--color-text-secondary)]" data-testid="author-credit">
+        <p className="mt-3 text-[14px]" data-testid="author-credit">
           Designed and built by{" "}
-          <a href={AUTHOR_URL} className="font-semibold text-[var(--color-text-primary)] hover:underline">
+          <a href={AUTHOR_URL} className="link">
             {AUTHOR_NAME}
           </a>
           .
@@ -102,13 +102,16 @@ export default function EngineeringPage() {
             Methodology and limits →
           </Link>
         </p>
-      </header>
+      </PageHeader>
 
-      <section aria-label="In numbers" className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <section
+        aria-label="In numbers"
+        className="grid grid-cols-2 border-y border-[var(--color-border-hairline)] md:grid-cols-4"
+      >
         {NUMBERS.map((n) => (
-          <div key={n.label} className="panel px-4 py-3">
-            <div className="text-[24px] font-bold tracking-tight md:text-[28px]">{n.value}</div>
-            <div className="text-[13px] text-[var(--color-text-secondary)]">{n.label}</div>
+          <div key={n.label} className="border-[var(--color-border-hairline)] py-5 pr-5 md:border-r md:pl-5 md:first:pl-0 md:last:border-r-0">
+            <div className="font-mono text-[26px] tracking-tight text-[var(--color-text-primary)]">{n.value}</div>
+            <div className="mt-1 text-[13px] text-[var(--color-text-secondary)]">{n.label}</div>
           </div>
         ))}
       </section>

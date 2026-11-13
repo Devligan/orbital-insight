@@ -7,7 +7,7 @@
  * is why search and detail for curated objects answer instantly on a cold
  * server instance instead of paying a chain of throttled provider fetches.
  *
- * Honesty: these are real element sets fetched from CelesTrak at build time —
+ * Honesty: these are real element sets fetched from CelesTrak at build time -
  * a form of "cached" data. Freshness never lies in responses: hydrated
  * entries age from the snapshot's generatedAt and are served with the normal
  * cache/stale lineage labels, and every mutation-capable path still attempts
@@ -62,7 +62,7 @@ export function loadStaticCatalog(): { generatedAt: Date | null; entries: Static
         elementSet,
       });
     } catch {
-      // Malformed snapshot row: skip it — the live provider path remains.
+      // Malformed snapshot row: skip it - the live provider path remains.
     }
   }
   memoized = entries;

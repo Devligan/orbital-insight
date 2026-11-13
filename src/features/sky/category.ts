@@ -1,7 +1,7 @@
 /**
  * Orbit-band classification for the whole-sky cloud.
  *
- * Derived from the element set itself (mean motion + eccentricity) — no
+ * Derived from the element set itself (mean motion + eccentricity) - no
  * provider side-channel decides what an object "is". Bands follow the standard
  * regime boundaries: LEO below a ~129-minute period, the GEO belt within a
  * window around the 23.93-hour geostationary period, strongly eccentric
@@ -36,7 +36,7 @@ const TWO_PI = 2 * Math.PI;
 const MINUTES_PER_DAY = 1440;
 
 export function categoryOf(rec: ClassificationInput): SkyCategory {
-  // Missing mean motion: it cannot be classified honestly — default to the
+  // Missing mean motion: it cannot be classified honestly - default to the
   // LEO band, where almost all of the active catalog falls anyway.
   const radPerMin = rec.no ?? 0;
   if (radPerMin <= 0) return 0;

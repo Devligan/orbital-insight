@@ -55,7 +55,7 @@ describe("TEME→ECF conversion properties", () => {
   it("elevation from the sub-satellite point is 90° by symmetry", () => {
     // With the observer exactly under the satellite (same geodetic lat/lon,
     // height 0), the topocentric vector is radial to the local vertical, so
-    // the elevation angle is 90° up to float noise — an exact symmetry the
+    // the elevation angle is 90° up to float noise - an exact symmetry the
     // conversion must preserve.
     const time = new Date(vanguard.epoch.getTime() + 12 * 60_000);
     const state = propagateTo(vanguard, time);

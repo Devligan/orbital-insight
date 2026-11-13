@@ -7,9 +7,9 @@
  *
  * Staleness policy:
  *  - "live": fetched or cache-fresh within TTL (2 h).
- *  - "cached": past TTL — answered at once while a background refresh runs
+ *  - "cached": past TTL - answered at once while a background refresh runs
  *    (< 1 day old), or served when the provider is rate-limiting
- *    (< 7 days age) — user-facing responses say so.
+ *    (< 7 days age) - user-facing responses say so.
  *  - "provider-unavailable-stale": served from cache after a provider
  *    failure; responses flag it, and UI offers a retry.
  *
@@ -44,7 +44,7 @@ const MAX_STALE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
  * Past its TTL but younger than this, a cached record is answered at once
  * (labelled "cached") while the provider refresh runs in the background.
  * Waiting for the provider instead put its full timeout on the page's
- * critical path whenever it was unreachable — measured 10.7 s for a cached
+ * critical path whenever it was unreachable - measured 10.7 s for a cached
  * ISS lookup once the client's outage breaker re-probed. Element sets a day
  * old still predict a low-orbit pass to within seconds; older ones wait for
  * the provider as before.
@@ -120,7 +120,7 @@ export class SatelliteService {
    * Search across the catalog. Instant on cold instances: the build-time
    * snapshot seeds the catalog (see search-index.ts), so no provider fetch
    * is on the latency-critical path. The live provider refreshes the same
-   * groups in the background — later searches on the same instance see the
+   * groups in the background - later searches on the same instance see the
    * refreshed data; an outage simply leaves the snapshot in place.
    */
   async search(query: string, limit = 25): Promise<SatelliteCatalogEntrySearchResult[]> {

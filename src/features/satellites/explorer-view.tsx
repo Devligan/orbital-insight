@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Explorer — redesigned for people, not engineers.
+ * Explorer - redesigned for people, not engineers.
  *
  * Reading order = question order: "what's over me tonight" (the hero),
  * "here's what it looks like" (the live orbit view), "tell me more"
  * (technical details, collapsed by default). The URL still shares the view
- * (?cat=<id>&t=<step>) through router-native syncing only — raw history
+ * (?cat=<id>&t=<step>) through router-native syncing only - raw history
  * writes are barred (they silently broke router.push; see git history).
  */
 
@@ -94,7 +94,7 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
   const observerLocation = useObserverLocation();
   const watchlist = useWatchlist();
 
-  // A link that names a catalog object (?cat=…) opens straight on it — shared
+  // A link that names a catalog object (?cat=…) opens straight on it - shared
   // moments land where they point, instead of resetting to the default ISS.
   const rawCat = searchParams.get("cat");
   const urlTime = useMemo(() => {
@@ -139,14 +139,14 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
     setError(null);
     // NOTE: globeUnavailable is deliberately NOT reset here. WebGL
     // availability is a property of the machine/session, not of the selected
-    // satellite — resetting it would unstick the fallback and leave the 3D
+    // satellite - resetting it would unstick the fallback and leave the 3D
     // globe's loading state forever on GPUs that cannot start WebGL.
     try {
       const [detailRes, positionsRes, trackRes] = await Promise.all([
         fetch(`/api/satellites/${satelliteNumber}`),
         // Window opens 10 min before this device's "now" (5-min steps to +6 h)
         // so the current instant is always inside the samples, whatever the
-        // latency or clock skew — otherwise the globe has nothing to draw.
+        // latency or clock skew - otherwise the globe has nothing to draw.
         fetch(
           `/api/satellites/${satelliteNumber}/positions?start=${new Date(Date.now() - WINDOW_LEAD_MS).toISOString()}&hours=${WINDOW_HOURS}&samples=${WINDOW_SAMPLES}`,
         ),
@@ -162,7 +162,7 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
         return;
       }
       // A slow response for an earlier click must never overwrite the data of
-      // a later one — for the detail card, the positions, and the track alike.
+      // a later one - for the detail card, the positions, and the track alike.
       if (satelliteNumber !== selectedIdRef.current) return;
       if (detailBody.data && detailBody.data.satelliteNumber === satelliteNumber) {
         setDetail(detailBody.data);
@@ -183,7 +183,7 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
     }
   }, []);
 
-  // The shared link's instant applies to the first load only — switching
+  // The shared link's instant applies to the first load only - switching
   // satellites afterwards keeps whatever time the user is looking at.
   const pendingLinkStepRef = useRef(urlTime);
   useEffect(() => {
@@ -227,7 +227,7 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
   }, [load]);
 
   // URL sync through the router only (raw window.history writes broke later
-  // client navigation). On satellite *changes* only — slider ticks would
+  // client navigation). On satellite *changes* only - slider ticks would
   // spam the server; the copy action carries the instant on demand.
   const firstSelectedRef = useRef(selectedId);
   useEffect(() => {
@@ -278,35 +278,31 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
         {/* ─── The live sky: "here's what it looks like" ─── */}
         <div className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <div className="flex flex-col gap-3 lg:sticky lg:top-[72px]">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="label">Follow along</span>
-              {CURATED.map((example) => (
-                <button
-                  key={example.satelliteNumber}
-                  className={
-                    "badge " +
-                    (example.satelliteNumber === selectedId
-                      ? "border-[var(--color-accent)] text-[var(--color-accent)]"
-                      : "text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]")
-                  }
-                  onClick={() => setSelectedId(example.satelliteNumber)}
-                >
-                  {example.name}
+            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="label mr-1.5">Follow</span>
+                {CURATED.map((example) => (
+                  <button
+                    key={example.satelliteNumber}
+                    className="choice choice-sm"
+                    aria-pressed={example.satelliteNumber === selectedId}
+                    onClick={() => setSelectedId(example.satelliteNumber)}
+                  >
+                    {example.name}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-4 text-[13px] text-[var(--color-text-secondary)]">
+                <button className="hover:text-[var(--color-text-primary)]" aria-pressed={wholeSky} onClick={() => setWholeSky((on) => !on)}>
+                  {wholeSky ? "Whole sky: on" : "Whole sky: off"}
                 </button>
-              ))}
-              <button className="badge text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]" onClick={copyLink}>
-                {copied ? "Link copied ✓" : "Copy share link"}
-              </button>
-              <Link href={`/satellites/${selectedId}`} className="badge text-[var(--color-accent)] hover:underline">
-                Full details →
-              </Link>
-              <button
-                className="badge text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
-                aria-pressed={wholeSky}
-                onClick={() => setWholeSky((on) => !on)}
-              >
-                {wholeSky ? "Whole sky: on" : "Whole sky: off"}
-              </button>
+                <button className="hover:text-[var(--color-text-primary)]" onClick={copyLink}>
+                  {copied ? "Link copied" : "Copy share link"}
+                </button>
+                <Link href={`/satellites/${selectedId}`} className="text-[var(--color-accent)] hover:underline">
+                  Details →
+                </Link>
+              </div>
             </div>
 
             {error ? (
@@ -322,9 +318,9 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
                  height beside the tonight column; on phones a tall band. */
               <div
                 ref={globeHostRef}
-                className="panel relative h-[60vh] min-h-[420px] overflow-hidden lg:h-[calc(100vh-13rem)] lg:max-h-[920px] lg:min-h-[520px]"
+                className="relative h-[60vh] min-h-[420px] overflow-hidden lg:h-[calc(100vh-12rem)] lg:max-h-[920px] lg:min-h-[520px]"
               >
-                {/* Mounted when near the viewport and the browser is idle — on
+                {/* Mounted when near the viewport and the browser is idle - on
                     phones the globe is below the fold, and starting Cesium at
                     load froze taps on the tonight button for ~2.4 s. */}
                 {globeReady ? (
@@ -365,7 +361,7 @@ export function ExplorerView({ initialSatellite }: { initialSatellite?: { satell
 
             {/* Time controls: the slider drives the whole globe (satellite,
                 model, every whole-sky dot) through the shared clock. */}
-            <div className="panel flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[var(--color-border-hairline)] pt-3">
               <label htmlFor="time-slider" className="label shrink-0">
                 Time
               </label>
@@ -516,7 +512,7 @@ function Row({ label, value, hint }: { label: string; value: string; hint?: stri
   );
 }
 
-/** Compact star toggle next to the object name — the watchlist is one glance away. */
+/** Compact star toggle next to the object name - the watchlist is one glance away. */
 function WatchlistStar({
   satelliteNumber,
   name,

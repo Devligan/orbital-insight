@@ -11,7 +11,7 @@
  *  5. Record rise/set azimuths at the refined instants.
  *
  * A pass that is already above threshold at window start (or that never sets
- * inside the window) is reported with `truncated` — we cannot know when it
+ * inside the window) is reported with `truncated` - we cannot know when it
  * rose/set; honesty over guesses.
  */
 

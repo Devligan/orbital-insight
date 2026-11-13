@@ -3,7 +3,7 @@
  *
  * Bounded sampled positions (≤ 48 h, ≤ 600 samples) in TEME and ECEF km plus
  * geodetic values, for orbit rendering and the time slider. These are
- * SGP4 *predictions*, never live telemetry — labelled so in the UI.
+ * SGP4 *predictions*, never live telemetry - labelled so in the UI.
  */
 
 import { z } from "zod";

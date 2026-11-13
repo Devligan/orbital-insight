@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * Deployment smoke tests — run by post-deploy.yml against every Vercel
+ * Deployment smoke tests - run by post-deploy.yml against every Vercel
  * deployment (E2E_BASE_URL), and locally with the rest of the suite.
  *
  * Read-only and quick. Unlike the journeys, these are strict about data: a

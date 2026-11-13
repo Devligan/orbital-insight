@@ -2,7 +2,7 @@
  * SGP4 numerical validation.
  *
  * Reference data: the official "SGP4 Verification" distributed with David
- * Vallado's reference SGP4 code — `SGP4-VER.TLE` plus its expected-output
+ * Vallado's reference SGP4 code - `SGP4-VER.TLE` plus its expected-output
  * file `tcppver.out`. These files are mirrored by the python-sgp4 project
  * (github.com/brandon-rhodes/python-sgp4, sgp4/tests.py, which they document
  * as testing both implementations against the official 2010 reference
@@ -26,7 +26,7 @@
  * places while bit-level rounding differs across compilers.
  *
  * The keplerian/date tail of long rows is C++-formatted at low precision;
- * we do not numerically validate it — the physical state fields are the
+ * we do not numerically validate it - the physical state fields are the
  * authoritative comparison target.
  */
 

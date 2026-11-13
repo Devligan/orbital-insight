@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SkyTonight — the product's answer to the only question most people arrive
+ * SkyTonight - the product's answer to the only question most people arrive
  * with: "what can I see from my spot, tonight?"
  *
  * One location ask (device or manual fallback) feeds both computations:
@@ -9,12 +9,12 @@
  *    stations, filtered to the ones the server judged *visible* (sunlit
  *    satellite against a dark sky), soonest first, with where to look
  *    (the /api/passes computation + ./visible-tonight selection)
- *  - "Right now": those stations above 15° elevation at this instant —
+ *  - "Right now": those stations above 15° elevation at this instant -
  *    geometry only (the /api/overhead computation)
  *
  * Times read on the observer's wall clock (zone resolved server-side from
  * the coordinates), so typing Tokyo's coordinates from New York shows Tokyo
- * times — labelled as such.
+ * times - labelled as such.
  *
  * Refresh cadence: "right now" every minute; the 24 h pass search every 10
  * minutes (passes don't change faster than that); countdowns tick every 30 s.
@@ -68,13 +68,13 @@ type CloudState =
   | { kind: "ready"; forecast: CloudForecast; spot: string }
   | { kind: "unavailable"; spot: string };
 
-/** "ISS" from "ISS (ZARYA)" — the name people actually say. */
+/** "ISS" from "ISS (ZARYA)" - the name people actually say. */
 function shortLabel(satelliteNumber: string, fallbackName: string): string {
   const label = TONIGHT_TARGETS.find((t) => t.satelliteNumber === satelliteNumber)?.label ?? fallbackName;
   return label.replace(/\s*\(.*\)$/, "") || `NORAD ${satelliteNumber}`;
 }
 
-/** 40.7°N, 74.0°W — how coordinates read to people. */
+/** 40.7°N, 74.0°W - how coordinates read to people. */
 function formatSpot(lat: number, lon: number): string {
   return `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? "N" : "S"}, ${Math.abs(lon).toFixed(1)}°${lon >= 0 ? "E" : "W"}`;
 }
@@ -87,7 +87,8 @@ function spotName(observer: { lat: number; lon: number; label: string | null }):
 function SkyHeading() {
   return (
     <div>
-      <h1 className="heading-display text-[30px] sm:text-[38px]">What&apos;s flying over you tonight?</h1>
+      <p className="eyebrow mb-3">Tonight</p>
+      <h1 className="heading-display text-[36px] sm:text-[46px]">What&apos;s flying over you tonight?</h1>
       <p className="lede mt-2 max-w-xl">
         One tap shows which space stations will cross your dark sky lit by the sun: when, and exactly where
         to look. Real orbits, no account.
@@ -442,7 +443,7 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
             Saw something moving that isn&apos;t listed? Find out what it was →
           </Link>
 
-          {/* Right now — geometry, not visibility. */}
+          {/* Right now - geometry, not visibility. */}
           <div>
             <h2 className="mb-1.5 text-[14px] font-semibold text-[var(--color-text-secondary)]">Above your horizon right now</h2>
             {visibleNow.length > 0 ? (
@@ -463,7 +464,7 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
             )}
           </div>
 
-          {/* Every geometric pass, seen or not — for the curious, one click away. */}
+          {/* Every geometric pass, seen or not - for the curious, one click away. */}
           {passes !== null ? (
             <details className="group">
               <summary className="cursor-pointer select-none text-[14px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">

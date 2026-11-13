@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { INK } from "@/lib/ink";
 
 /** Link-preview card (LinkedIn, Slack, X): rendered once at build time. */
 
@@ -36,8 +37,8 @@ export default function OpengraphImage() {
           width: "100%",
           height: "100%",
           display: "flex",
-          background: "#0a0a0b",
-          color: "#ecebe6",
+          background: INK.sky,
+          color: INK.primary,
           fontFamily: "sans-serif",
           position: "relative",
         }}
@@ -51,8 +52,8 @@ export default function OpengraphImage() {
             width: 240,
             height: 240,
             borderRadius: 120,
-            background: "#151517",
-            border: "2px solid #ecebe6",
+            background: "#0d1119",
+            border: `2px solid ${INK.primary}`,
           }}
         />
         {dots.map((d, i) => (
@@ -65,20 +66,20 @@ export default function OpengraphImage() {
               width: d.r * 2,
               height: d.r * 2,
               borderRadius: d.r,
-              background: d.lit ? "#f2b544" : "#8a8983",
+              background: d.lit ? INK.sunlit : INK.muted,
               opacity: d.lit ? 1 : d.o,
             }}
           />
         ))}
         <div style={{ display: "flex", flexDirection: "column", padding: "80px 72px", width: 660 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 30, fontWeight: 600 }}>
-            <div style={{ width: 16, height: 16, borderRadius: 8, background: "#f2b544" }} />
+            <div style={{ width: 16, height: 16, borderRadius: 8, background: INK.sunlit }} />
             Orbital Insight
           </div>
           <div style={{ marginTop: 56, fontSize: 64, fontWeight: 600, lineHeight: 1.08, letterSpacing: -1.5 }}>
             Real satellites. Real orbits.
           </div>
-          <div style={{ marginTop: 28, fontSize: 28, lineHeight: 1.4, color: "#b0afa8" }}>
+          <div style={{ marginTop: 28, fontSize: 28, lineHeight: 1.4, color: INK.secondary }}>
             Every active satellite on a live 3D globe, visible-pass prediction, and close-approach screening, computed
             with SGP4 in your browser.
           </div>

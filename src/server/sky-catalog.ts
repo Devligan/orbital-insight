@@ -6,15 +6,15 @@
  * real provider cost, so it is fetched at most once per TTL and held in a
  * module-level cache; concurrent callers share one in-flight fetch. When the
  * provider fails and a previous copy exists, the stale copy is served and
- * clearly labelled — the UI decides how honestly to present it (same contract
+ * clearly labelled - the UI decides how honestly to present it (same contract
  * as every other provider-backed view).
  *
  * Payload discipline: the route serializes only what the browser needs to
  * propagate client-side (name, catalog number, both TLE lines). Group
- * classification (LEO/MEO/GEO/HEO) derives client-side from the mean motion —
+ * classification (LEO/MEO/GEO/HEO) derives client-side from the mean motion -
  * no extra provider requests, no hidden data.
  *
- * Politeness beyond the TTL (both learned the hard way — CelesTrak blocked
+ * Politeness beyond the TTL (both learned the hard way - CelesTrak blocked
  * this machine's IP after repeated full-catalog downloads):
  *  - The last good catalog is also written to a disk snapshot, so a server
  *    restart or dev hot-reload restores it instead of re-downloading ~2 MB.
@@ -33,7 +33,7 @@ import path from "node:path";
 import { celestrakClient } from "@/integrations/celestrak/client";
 
 /** Refresh the whole-sky catalog at most this often from the provider. */
-const SKY_CATALOG_TTL_MS = 6 * 60 * 60 * 1000; // 6 h — active.txt changes slowly
+const SKY_CATALOG_TTL_MS = 6 * 60 * 60 * 1000; // 6 h - active.txt changes slowly
 /** A fetch older than this is never served, even as stale. */
 const MAX_STALE_MS = 48 * 60 * 60 * 1000;
 /** After a provider failure, don't ask again for this long. */
@@ -92,7 +92,7 @@ interface CacheState {
   maxStaleMs: number;
 }
 
-// Module-level (per serverless instance) — the documented cache trade-off,
+// Module-level (per serverless instance) - the documented cache trade-off,
 // same as the bounded catalog cache.
 const state: CacheState = { result: null, inFlight: null, restore: null, lastFailure: null, maxStaleMs: MAX_STALE_MS };
 
@@ -172,7 +172,7 @@ async function fetchFresh(): Promise<SkyCatalogResult> {
   // A whole-catalog answer far below the active population is a provider
   // anomaly (truncated feed): refuse it rather than presenting a fake "sky".
   if (named.length < MIN_ACTIVE_OBJECTS) {
-    throw new Error(`CelesTrak answered GROUP=active with only ${named.length} objects — expected the full active feed`);
+    throw new Error(`CelesTrak answered GROUP=active with only ${named.length} objects; expected the full active feed`);
   }
   return {
     generatedAt: new Date().toISOString(),
@@ -222,7 +222,7 @@ export async function getSkyCatalog(): Promise<SkyCatalogResult> {
   }
   // A copy under a day old answers now; the refresh above lands for the next
   // caller. (An unreachable provider would otherwise hold every cold request
-  // for its timeout — the same trade-off satellites.ts makes.)
+  // for its timeout - the same trade-off satellites.ts makes.)
   if (state.result && ageMs(state.result) < SERVE_WHILE_REFRESHING_MS) {
     state.inFlight.catch(() => undefined);
     return state.result;

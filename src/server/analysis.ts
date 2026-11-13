@@ -131,7 +131,7 @@ function samplePositions(
   for (let i = 0; i < count; i++) {
     const time = new Date(t0 + i * step);
     const state = propagateState(compiled.satrec, time);
-    // TEME→ECF stays in the domain coordinates module — no library access
+    // TEME→ECF stays in the domain coordinates module - no library access
     // in the application layer.
     const ecf = temeToEcf(state.teme, time);
     out.push({
@@ -157,7 +157,7 @@ export interface PassSearchEntry {
 }
 
 export interface PassSearchServiceResult {
-  /** Wire-shape results (contracts/orbital.ts) — ISO strings, honest nulls. */
+  /** Wire-shape results (contracts/orbital.ts) - ISO strings, honest nulls. */
   results: PassResultDto[];
   windowStart: Date;
   windowEnd: Date;
@@ -175,7 +175,7 @@ export interface PassSearchServiceResult {
  *
  * Only quantities with a defensible interpretation are reported:
  *  - element-set fields as published (per source record),
- *  - their difference as *data* deltas (not physical orbital change —
+ *  - their difference as *data* deltas (not physical orbital change -
  *    different fits/epochs differ for reasons beyond physics),
  *  - propagated position deltas at common instants (SGP4 vs SGP4 against
  *    each element set).
@@ -250,7 +250,7 @@ export async function compareElementSets(options: {
     right: toComparisonSide(right.record, right.lineage, rightCompiled),
     positionDeltas,
     notes: [
-      "Element-set differences reflect differing epochs, fitting procedures, and observation updates — not necessarily real orbital change.",
+      "Element-set differences reflect differing epochs, fitting procedures, and observation updates, not necessarily real orbital change.",
       "Position deltas compare two SGP4 predictions (one per element set) against each other; their accuracy is inherited from the underlying data.",
     ],
   };

@@ -2,7 +2,7 @@
  * The delivery pipeline's own config (.github/), checked like code.
  *
  * GitHub rejects an unparseable workflow outright ("Invalid workflow file")
- * and never runs it — which is how the data-refresh job once sat dead: an
+ * and never runs it - which is how the data-refresh job once sat dead: an
  * unquoted "polite: one request…" in a step name is a YAML mapping error.
  * Windows-side gates never read these files, so this test does.
  */

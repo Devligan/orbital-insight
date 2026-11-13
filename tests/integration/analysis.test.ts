@@ -95,7 +95,7 @@ describe("element-set comparison identity property (regression)", () => {
     });
     const maxDelta = Math.max(...result.positionDeltas.map((d) => d.deltaKm));
     // Both element sets share the epoch in this fixture (only the catalog
-    // number differs), so element-derived propagation is identical here —
+    // number differs), so element-derived propagation is identical here -
     // the comparison relies on element-field metrics; assert the deltas are
     // honest small values and notes are present.
     expect(maxDelta).toBeGreaterThanOrEqual(0);

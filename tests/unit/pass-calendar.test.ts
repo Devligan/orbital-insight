@@ -3,7 +3,7 @@
  *
  * Checked against RFC 5545 itself rather than a snapshot: CRLF line endings,
  * 75-octet folding that never splits a UTF-8 character, TEXT escaping, UTC
- * date-times, balanced components — plus the product rules: the event spans
+ * date-times, balanced components - plus the product rules: the event spans
  * only the visible stretch, and the alarm fires ahead of it.
  */
 

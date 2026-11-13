@@ -1,12 +1,27 @@
-# Orbital Insight
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/mark-dark.svg">
+    <img src="docs/images/mark-light.svg" width="72" height="72" alt="">
+  </picture>
+</p>
 
-[![CI](https://github.com/Devligan/orbital-insight/actions/workflows/ci.yml/badge.svg)](https://github.com/Devligan/orbital-insight/actions/workflows/ci.yml)
+<h1 align="center">Orbital Insight</h1>
+
+<p align="center">
+  <a href="https://orbital-insight-drab.vercel.app"><b>Open the site</b></a>
+  &nbsp;·&nbsp;
+  <a href="docs/architecture.md">How it fits together</a>
+  &nbsp;·&nbsp;
+  <a href="https://orbital-insight-drab.vercel.app/methodology">Methodology</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/Devligan/orbital-insight/actions/workflows/ci.yml"><img src="https://github.com/Devligan/orbital-insight/actions/workflows/ci.yml/badge.svg" alt="CI" align="center"></a>
+</p>
 
 A website for looking up. It tells you which satellites will cross your sky tonight and where to look, works out
 what that moving light you just saw probably was, and puts every active satellite on a live globe. The orbits are
 real (public element sets from CelesTrak), and the maths runs in your browser.
 
-**https://orbital-insight-drab.vercel.app** · no account, nothing to install
+No account, nothing to install.
 
 ![Every active satellite on the globe, with the ISS followed in real time](docs/images/home.jpg)
 

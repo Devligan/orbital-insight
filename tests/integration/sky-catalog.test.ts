@@ -175,7 +175,7 @@ describe("sky catalog service", () => {
     const restored = await second.getSkyCatalog();
     expect(fetchGpTle).not.toHaveBeenCalled();
     expect(restored.count).toBe(5_300);
-    // The snapshot keeps its true fetch time — never re-labelled as newer.
+    // The snapshot keeps its true fetch time - never re-labelled as newer.
     expect(restored.generatedAt).toBe(original.generatedAt);
   });
 
