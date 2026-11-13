@@ -224,6 +224,28 @@ Lessons to keep:
 - PowerShell `Get-Content -Raw` misreads UTF-8 without a BOM (it mangles
   "…"). Edit with the editor tool or `[IO.File]::ReadAllText`.
 
+## Design rules (2026-11-13, PR #16)
+
+The owner said the site looked "vibe coded". It was the stock Tailwind dark
+template. The identity is now a flight instrument; keep it:
+- **One accent, sunlit amber** (`--color-accent`), only for what can be seen
+  or acted on: the visible stretch of a pass, the followed orbit, the primary
+  action, the current choice. Status colours are for status only. Don't add
+  a second accent or reintroduce `sky-400`-style blues.
+- **Type:** Plex Sans to read. Plex Mono for numbers, `.label`/`.eyebrow`
+  readout names and table headers. Interactive chips stay sans.
+- **Shape:** 3 px corners. Choices use `.choice` (aria-checked/pressed
+  styles it). No pills, no gradients or glows, no box inside a box (use
+  hairline-divided lists).
+- **Copy:** no em dashes in short UI strings (titles use " · "). Say it in
+  plain sentences.
+- Charts and the globe use the atlas's validated hues (`palette.ts`), with
+  low orbit as warm-grey dust. Contrast ratios are computed (not guessed) and
+  recorded in `globals.css`.
+- README images: `docs/images/*` come from a production build. Take
+  `home.jpg` from a deployment, since this machine can't reach CelesTrak and
+  a local globe shows the "last good copy" notice.
+
 ## Known environmental realities
 
 - Windows host, Git Bash. Use POSIX syntax (forward slashes, `rm -rf`).
