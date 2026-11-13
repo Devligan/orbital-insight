@@ -24,6 +24,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { PassResultDto } from "@/contracts/orbital";
 import type { ObserverLocationState } from "@/features/observer/use-observer-location";
+import { PlaceSearch } from "@/features/observer/place-search";
 import { PassCard } from "@/features/pass-prediction/pass-cards";
 import { SkyChart } from "@/features/pass-prediction/sky-chart";
 import { brightnessWord, observerClock, observerZoneNote } from "@/features/pass-prediction/sky-words";
@@ -67,6 +68,11 @@ function shortLabel(satelliteNumber: string, fallbackName: string): string {
 /** 40.7°N, 74.0°W — how coordinates read to people. */
 function formatSpot(lat: number, lon: number): string {
   return `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? "N" : "S"}, ${Math.abs(lon).toFixed(1)}°${lon >= 0 ? "E" : "W"}`;
+}
+
+/** The place name when one was picked; coordinates otherwise. */
+function spotName(observer: { lat: number; lon: number; label: string | null }): string {
+  return observer.label ?? formatSpot(observer.lat, observer.lon);
 }
 
 function SkyHeading() {
@@ -238,8 +244,7 @@ function VisibleTonight({ data, nowMs, spot }: { data: PassesData; nowMs: number
 }
 
 export function SkyTonight({ location }: { location: ObserverLocationState }) {
-  const { observer, locating, error: locationError, manualLat, manualLon, setManualLat, setManualLon, locate, submitManual, clear } =
-    location;
+  const { observer, locating, error: locationError, locate, choose, clear } = location;
   const [overhead, setOverhead] = useState<OverheadData | null>(null);
   const [passes, setPasses] = useState<PassesData | null>(null);
   const [passesError, setPassesError] = useState<string | null>(null);
@@ -331,40 +336,18 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
           <button className="btn btn-primary self-start" onClick={locate} disabled={locating} data-testid="tonight-locate">
             {locating ? "Finding your spot…" : "Show me tonight's passes"}
           </button>
-          <form
-            className="flex flex-wrap items-center gap-1.5 text-[13px] text-[var(--color-text-muted)]"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submitManual();
-            }}
-          >
-            <span>or type coordinates</span>
-            <input
-              aria-label="Manual latitude"
-              placeholder="lat, e.g. 40.7"
-              inputMode="decimal"
-              className="input w-28"
-              value={manualLat}
-              onChange={(e) => setManualLat(e.target.value)}
-            />
-            <input
-              aria-label="Manual longitude"
-              placeholder="lon, e.g. -74"
-              inputMode="decimal"
-              className="input w-28"
-              value={manualLon}
-              onChange={(e) => setManualLon(e.target.value)}
-            />
-            <button type="submit" className="btn btn-secondary">
-              Go
-            </button>
-          </form>
+          <div className="flex max-w-md flex-col gap-1.5">
+            <span className="text-[13px] text-[var(--color-text-muted)]">or pick a place, no location sharing needed</span>
+            <PlaceSearch onChoose={choose} />
+          </div>
           {locationError ? <p className="text-[13px] text-[var(--color-status-warn)]">{locationError.message}</p> : null}
         </div>
       ) : (
         <div className="flex flex-col gap-6">
           <div className="flex flex-wrap items-center gap-2 text-[13px]">
-            <span className="badge badge-good">Watching from {formatSpot(observer.lat, observer.lon)}</span>
+            <span className="badge badge-good max-w-full truncate" title={formatSpot(observer.lat, observer.lon)}>
+              Watching from {spotName(observer)}
+            </span>
             <button className="text-[var(--color-accent)] hover:underline" onClick={changeSpot}>
               change spot
             </button>
@@ -373,7 +356,7 @@ export function SkyTonight({ location }: { location: ObserverLocationState }) {
 
           {/* The headline: passes a person can actually see. */}
           {passes !== null ? (
-            <VisibleTonight data={passes} nowMs={nowMs} spot={formatSpot(observer.lat, observer.lon)} />
+            <VisibleTonight data={passes} nowMs={nowMs} spot={spotName(observer)} />
           ) : passesError && !busy ? (
             <p className="text-[13px] text-[var(--color-status-warn)]">{passesError}</p>
           ) : null}

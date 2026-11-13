@@ -273,6 +273,20 @@ const SECTIONS = [
           moves them most), so the event links back to the live prediction.
         </li>
         <li>
+          <strong>Your spot.</strong> Device location, a typed place, or typed coordinates. Coordinates are read in
+          your browser. A place name is looked up by{" "}
+          <a className="text-[var(--color-accent)] hover:underline" href="https://open-meteo.com/en/docs/geocoding-api" target="_blank" rel="noreferrer">
+            Open-Meteo&apos;s geocoder
+          </a>{" "}
+          (GeoNames places, CC BY 4.0): your browser sends it the text you typed, and nothing else. It is called from
+          your browser rather than our server because its free tier is rate-limited per IP address, so one shared
+          server address would run out for everyone at once. A place is a point, its centre, which is fine here:
+          for the ISS, 400 km up and moving 7.7 km/s, standing 10 km away shifts a pass by a second or two and its
+          directions by at most about a degree. The spot you pick is remembered in
+          this browser only (local storage) so a return visit skips the question; &ldquo;change spot&rdquo; forgets
+          it.
+        </li>
+        <li>
           <strong>Times are the observer&apos;s.</strong> Pass times are shown on the wall clock of the coordinates
           you entered, not your device&apos;s: the server resolves the time zone offline from the coordinates with
           tz-lookup, which uses simplified zone boundaries. Its authors measure that about 5% of random points on
