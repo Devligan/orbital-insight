@@ -2,7 +2,7 @@
   "name": "orbital-insight",
   "version": "0.1.0",
   "private": true,
-  "description": "Satellite analysis platform: live CelesTrak orbital data, SGP4 propagation, ground tracks, pass predictions.",
+  "description": "Which satellites cross your sky tonight, what that moving light was, and every active satellite on a live globe.",
   "scripts": {
     "prebuild": "node scripts/build-search-index.mjs && node scripts/build-sky-snapshot.mjs && node scripts/copy-cesium.mjs",
     "predev": "node scripts/copy-cesium.mjs",
