@@ -138,17 +138,25 @@ export function skyPath(pass: PassCardData, window: VisibleWindowDto): string[] 
   const startMs = Date.parse(window.start.timeIso);
   const endMs = Date.parse(window.end.timeIso);
 
+  // No rise time means the pass was already under way when the prediction
+  // window opened (truncated at its start), so the stretch begins "now".
+  const alreadyUp = pass.riseTime === null;
   const startsMidSky = pass.riseTime !== null && startMs - Date.parse(pass.riseTime) > MID_SKY_EDGE_MS;
   steps.push(
     window.startsFromShadow
       ? `emerges from Earth's shadow ${at(window.start)}`
-      : startsMidSky
-        ? `shows up as the sky darkens, ${at(window.start)}`
-        : `appears ${at(window.start)}`,
+      : alreadyUp
+        ? `already up, ${at(window.start)}`
+        : startsMidSky
+          ? `shows up as the sky darkens, ${at(window.start)}`
+          : `appears ${at(window.start)}`,
   );
 
+  // The peak is worth naming only when it's somewhere else: a stretch that
+  // starts at the top would otherwise say "36° up … highest 36°".
   const apexMs = Date.parse(pass.maxTime);
-  if (apexMs > startMs && apexMs < endMs) {
+  const apexIsElsewhere = Math.round(pass.maxElevationDeg) > Math.round(window.start.elevationDeg);
+  if (apexMs > startMs && apexMs < endMs && apexIsElsewhere) {
     steps.push(
       `highest ${Math.round(pass.maxElevationDeg)}° in the ${compassPoint(pass.azimuthAtMaxDeg)} (${heightWords(pass.maxElevationDeg)})`,
     );
