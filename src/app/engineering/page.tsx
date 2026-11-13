@@ -4,7 +4,7 @@ import { AUTHOR_NAME, AUTHOR_URL, REPO_URL } from "@/lib/site";
 export const metadata = {
   title: "How it's built · Orbital Insight",
   description:
-    "The engineering behind Orbital Insight: SGP4 validated against the official reference suite, client-side conjunction screening, a CI/CD pipeline that smoke-tests every deployment, and the bugs that shaped it.",
+    "How Orbital Insight works: where the computation happens, how the orbit maths is checked, and the bugs that shaped it.",
 };
 
 
@@ -13,7 +13,7 @@ const NUMBERS = [
   { value: "~16,000", label: "satellites propagated with SGP4 in your browser, live" },
   { value: "700 / 700", label: "rows of the official SGP4 test suite reproduced within 2 × 10⁻⁷" },
   { value: "~2.5 s", label: "to screen the ISS against every active satellite for 24 h" },
-  { value: "320+", label: "automated tests, from orbital maths to real-browser journeys" },
+  { value: "~780k", label: "SGP4 runs to answer one \"what did I just see?\", in a second or two" },
 ] as const;
 
 const STORIES = [
@@ -68,7 +68,7 @@ const STORIES = [
 ] as const;
 
 const PIPELINE = [
-  ["Pull request", "Types, zero-warning lint, 280+ unit and integration tests, production build, bundle-size budget, 35+ browser journeys"],
+  ["Pull request", "Types, lint, unit and integration tests, a production build, a bundle-size budget, and browser journeys"],
   ["Preview deployment", "Vercel builds the branch; the smoke suite runs against the preview URL"],
   ["Merge to main", "Production deploys; smoke suite and Lighthouse run against production"],
   ["Every two days", "A runner refreshes the bundled orbital data and commits it, which redeploys"],
@@ -80,8 +80,12 @@ export default function EngineeringPage() {
       <header className="pt-8 pb-6">
         <h1 className="heading-display text-[30px] md:text-[40px]">How it&apos;s built</h1>
         <p className="lede mt-2 max-w-2xl text-[16px]">
-          Real orbital data, maths checked against published references, every limitation stated, and nothing shipped
-          without passing the same gates every time.
+          Notes on where the work happens, how the orbit maths is checked, and the problems that shaped the site. The
+          longer version is in the repository&apos;s{" "}
+          <a href={`${REPO_URL}/blob/main/docs/architecture.md`} className="link">
+            architecture notes
+          </a>
+          .
         </p>
         <p className="mt-3 text-[14px] text-[var(--color-text-secondary)]" data-testid="author-credit">
           Designed and built by{" "}
