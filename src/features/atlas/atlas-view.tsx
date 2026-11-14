@@ -217,8 +217,8 @@ export function AtlasView() {
                   <th scope="col" className="hidden md:table-cell">Operator</th>
                   <th scope="col" className="text-right">Active</th>
                   <th scope="col" className="text-right">Share</th>
-                  <th scope="col" className="text-right">Median altitude</th>
-                  <th scope="col">Main orbital planes</th>
+                  <th scope="col" className="hidden text-right sm:table-cell">Median altitude</th>
+                  <th scope="col" className="hidden lg:table-cell">Main orbital planes</th>
                 </tr>
               </thead>
               <tbody>
@@ -237,8 +237,8 @@ export function AtlasView() {
                       <td className="hidden font-sans text-[var(--color-text-secondary)] md:table-cell">{rule.operator}</td>
                       <td className="text-right">{count(p.count)}</td>
                       <td className="text-right">{percent(p.share)}</td>
-                      <td className="text-right">{count(Math.round(p.medianAltitudeKm))} km</td>
-                      <td>{p.id === "other" ? "—" : p.inclinations.map((i) => `${i.deg}°`).join(" · ")}</td>
+                      <td className="hidden text-right sm:table-cell">{count(Math.round(p.medianAltitudeKm))} km</td>
+                      <td className="hidden lg:table-cell">{p.id === "other" ? "—" : p.inclinations.map((i) => `${i.deg}°`).join(" · ")}</td>
                     </tr>
                   );
                 })}
