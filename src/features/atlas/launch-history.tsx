@@ -45,7 +45,16 @@ export function LaunchHistory({ points, asOfYear }: { points: readonly AtlasPoin
   const activeBin = active === null ? undefined : bins[active];
   const starlinkStart = bins.findIndex((b) => b.year === 2019);
   const tickEvery = width < 640 ? 5 : 2;
-
+  // Year labels on the tick rhythm, dropping any that would crowd the previous
+  // one (the "<2000" bucket sits right beside 2000 on a narrow screen).
+  const MIN_LABEL_GAP_PX = 38;
+  const yearLabels: { i: number; label: string }[] = [];
+  bins.forEach((bin, i) => {
+    if (i !== 0 && (bin.year - FROM_YEAR) % tickEvery !== 0) return;
+    const previous = yearLabels.at(-1);
+    if (previous && (i - previous.i) * slot < MIN_LABEL_GAP_PX) return;
+    yearLabels.push({ i, label: i === 0 ? `<${FROM_YEAR}` : String(bin.year) });
+  });
   return (
     <div ref={wrapRef} className="relative w-full">
       {width > 0 ? (
@@ -98,13 +107,11 @@ export function LaunchHistory({ points, asOfYear }: { points: readonly AtlasPoin
             );
           })}
           <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(0)} y2={y(0)} stroke="var(--color-border-strong)" />
-          {bins.map((bin, i) =>
-            i === 0 || (bin.year - FROM_YEAR) % tickEvery === 0 ? (
-              <text key={bin.year} x={x(i) + slot / 2} y={HEIGHT - 12} fill="var(--color-text-muted)" fontSize={11} textAnchor="middle">
-                {i === 0 ? `<${FROM_YEAR}` : bin.year}
-              </text>
-            ) : null,
-          )}
+          {yearLabels.map(({ i, label }) => (
+            <text key={label} x={x(i) + slot / 2} y={HEIGHT - 12} fill="var(--color-text-muted)" fontSize={11} textAnchor="middle">
+              {label}
+            </text>
+          ))}
           {starlinkStart >= 0 ? (
             <text
               x={x(starlinkStart) + slot / 2}

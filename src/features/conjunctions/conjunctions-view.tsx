@@ -402,13 +402,17 @@ function Results({
           <table className="table-technical" data-testid="approaches-table">
             <thead>
               <tr>
-                <th scope="col">When (your time)</th>
+                <th scope="col">
+                  When<span className="hidden sm:inline"> (your time)</span>
+                </th>
                 <th scope="col">Object</th>
-                <th scope="col" className="text-right">Miss distance</th>
+                <th scope="col" className="text-right">
+                  Miss<span className="hidden sm:inline"> distance</span>
+                </th>
                 <th scope="col" className="hidden text-right md:table-cell">Radial</th>
                 <th scope="col" className="hidden text-right md:table-cell">In-track</th>
                 <th scope="col" className="hidden text-right md:table-cell">Cross-track</th>
-                <th scope="col" className="text-right">Closing speed</th>
+                <th scope="col" className="hidden text-right sm:table-cell">Closing speed</th>
               </tr>
             </thead>
             <tbody>
@@ -428,16 +432,20 @@ function Results({
                           {untilLabel(a.tcaMs - now)}
                         </div>
                       </td>
-                      <td className="font-sans">
+                      <td className="whitespace-normal font-sans">
                         <Link href={`/satellites/${a.id}`} className="hover:underline" onClick={(e) => e.stopPropagation()}>
                           {a.name}
                         </Link>
                       </td>
-                      <td className="text-right font-semibold">{a.missKm.toFixed(2)} km</td>
+                      <td className="text-right">
+                        <div className="font-semibold">{a.missKm.toFixed(2)} km</div>
+                        {/* Phones: the closing speed rides under the miss distance instead of a column off-screen. */}
+                        <div className="text-[11px] text-[var(--color-text-muted)] sm:hidden">{a.relativeSpeedKmS.toFixed(1)} km/s</div>
+                      </td>
                       <td className="hidden text-right md:table-cell">{a.radialKm.toFixed(2)}</td>
                       <td className="hidden text-right md:table-cell">{a.inTrackKm.toFixed(2)}</td>
                       <td className="hidden text-right md:table-cell">{a.crossTrackKm.toFixed(2)}</td>
-                      <td className="text-right">{a.relativeSpeedKmS.toFixed(2)} km/s</td>
+                      <td className="hidden text-right sm:table-cell">{a.relativeSpeedKmS.toFixed(2)} km/s</td>
                     </tr>
                     {open ? (
                       <tr>
