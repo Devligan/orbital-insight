@@ -224,6 +224,35 @@ test.describe("pass prediction journey", () => {
     expect(path).toBeTruthy();
   });
 
+  test("a bad field is named next to itself and nothing is sent", async ({ page }) => {
+    // Let the opening run settle so any later request is the form's doing.
+    const opening = page.waitForResponse("**/api/passes", { timeout: 60_000 });
+    await page.goto("/passes");
+    await opening;
+    let sent = 0;
+    page.on("request", (request) => {
+      if (request.url().endsWith("/api/passes")) sent += 1;
+    });
+
+    const latitude = page.getByLabel(/^Latitude/);
+    await latitude.fill(""); // Number("") is 0: this used to predict for the equator
+    await page.getByLabel(/Catalog IDs/i).fill("25544 abc");
+    await page.getByLabel(/Minimum elevation/i).fill("200");
+    await page.getByRole("button", { name: /Predict passes/i }).click();
+
+    await expect(latitude).toBeFocused();
+    await expect(latitude).toHaveAttribute("aria-invalid", "true");
+    await expect(latitude).toHaveAccessibleDescription("Latitude is required.");
+    await expect(page.getByTestId("error-satellites")).toHaveText('"abc" isn\'t a catalog ID (1 to 5 digits).');
+    await expect(page.getByTestId("error-minElevationDeg")).toHaveText("Minimum elevation must be between 0° and 85°.");
+    expect(sent).toBe(0);
+
+    // Fixing a field clears its message as you type.
+    await latitude.fill("28.5");
+    await expect(page.getByTestId("error-latitudeDeg")).toHaveCount(0);
+    await expect(latitude).not.toHaveAttribute("aria-invalid", "true");
+  });
+
   test("the compute-budget guard rejects oversized requests with a clear message", async ({ page }) => {
     await page.goto("/passes");
     await page.getByLabel(/Catalog IDs/i).fill("25544 21452 22877 23223 23969 24876 25954 26360 26879 27704 28361 28480 28626 29601 32252 32382 32772 32953 33417 35752 36585 37846 38833 39166 40730");
