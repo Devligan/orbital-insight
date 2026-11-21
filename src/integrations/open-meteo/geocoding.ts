@@ -132,11 +132,19 @@ export async function searchPlaces(
   return parsePlaceResponse(body);
 }
 
+export type CoordinateReading =
+  | { ok: true; latDeg: number; lonDeg: number }
+  /** Shaped like coordinates but unusable; `problem` says why in a sentence. */
+  | { ok: false; problem: string };
+
 /**
  * Coordinates typed into the place box: "40.7, -74", "40.7 -74",
- * "40.7N 74W", "40.7°N, 74.0°W". Returns null for anything else (it's a name).
+ * "40.7N 74W", "40.7°N, 74.0°W". Returns null when the text isn't shaped
+ * like coordinates at all (it's a name). Text that is, but can't be a spot
+ * on Earth ("91, 200", "-40N 74W"), gets a reason instead of being sent to
+ * the geocoder as a town name.
  */
-export function parseCoordinates(text: string): { latDeg: number; lonDeg: number } | null {
+export function readCoordinates(text: string): CoordinateReading | null {
   const match = text
     .trim()
     .match(/^([+-]?\d+(?:\.\d+)?)\s*°?\s*([NS])?\s*[,;\s]\s*([+-]?\d+(?:\.\d+)?)\s*°?\s*([EW])?$/i);
@@ -144,14 +152,21 @@ export function parseCoordinates(text: string): { latDeg: number; lonDeg: number
   const [, latText, latHemi, lonText, lonHemi] = match;
   let lat = Number(latText);
   let lon = Number(lonText);
-  if (latHemi) {
-    if (lat < 0) return null; // "-40 N" is contradictory
-    if (latHemi.toUpperCase() === "S") lat = -lat;
+  if ((latHemi && lat < 0) || (lonHemi && lon < 0)) {
+    return { ok: false, problem: "Use a minus sign or N/S/E/W, not both." }; // "-40 N" is contradictory
   }
-  if (lonHemi) {
-    if (lon < 0) return null;
-    if (lonHemi.toUpperCase() === "W") lon = -lon;
-  }
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
-  return { latDeg: lat, lonDeg: lon };
+  if (latHemi?.toUpperCase() === "S") lat = -lat;
+  if (lonHemi?.toUpperCase() === "W") lon = -lon;
+  const problems = [
+    Math.abs(lat) > 90 ? "Latitude must be between -90° and 90°." : null,
+    Math.abs(lon) > 180 ? "Longitude must be between -180° and 180°." : null,
+  ].filter((problem) => problem !== null);
+  if (problems.length > 0) return { ok: false, problem: problems.join(" ") };
+  return { ok: true, latDeg: lat, lonDeg: lon };
+}
+
+/** Usable coordinates from the place box, or null (a name, or coordinates that can't be). */
+export function parseCoordinates(text: string): { latDeg: number; lonDeg: number } | null {
+  const reading = readCoordinates(text);
+  return reading?.ok ? { latDeg: reading.latDeg, lonDeg: reading.lonDeg } : null;
 }

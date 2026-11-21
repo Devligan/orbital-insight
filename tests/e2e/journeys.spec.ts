@@ -189,6 +189,30 @@ test.describe("detail + search journey", () => {
     await hero.getByRole("option", { name: /Use 25\.7700°N/ }).click();
     await expect(hero.getByText(/watching from 25\.8°N/i)).toBeVisible();
   });
+
+  test("coordinates that can't be on Earth say why, and aren't searched as a town", async ({ page }) => {
+    let geocoderCalls = 0;
+    await page.route("https://geocoding-api.open-meteo.com/**", (route) => {
+      geocoderCalls += 1;
+      return route.fulfill({ json: { results: [] } });
+    });
+    await page.goto("/");
+    const box = page.getByRole("region", { name: "What's in the sky" }).getByTestId("place-search");
+    await box.fill("91, 200");
+    await expect(box).toHaveAccessibleDescription(
+      "Latitude must be between -90° and 90°. Longitude must be between -180° and 180°.",
+    );
+    await expect(box).toHaveAttribute("aria-invalid", "true");
+    await box.press("Enter"); // nothing to pick, and nothing picked
+    await expect(page.getByText(/watching from/i)).toHaveCount(0);
+    // Past the debounce: still no geocoder request for the refused text.
+    await page.waitForTimeout(600);
+    expect(geocoderCalls).toBe(0);
+
+    await box.fill("40.7, -74");
+    await expect(box).not.toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("place-search-problem")).toHaveCount(0);
+  });
 });
 
 test.describe("pass prediction journey", () => {

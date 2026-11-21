@@ -5,6 +5,7 @@ import {
   parsePlaceResponse,
   placeLabel,
   PlaceSearchError,
+  readCoordinates,
   searchPlaces,
 } from "@/integrations/open-meteo/geocoding";
 import { parseSpot } from "@/features/observer/spot-store";
@@ -105,6 +106,37 @@ describe("parseCoordinates", () => {
 
   it.each(["Brooklyn", "11201", "91, 0", "0, 181", "-40N 74W", "40.7", ""])("treats %s as not coordinates", (text) => {
     expect(parseCoordinates(text)).toBeNull();
+  });
+});
+
+describe("readCoordinates", () => {
+  it("is null for a name, so the name goes to the geocoder", () => {
+    for (const text of ["Brooklyn", "11201", "SW1A 1AA", "01310-100", "40.7", ""]) {
+      expect(readCoordinates(text)).toBeNull();
+    }
+  });
+
+  it("says why coordinates that can't be on Earth are refused", () => {
+    expect(readCoordinates("91, 0")).toEqual({ ok: false, problem: "Latitude must be between -90° and 90°." });
+    expect(readCoordinates("0, 181")).toEqual({ ok: false, problem: "Longitude must be between -180° and 180°." });
+    expect(readCoordinates("91, 200")).toEqual({
+      ok: false,
+      problem: "Latitude must be between -90° and 90°. Longitude must be between -180° and 180°.",
+    });
+    expect(readCoordinates("95S 10E")).toEqual({ ok: false, problem: "Latitude must be between -90° and 90°." });
+  });
+
+  it("refuses a minus sign and a hemisphere together", () => {
+    expect(readCoordinates("-40N 74W")).toEqual({ ok: false, problem: "Use a minus sign or N/S/E/W, not both." });
+    expect(readCoordinates("40N -74W")).toEqual({ ok: false, problem: "Use a minus sign or N/S/E/W, not both." });
+  });
+
+  it("refuses absurdly long numbers instead of overflowing to Infinity", () => {
+    expect(readCoordinates(`${"9".repeat(400)}, 0`)).toEqual({ ok: false, problem: "Latitude must be between -90° and 90°." });
+  });
+
+  it("accepts the poles and the antimeridian exactly", () => {
+    expect(readCoordinates("-90, 180")).toEqual({ ok: true, latDeg: -90, lonDeg: 180 });
   });
 });
 
