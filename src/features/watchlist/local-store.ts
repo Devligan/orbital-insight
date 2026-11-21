@@ -13,44 +13,77 @@ import { useCallback, useSyncExternalStore } from "react";
 export interface WatchlistItem {
   satelliteNumber: string;
   name: string;
-  addedAt: string;
+  /** ISO time it was saved; null when the stored value isn't a real time. */
+  addedAt: string | null;
 }
 
-const STORAGE_KEY = "orbital-insight.watchlist";
+export const WATCHLIST_STORAGE_KEY = "orbital-insight.watchlist";
 const WATCHLIST_EVENT = "orbital-insight:watchlist-changed";
 const EMPTY: WatchlistItem[] = [];
+const MAX_NAME_LENGTH = 120;
+/** Generous for a hand-kept list; a bigger stored array is cut, not rendered. */
+const MAX_ITEMS = 500;
 
 /** Parse snapshot cache: JSON parse produces a stable reference per raw value. */
 let snapshot: { raw: string | null; items: WatchlistItem[] } = { raw: null, items: EMPTY };
 
-function parseItems(raw: string | null): WatchlistItem[] {
+/**
+ * localStorage is input like any other: anyone (or any extension) can edit
+ * it. Each entry must name a real catalog number, because it becomes a link
+ * (/satellites/<id>) and a /passes request. Names are capped, times must
+ * parse, and a repeated number keeps its first entry, since numbers are
+ * React keys.
+ */
+export function parseWatchlist(raw: string | null): WatchlistItem[] {
   if (raw === null) return EMPTY;
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return EMPTY;
-    return parsed.filter(
-      (item): item is WatchlistItem =>
-        typeof item === "object" &&
-        item !== null &&
-        typeof (item as WatchlistItem).satelliteNumber === "string" &&
-        typeof (item as WatchlistItem).name === "string",
-    );
+    parsed = JSON.parse(raw);
   } catch {
     return EMPTY; // Corrupt local data behaves as empty, never crashes the page.
+  }
+  if (!Array.isArray(parsed)) return EMPTY;
+  const items: WatchlistItem[] = [];
+  const seen = new Set<string>();
+  for (const entry of parsed.slice(0, MAX_ITEMS)) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const { satelliteNumber, name, addedAt } = entry as Record<string, unknown>;
+    if (typeof satelliteNumber !== "string" || !/^[0-9]{1,5}$/.test(satelliteNumber)) continue;
+    if (seen.has(satelliteNumber)) continue;
+    seen.add(satelliteNumber);
+    const shownName = typeof name === "string" ? name.trim().slice(0, MAX_NAME_LENGTH) : "";
+    items.push({
+      satelliteNumber,
+      name: shownName || `NORAD ${satelliteNumber}`,
+      addedAt: typeof addedAt === "string" && Number.isFinite(Date.parse(addedAt)) ? addedAt : null,
+    });
+  }
+  return items;
+}
+
+function readRaw(): string | null {
+  try {
+    return window.localStorage.getItem(WATCHLIST_STORAGE_KEY);
+  } catch {
+    return null; // storage blocked (private window, site data off): an empty list
   }
 }
 
 function read(): WatchlistItem[] {
   if (typeof window === "undefined") return EMPTY;
-  const raw = window.localStorage.getItem(STORAGE_KEY);
+  const raw = readRaw();
   if (raw === snapshot.raw) return snapshot.items;
-  snapshot = { raw, items: parseItems(raw) };
+  snapshot = { raw, items: parseWatchlist(raw) };
   return snapshot.items;
 }
 
 function write(items: WatchlistItem[]): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  try {
+    window.localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    return; // storage blocked or full: the star simply doesn't stick
+  }
   window.dispatchEvent(new CustomEvent(WATCHLIST_EVENT));
 }
 

@@ -42,7 +42,7 @@ export default function WatchlistPage() {
                       </Link>
                     </td>
                     <td>{item.satelliteNumber}</td>
-                    <td>{formatUtc(new Date(item.addedAt))}</td>
+                    <td>{item.addedAt ? formatUtc(new Date(item.addedAt)) : "unknown"}</td>
                     <td>
                       <button
                         className="btn btn-danger"
