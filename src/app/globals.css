@@ -160,6 +160,11 @@ code {
     border-color: var(--color-accent-dim);
   }
 
+  /* A field whose value the form refused; the reason sits under it in words. */
+  .input[aria-invalid="true"] {
+    border-color: var(--color-status-bad);
+  }
+
   .btn {
     display: inline-flex;
     align-items: center;

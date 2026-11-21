@@ -18,6 +18,7 @@ import { standardMagnitudeFor } from "@/domain/light/standard-magnitudes";
 import { timeZoneAt } from "@/integrations/timezone/lookup";
 import type { PassResult } from "@/domain/passes/types";
 import type { PassResultDto } from "@/contracts/orbital";
+import { MAX_PASS_SATELLITES, PASS_LIMITS } from "@/contracts/pass-request";
 import { SatelliteService, type DataLineage, satelliteService } from "./satellites";
 
 /** Ground-track sampling bounds (free-tier + shared instance hostility). */
@@ -26,8 +27,8 @@ export const GROUND_TRACK_DEFAULT_HOURS = 24;
 export const GROUND_TRACK_DEFAULT_SAMPLES = 240;
 
 /** Pass-prediction bounds. */
-export const PASS_SEARCH_MAX_SATELLITES = 25;
-export const PASS_SEARCH_MAX_HOURS = 24 * 30;
+export const PASS_SEARCH_MAX_SATELLITES = MAX_PASS_SATELLITES;
+export const PASS_SEARCH_MAX_HOURS = PASS_LIMITS.windowHours.max;
 /**
  * Compute budget for one pass request: satellite-count × window-hours.
  * Measured worst case (25 sats × 720 h = 18,000 sat-hours) took ~11 s locally

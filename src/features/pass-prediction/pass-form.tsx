@@ -3,12 +3,15 @@
 /**
  * Pass-prediction workflow UI.
  *
- * Inputs validate format client-side; the server re-validates everything.
+ * Every field is checked here against the same limits the server enforces
+ * (`contracts/pass-request.ts`), so a bad value is named next to its field
+ * and nothing is sent; the server still re-validates everything.
  * Results distinguish predicted passes from visibility guarantees and label
  * truncated passes honestly. CSV export encodes exactly the returned data.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type InputHTMLAttributes } from "react";
+import { checkPassForm, type PassFormField, type PassFormValues as FormValues } from "@/contracts/pass-request";
 import Link from "next/link";
 import { PlaceSearch, type ChosenSpot } from "@/features/observer/place-search";
 import { rememberSpot, useRememberedSpot } from "@/features/observer/spot-store";
@@ -48,14 +51,8 @@ const QUICK_PICKS = [
   { satelliteNumber: "20580", name: "Hubble" },
 ] as const;
 
-interface FormValues {
-  satellites: string;
-  latitude: string;
-  longitude: string;
-  altitudeMeters: string;
-  windowHours: string;
-  minElevationDeg: string;
-}
+/** Field order on screen, so the first wrong one gets focus. */
+const FIELD_ORDER: PassFormField[] = ["latitudeDeg", "longitudeDeg", "altitudeMeters", "satellites", "windowHours", "minElevationDeg"];
 
 const DEFAULT_SPOT = { lat: "51.5072", lon: "-0.1276", altitudeMeters: "11", label: "London, England, United Kingdom" };
 
@@ -73,6 +70,10 @@ export function PassPredictionsForm() {
   const [busy, setBusy] = useState(false);
   // Drops a slower, superseded answer (e.g. the opening run vs. a quick re-run).
   const requestRef = useRef(0);
+  // A field's problem shows once it has been left, or after a submit.
+  const [touched, setTouched] = useState<ReadonlySet<PassFormField>>(new Set());
+  const [attempted, setAttempted] = useState(false);
+  const formElRef = useRef<HTMLFormElement>(null);
 
   const latitude = typed?.latitude ?? (remembered ? remembered.lat.toFixed(4) : DEFAULT_SPOT.lat);
   const longitude = typed?.longitude ?? (remembered ? remembered.lon.toFixed(4) : DEFAULT_SPOT.lon);
@@ -80,9 +81,21 @@ export function PassPredictionsForm() {
   const altitudeMeters = typed?.altitudeMeters ?? (remembered ? "0" : DEFAULT_SPOT.altitudeMeters);
   const spotLabel = typed ? null : remembered ? remembered.label : DEFAULT_SPOT.label;
   const form: FormValues = { satellites: satelliteInput, latitude, longitude, altitudeMeters, windowHours, minElevationDeg };
+  const check = checkPassForm(form);
+  const fieldErrors = check.ok ? {} : check.errors;
+  const shownError = (field: PassFormField) => (attempted || touched.has(field) ? fieldErrors[field] : undefined);
+  const leave = (field: PassFormField) => () => setTouched((prev) => (prev.has(field) ? prev : new Set(prev).add(field)));
 
-  // Uses only setters and the ref, so it's stable and effects can depend on it.
+  // Uses only setters and refs, so it's stable and effects can depend on it.
   const run = useCallback(async (values: FormValues) => {
+    const checked = checkPassForm(values);
+    if (!checked.ok) {
+      // Nothing is sent: say which fields are wrong, and start at the first.
+      setAttempted(true);
+      const first = FIELD_ORDER.find((field) => checked.errors[field]);
+      formElRef.current?.querySelector<HTMLInputElement>(`[data-field="${first}"]`)?.focus();
+      return;
+    }
     const request = ++requestRef.current;
     setBusy(true);
     setError(null);
@@ -91,17 +104,7 @@ export function PassPredictionsForm() {
       const response = await fetch("/api/passes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          satelliteNumbers: values.satellites.split(/[\s,]+/).map((id) => id.trim()).filter((id) => /^[0-9]{1,5}$/.test(id)),
-          observer: {
-            latitudeDeg: Number(values.latitude),
-            longitudeDeg: Number(values.longitude),
-            altitudeMeters: Number(values.altitudeMeters),
-          },
-          windowStartIso: new Date().toISOString(),
-          windowHours: Number(values.windowHours),
-          minElevationDeg: Number(values.minElevationDeg),
-        }),
+        body: JSON.stringify({ ...checked.request, windowStartIso: new Date().toISOString() }),
       });
       const body = (await response.json()) as PassResponse;
       if (request !== requestRef.current) return;
@@ -149,7 +152,9 @@ export function PassPredictionsForm() {
       <Panel>
         <PanelHeader title="Observation setup" />
         <form
+          ref={formElRef}
           className="flex flex-col gap-3"
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
             submit();
@@ -162,38 +167,48 @@ export function PassPredictionsForm() {
               {spotLabel ?? "Coordinates as typed below"}
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="flex flex-col gap-1">
-              <span className="label">Latitude (±90°)</span>
-              <input
-                className="input"
-                value={latitude}
-                onChange={(e) => editSpot("latitude", e.target.value)}
-                name="latitude"
-                inputMode="decimal"
-                autoComplete="off"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="label">Longitude (±180°)</span>
-              <input
-                className="input"
-                value={longitude}
-                onChange={(e) => editSpot("longitude", e.target.value)}
-                name="longitude"
-                inputMode="decimal"
-                autoComplete="off"
-              />
-            </label>
+          <div className="grid grid-cols-2 items-start gap-2">
+            <Field
+              label="Latitude (±90°)"
+              field="latitudeDeg"
+              error={shownError("latitudeDeg")}
+              onBlur={leave("latitudeDeg")}
+              value={latitude}
+              onChange={(e) => editSpot("latitude", e.target.value)}
+              name="latitude"
+              inputMode="decimal"
+            />
+            <Field
+              label="Longitude (±180°)"
+              field="longitudeDeg"
+              error={shownError("longitudeDeg")}
+              onBlur={leave("longitudeDeg")}
+              value={longitude}
+              onChange={(e) => editSpot("longitude", e.target.value)}
+              name="longitude"
+              inputMode="decimal"
+            />
           </div>
-          <label className="flex flex-col gap-1">
-            <span className="label">Altitude above sea level (m)</span>
-            <input className="input" value={altitudeMeters} onChange={(e) => editSpot("altitudeMeters", e.target.value)} name="altitude" autoComplete="off" />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="label">Catalog IDs (up to 25, space-separated)</span>
-            <input className="input font-mono" value={satelliteInput} onChange={(e) => setSatelliteInput(e.target.value)} name="satellites" autoComplete="off" />
-          </label>
+          <Field
+            label="Altitude above sea level (m, ≤ 10,000)"
+            field="altitudeMeters"
+            error={shownError("altitudeMeters")}
+            onBlur={leave("altitudeMeters")}
+            value={altitudeMeters}
+            onChange={(e) => editSpot("altitudeMeters", e.target.value)}
+            name="altitude"
+            inputMode="decimal"
+          />
+          <Field
+            label="Catalog IDs (up to 25, space-separated)"
+            field="satellites"
+            error={shownError("satellites")}
+            onBlur={leave("satellites")}
+            value={satelliteInput}
+            onChange={(e) => setSatelliteInput(e.target.value)}
+            name="satellites"
+            className="font-mono"
+          />
           <div className="-mt-1 flex flex-wrap gap-1">
             {QUICK_PICKS.map((pick) => (
               <button
@@ -206,14 +221,26 @@ export function PassPredictionsForm() {
               </button>
             ))}
           </div>
-          <label className="flex flex-col gap-1">
-            <span className="label">Prediction window (hours, ≤ 720)</span>
-            <input className="input" value={windowHours} onChange={(e) => setWindowHours(e.target.value)} name="window" autoComplete="off" />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="label">Minimum elevation (°, 0–85)</span>
-            <input className="input" value={minElevationDeg} onChange={(e) => setMinElevationDeg(e.target.value)} name="minElevation" autoComplete="off" />
-          </label>
+          <Field
+            label="Prediction window (hours, ≤ 720)"
+            field="windowHours"
+            error={shownError("windowHours")}
+            onBlur={leave("windowHours")}
+            value={windowHours}
+            onChange={(e) => setWindowHours(e.target.value)}
+            name="window"
+            inputMode="decimal"
+          />
+          <Field
+            label="Minimum elevation (°, 0–85)"
+            field="minElevationDeg"
+            error={shownError("minElevationDeg")}
+            onBlur={leave("minElevationDeg")}
+            value={minElevationDeg}
+            onChange={(e) => setMinElevationDeg(e.target.value)}
+            name="minElevation"
+            inputMode="decimal"
+          />
 
           {watchlistQuick.length > 0 ? (
             <div>
@@ -391,6 +418,42 @@ function exportCsv(
   }
   const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\r\n");
   downloadFile(csv, `passes_${results.windowStart.slice(0, 10)}_${inputs.latitude}N${inputs.longitude}E.csv`, "text/csv;charset=utf-8");
+}
+
+/**
+ * One labelled input whose refusal reason sits under it, tied to it for
+ * screen readers (aria-invalid + aria-describedby). The reason stays outside
+ * the <label> so the field's accessible name doesn't change when it appears.
+ */
+function Field({
+  label,
+  field,
+  error,
+  className,
+  ...input
+}: { label: string; field: PassFormField; error?: string } & Omit<InputHTMLAttributes<HTMLInputElement>, "id">) {
+  const id = useId();
+  const errorId = `${id}-error`;
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="flex flex-col gap-1">
+        <span className="label">{label}</span>
+        <input
+          {...input}
+          className={className ? `input ${className}` : "input"}
+          data-field={field}
+          autoComplete="off"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
+        />
+      </label>
+      {error ? (
+        <p id={errorId} className="text-[12px] text-[var(--color-status-bad)]" data-testid={`error-${field}`}>
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 /** Append a catalog id unless it's already listed. */

@@ -11,25 +11,38 @@ import { z } from "zod";
 import { jsonFail, jsonOk } from "@/lib/http";
 import { AppError } from "@/lib/errors";
 import { computePasses } from "@/server/analysis";
-import { PASS_SEARCH_MAX_HOURS } from "@/server/analysis";
+import {
+  CATALOG_ID_PATTERN,
+  MAX_PASS_SATELLITES,
+  PASS_LIMITS,
+  rangeMessage,
+  SATELLITE_LIST_MESSAGES,
+  type PassNumberField,
+} from "@/contracts/pass-request";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-const requestSchema = z.object({
+/** A bounded number whose every failure (missing, NaN, out of range) reads as the form's own sentence. */
+function bounded(field: PassNumberField) {
+  const message = rangeMessage(field);
+  return z.number({ error: message }).min(PASS_LIMITS[field].min, message).max(PASS_LIMITS[field].max, message);
+}
+
+const passRequestSchema = z.object({
   satelliteNumbers: z
-    .array(z.string().regex(/^[0-9]{1,5}$/))
-    .min(1)
-    .max(25),
+    .array(z.string().regex(CATALOG_ID_PATTERN, "Catalog IDs are 1 to 5 digits."), { error: SATELLITE_LIST_MESSAGES.empty })
+    .min(1, SATELLITE_LIST_MESSAGES.empty)
+    .max(MAX_PASS_SATELLITES, SATELLITE_LIST_MESSAGES.tooMany),
   observer: z.object({
-    latitudeDeg: z.number().min(-90).max(90),
-    longitudeDeg: z.number().min(-180).max(180),
+    latitudeDeg: bounded("latitudeDeg"),
+    longitudeDeg: bounded("longitudeDeg"),
     /** Meters above sea level (UI convention); converted to km in the service. */
-    altitudeMeters: z.number().min(-1_000).max(10_000).default(0),
+    altitudeMeters: bounded("altitudeMeters").default(0),
   }),
   windowStartIso: z.string().datetime(),
-  windowHours: z.number().min(1).max(PASS_SEARCH_MAX_HOURS).default(24),
-  minElevationDeg: z.number().min(0).max(85).default(10),
+  windowHours: bounded("windowHours").default(24),
+  minElevationDeg: bounded("minElevationDeg").default(10),
 });
 
 export async function POST(request: Request): Promise<Response> {
@@ -40,11 +53,14 @@ export async function POST(request: Request): Promise<Response> {
     return jsonFail(new AppError("validation", "Request body must be valid JSON"));
   }
 
-  const parsed = requestSchema.safeParse(body);
+  const parsed = passRequestSchema.safeParse(body);
   if (!parsed.success) {
+    const issues = parsed.error.issues.slice(0, 5);
+    // Name what's wrong, not just that something is: the message is shown as-is.
+    const said = [...new Set(issues.map((i) => i.message))].join(" ");
     return jsonFail(
-      new AppError("validation", "Invalid pass-prediction request", {
-        details: parsed.error.issues.slice(0, 5).map((i) => ({ path: i.path.join("."), message: i.message })),
+      new AppError("validation", `Invalid pass-prediction request. ${said}`, {
+        details: issues.map((i) => ({ path: i.path.join("."), message: i.message })),
       }),
     );
   }
