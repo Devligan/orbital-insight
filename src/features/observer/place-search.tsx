@@ -11,9 +11,9 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import {
-  parseCoordinates,
   placeLabel,
   PlaceSearchError,
+  readCoordinates,
   searchPlaces,
   type Place,
 } from "@/integrations/open-meteo/geocoding";
@@ -60,10 +60,14 @@ export function PlaceSearch({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const text = query.trim();
-  const coordinates = parseCoordinates(text);
+  const reading = readCoordinates(text);
+  const coordinates = reading?.ok ? reading : null;
+  // Coordinates that can't be a spot on Earth say why, here, rather than
+  // going to the geocoder as a town name and quietly finding nothing.
+  const coordinateProblem = reading && !reading.ok ? reading.problem : null;
   // Coordinates resolve locally; only a name of 2+ characters asks the geocoder.
   // Results from an earlier name are ignored (not cleared) while this holds.
-  const searchable = text.length >= 2 && coordinates === null;
+  const searchable = text.length >= 2 && reading === null;
   const options: Option[] = coordinates
     ? [{ kind: "coordinates", lat: coordinates.latDeg, lon: coordinates.lonDeg }]
     : searchable
@@ -122,6 +126,7 @@ export function PlaceSearch({
   const showList = open && options.length > 0;
   const noMatch = open && searchable && shownStatus === "done" && resultsFor === text && places.length === 0;
   const activeId = showList ? `${listId}-opt-${Math.min(active, options.length - 1)}` : undefined;
+  const problemId = `${listId}-problem`;
 
   return (
     <div ref={containerRef} className="relative w-full max-w-md">
@@ -134,6 +139,8 @@ export function PlaceSearch({
         aria-controls={listId}
         aria-autocomplete="list"
         aria-activedescendant={activeId}
+        aria-invalid={coordinateProblem ? true : undefined}
+        aria-describedby={coordinateProblem ? problemId : undefined}
         autoComplete="off"
         spellCheck={false}
         enterKeyHint="search"
@@ -213,6 +220,11 @@ export function PlaceSearch({
             </li>
           ))}
         </ul>
+      ) : null}
+      {coordinateProblem ? (
+        <p id={problemId} className="mt-1 text-[12px] text-[var(--color-status-bad)]" role="status" data-testid="place-search-problem">
+          {coordinateProblem}
+        </p>
       ) : null}
       {noMatch ? (
         <p className="mt-1 text-[12px] text-[var(--color-text-muted)]">
