@@ -26,9 +26,13 @@ export function icsUtc(iso: string): string {
   return new Date(iso).toISOString().replace(/\.\d{3}Z$/, "Z").replace(/[-:]/g, "");
 }
 
-/** TEXT escaping (§3.3.11): backslash, semicolon, comma, newline. */
+/**
+ * TEXT escaping (§3.3.11): backslash, semicolon, comma, newline. A lone CR
+ * counts as a newline too - some clients break lines on it, which would let a
+ * name end its property and start another.
+ */
 export function icsText(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+  return value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r\n|\r|\n/g, "\\n");
 }
 
 /**

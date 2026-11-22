@@ -65,6 +65,15 @@ describe("iCalendar primitives", () => {
     expect(icsText("a,b;c\\d\ne")).toBe("a\\,b\\;c\\\\d\\ne");
   });
 
+  it("escapes every kind of line break, so a name can't start a property of its own", () => {
+    expect(icsText("a\r\nb\rc\nd")).toBe("a\\nb\\nc\\nd");
+    const hostile = visiblePassesIcs([{ ...item, label: "X\rATTENDEE:mailto:someone@example.com" }], ctx);
+    expect(hostile.replace(/\r\n/g, "")).not.toMatch(/[\r\n]/);
+    // Read the way a lenient client does, breaking lines on a lone CR as well.
+    const lenient = hostile.replace(/\r\n /g, "").split(/\r\n|\r|\n/);
+    expect(lenient.filter((l) => l.startsWith("ATTENDEE"))).toEqual([]);
+  });
+
   it("folds at 75 octets without splitting multi-byte characters, and unfolds losslessly", () => {
     const line = "DESCRIPTION:" + "appears 10° up in the SW → highest 63° in the S → ".repeat(6);
     const folded = foldLine(line);
