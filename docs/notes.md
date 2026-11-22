@@ -50,3 +50,14 @@ the same moment, and that's what it looks for now.
 The post-deploy checks ran against each deployment's own URL, which is behind Vercel's protection, so for a while
 they were testing Vercel's sign-in page. The smoke test failed for the wrong reason, and Lighthouse passed by auditing
 the sign-in page. Production is now checked on its public domain, once that domain reports the commit being checked.
+
+### Trying to break it on purpose
+
+An adversarial pass ([#25](https://github.com/Devligan/orbital-insight/issues/25)) threw markup, impossible
+coordinates and 9.9-million-hour windows at the live site. Nothing crashed or ran, because the server refused all of it.
+But refusing isn't the same as telling someone what's wrong. Every bad field on /passes got the same "invalid request",
+an emptied latitude quietly became 0° (the form used `Number("")`), and "91, 200" in the place box went to the
+geocoder as a town name. The limits now live in one module shared by the form and the route, so each field names its
+own problem. Reading the code also turned up a watchlist that trusted whatever localStorage held, and pages that
+threw when a browser blocks storage. A hostile-input test suite now covers both, and both of its storage tests failed
+before the fix.
