@@ -321,6 +321,71 @@ test.describe("comparison journey", () => {
     // Explicit interpretation notes must be visible (elements-≠-physics guard).
     await expect(page.getByText(/differing epochs, fitting procedures/i)).toBeVisible();
   });
+
+  test("names a bad side, drops a result that no longer matches, and saves only what loaded", async ({ page }) => {
+    // The service is answered here so the test is about the page's handling, not the provider.
+    const side = (satelliteNumber: string, name: string) => ({
+      satelliteNumber,
+      name,
+      lineage: "cached",
+      epoch: "2026-11-20T12:00:00.000Z",
+      retrievedAt: "2026-11-20T13:00:00.000Z",
+      tleLine1: "1 25544U 98067A   26324.50000000  .00016717  00000-0  10270-3 0  9005",
+      tleLine2: "2 25544  51.6400 208.9163 0006317  69.9862  25.2906 15.50000000 10007",
+      characteristics: {
+        inclinationDeg: 51.64,
+        eccentricity: 0.0006317,
+        meanMotionRevPerDay: 15.5,
+        periodMinutes: 92.9,
+        semiMajorAxisKm: 6796,
+        perigeeAltitudeKm: 414,
+        apogeeAltitudeKm: 422,
+      },
+    });
+    let calls = 0;
+    await page.route("**/api/compare?**", (route) => {
+      calls += 1;
+      return calls === 1
+        ? route.fulfill({
+            json: {
+              ok: true,
+              data: {
+                left: side("25544", "ISS (ZARYA)"),
+                right: side("48274", "CSS (TIANHE)"),
+                positionDeltas: [{ time: "2026-11-20T12:00:00.000Z", deltaKm: 1200, deltaAltitudeKm: 30 }],
+                notes: ["A note."],
+              },
+            },
+          })
+        : route.fulfill({ status: 404, json: { ok: false, error: { kind: "not-found", message: "No orbital data available for catalog identifier 99998" } } });
+    });
+    await page.goto("/compare");
+    const result = page.getByTestId("comparison-result");
+    await expect(result).toContainText("Left: ISS (ZARYA)");
+
+    // Saving takes the object that loaded, whatever is typed in the box now.
+    const left = page.getByLabel("Left catalog ID");
+    await left.fill("not a number");
+    await page.getByRole("button", { name: "☆ Save left object" }).click();
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("orbital-insight.watchlist") ?? "[]"));
+    expect(stored.map((item: { satelliteNumber: string }) => item.satelliteNumber)).toEqual(["25544"]);
+
+    // A bad side is named next to itself, and nothing is sent.
+    await left.fill("25544");
+    const right = page.getByLabel("Right catalog ID");
+    await right.fill("999999999");
+    await page.getByRole("button", { name: "Compare", exact: true }).click();
+    await expect(right).toBeFocused();
+    await expect(right).toHaveAccessibleDescription("Right catalog ID must be a number from 1 to 99999.");
+    expect(calls).toBe(1);
+
+    // A failure clears the last result: it showed objects no longer asked for.
+    await right.fill("99998");
+    await page.getByRole("button", { name: "Compare", exact: true }).click();
+    await expect(page.getByText("Comparison failed")).toBeVisible();
+    await expect(result).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Save left object|Left object in watchlist/ })).toBeDisabled();
+  });
 });
 
 test.describe("2D fallback journey", () => {

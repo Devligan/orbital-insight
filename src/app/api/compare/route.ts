@@ -7,8 +7,9 @@
  */
 
 import { z } from "zod";
-import { jsonFail, jsonOk } from "@/lib/http";
+import { catalogNumber, jsonFail, jsonOk } from "@/lib/http";
 import { AppError } from "@/lib/errors";
+import { COMPARE_MESSAGES } from "@/contracts/catalog-number";
 import { compareElementSets } from "@/server/analysis";
 
 export const dynamic = "force-dynamic";
@@ -18,8 +19,8 @@ export async function GET(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const input = z
       .object({
-        left: z.string().regex(/^[0-9]{1,5}$/),
-        right: z.string().regex(/^[0-9]{1,5}$/),
+        left: catalogNumber(COMPARE_MESSAGES.left),
+        right: catalogNumber(COMPARE_MESSAGES.right),
         hours: z.coerce.number().min(1).max(48).default(24).optional(),
         samples: z.coerce.number().int().min(2).max(200).default(24).optional(),
       })
@@ -29,8 +30,11 @@ export async function GET(request: Request): Promise<Response> {
     return jsonOk(comparison, { headers: { "Cache-Control": "private, max-age=60" } });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return jsonFail(new AppError("validation", "Invalid comparison request", {
-        details: error.issues.slice(0, 3).map((i) => ({ path: i.path.join("."), message: i.message })),
+      const issues = error.issues.slice(0, 3);
+      // Name the side that's wrong; the form shows this message as-is.
+      const said = [...new Set(issues.map((i) => i.message))].join(" ");
+      return jsonFail(new AppError("validation", `Invalid comparison request. ${said}`, {
+        details: issues.map((i) => ({ path: i.path.join("."), message: i.message })),
       }));
     }
     return jsonFail(error);

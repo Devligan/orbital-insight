@@ -23,6 +23,12 @@ export function canonicalCatalogNumber(text: string): string | null {
   return String(value).padStart(5, "0");
 }
 
+/** Compare's two fields, worded the same by the form and the route. */
+export const COMPARE_MESSAGES = {
+  left: "Left catalog ID must be a number from 1 to 99999.",
+  right: "Right catalog ID must be a number from 1 to 99999.",
+} as const;
+
 /** The number as CelesTrak's CATNR query takes it: no padding. */
 export function catalogQueryValue(canonical: string): string {
   return String(Number(canonical));
