@@ -362,6 +362,12 @@ const SECTIONS = [
           a second, so coarser steps could jump straight over the patch of sky you describe.
         </li>
         <li>
+          <strong>How far back.</strong> Up to 7 days. The catalog holds this week&apos;s element sets, and SGP4 run
+          backwards from them drifts further the longer it goes. Run back years, it still returns confident positions,
+          even for satellites launched long after the date you gave, so older sightings are refused instead of guessed
+          at. An element set more than 30 days from your time is skipped, and the answer says how many were.
+        </li>
+        <li>
           <strong>What counts as a match.</strong> At some sampled instant the object was at least 10° up, in direct
           sunlight (the same cylindrical shadow test as for passes), and your sun was at least 6° below the horizon. It
           was crossing the sky at least 1° a minute (you saw it <em>move</em>; this leaves out geostationary and

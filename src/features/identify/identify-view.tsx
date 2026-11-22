@@ -14,7 +14,7 @@ import { PAGE, PageHeader } from "@/components/ui/page-header";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { HeightBand, LaunchGroup, SightingCandidate, SightingResult } from "@/domain/sighting/identify";
-import { DARK_SKY_SUN_ELEVATION_DEG } from "@/domain/sighting/identify";
+import { DARK_SKY_SUN_ELEVATION_DEG, MAX_SIGHTING_AGE_DAYS, sightingTimeProblem } from "@/domain/sighting/identify";
 import { constellationOf, constellationRule, type ConstellationId } from "@/domain/catalog/atlas";
 import { PlaceSearch } from "@/features/observer/place-search";
 import { useObserverLocation } from "@/features/observer/use-observer-location";
@@ -60,8 +60,8 @@ const HEIGHTS: readonly (readonly [HeightBand | null, string])[] = [
   [null, "Not sure"],
 ];
 
-/** "at": a picked time; `latest` caps the picker at the moment it was opened. */
-type When = { kind: "ago"; minutesAgo: number } | { kind: "at"; local: string; latest: string };
+/** "at": a picked time; `earliest`/`latest` bound the picker from the moment it was opened. */
+type When = { kind: "ago"; minutesAgo: number } | { kind: "at"; local: string; earliest: string; latest: string };
 
 type Search =
   | { status: "idle" }
@@ -76,6 +76,7 @@ type Search =
       travelDeg: number | null;
       elapsedMs: number;
       propagations: number;
+      outOfDate: number;
       catalogAge: string;
     }
   | { status: "failed"; message: string };
@@ -125,13 +126,11 @@ export function IdentifyView() {
 
   async function identify() {
     if (!observer) return;
-    const reportMs = reportTime(when, Date.now());
-    if (reportMs === null) {
-      setSearch({ status: "failed", message: "Pick a date and time." });
-      return;
-    }
-    if (reportMs > Date.now() + 60_000) {
-      setSearch({ status: "failed", message: "That time is in the future. For what's coming, see tonight's passes." });
+    const reportMs = reportTime(when, Date.now()) ?? Number.NaN;
+    // The picker's min/max are only hints (typed or old values get past them).
+    const problem = sightingTimeProblem(reportMs, Date.now());
+    if (problem) {
+      setSearch({ status: "failed", message: problem });
       return;
     }
     setSearch({ status: "loading-catalog" });
@@ -160,6 +159,7 @@ export function IdentifyView() {
           travelDeg,
           elapsedMs: message.elapsedMs,
           propagations: message.propagations,
+          outOfDate: message.outOfDate,
           catalogAge: catalog.generatedAt,
         });
         worker.terminate();
@@ -227,7 +227,12 @@ export function IdentifyView() {
               selected={when.kind === "at"}
               onClick={() => {
                 const now = Date.now();
-                setWhen({ kind: "at", local: localInputValue(now - 2 * 3_600_000), latest: localInputValue(now) });
+                setWhen({
+                  kind: "at",
+                  local: localInputValue(now - 2 * 3_600_000),
+                  earliest: localInputValue(now - MAX_SIGHTING_AGE_DAYS * 86_400_000),
+                  latest: localInputValue(now),
+                });
               }}
             >
               Earlier…
@@ -238,13 +243,15 @@ export function IdentifyView() {
                 className="input w-auto"
                 aria-label="Date and time you saw it"
                 value={when.local}
+                min={when.earliest}
                 max={when.latest}
-                onChange={(e) => setWhen({ kind: "at", local: e.target.value, latest: when.latest })}
+                onChange={(e) => setWhen({ ...when, local: e.target.value })}
               />
             ) : null}
           </div>
           <p className="mt-1 text-[12px] text-[var(--color-text-muted)]">
-            Searched {HALF_WINDOW_MINUTES} minutes either side, on this device&apos;s clock.
+            Searched {HALF_WINDOW_MINUTES} minutes either side, on this device&apos;s clock, up to {MAX_SIGHTING_AGE_DAYS}{" "}
+            days back.
           </p>
         </Question>
 
@@ -439,7 +446,11 @@ function Answer({ search }: { search: Extract<Search, { status: "done" }> }) {
       <p className="text-[11px] leading-relaxed text-[var(--color-text-muted)]">
         {search.propagations.toLocaleString()} SGP4 propagations in {(search.elapsedMs / 1000).toFixed(1)} s on this
         device, every {10} s across the window, from orbital elements published{" "}
-        {new Date(search.catalogAge).toLocaleDateString()}. A match is a satellite that was at least 10° up, in
+        {new Date(search.catalogAge).toLocaleDateString()}
+        {search.outOfDate > 0
+          ? ` (${search.outOfDate.toLocaleString()} more were skipped: their elements are over a month from your time)`
+          : ""}
+        . A match is a satellite that was at least 10° up, in
         sunlight, crossing at least 1° a minute, while your sun was 6° or more below the horizon. Brightness is
         estimated only where a published standard magnitude exists.{" "}
         <Link href="/methodology#identify" className="hover:underline">

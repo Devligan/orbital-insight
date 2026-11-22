@@ -82,6 +82,37 @@ export const GROUP_MIN_MEMBERS = 4;
 /** ...within this angle of each other at the same instant. */
 export const TRAIN_RADIUS_DEG = 10;
 
+const DAY_MS = 86_400_000;
+/**
+ * How far back a sighting can be checked. The catalog holds this week's
+ * element sets; run years back, SGP4 still returns positions (for objects
+ * not yet launched, too), and deep-space objects cost ~1,700× more per call
+ * because the resonance integrator steps from the epoch in 12 h increments.
+ * A 1960 search took ~26 minutes and would have named Starlinks.
+ */
+export const MAX_SIGHTING_AGE_DAYS = 7;
+/**
+ * Second line of defence, per element set: one this far from the report time
+ * is skipped, not trusted. It covers an old entry in an otherwise fresh
+ * catalog, and keeps the cost of a search bounded whatever time it's given.
+ */
+export const MAX_ELEMENT_AGE_DAYS = 30;
+
+/** Why a reported time can't be searched, in a sentence; null when it can. */
+export function sightingTimeProblem(reportMs: number, nowMs: number): string | null {
+  if (!Number.isFinite(reportMs)) return "Pick a date and time.";
+  if (reportMs > nowMs + 60_000) return "That time is in the future. For what's coming, see tonight's passes.";
+  if (reportMs < nowMs - MAX_SIGHTING_AGE_DAYS * DAY_MS) {
+    return `That's more than ${MAX_SIGHTING_AGE_DAYS} days ago. The search uses this week's published orbits, and run further back they drift too far to say what you saw.`;
+  }
+  return null;
+}
+
+/** Whether an element set (by its epoch) is close enough to the report time to use. */
+export function elementsUsableAt(epochMs: number, reportMs: number): boolean {
+  return Math.abs(reportMs - epochMs) <= MAX_ELEMENT_AGE_DAYS * DAY_MS;
+}
+
 export interface TrackPoint {
   tMs: number;
   azimuthDeg: number;

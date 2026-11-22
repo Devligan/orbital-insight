@@ -707,6 +707,23 @@ test.describe("what did I just see", () => {
     await page.getByLabel("Date and time you saw it").fill(local);
   }
 
+  test("a sighting from decades ago is refused at once, not searched for minutes", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await describeSighting(page, "1960-01-01T22:00");
+    // The picker says the limit too, for browsers that honour it.
+    await expect(page.getByLabel("Date and time you saw it")).toHaveAttribute("min", /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    let catalogRequests = 0;
+    page.on("request", (request) => {
+      if (request.url().includes("/api/sky/catalog")) catalogRequests += 1;
+    });
+    await page.getByTestId("identify-submit").click();
+    await expect(page.getByRole("alert").filter({ hasText: /^That's more than 7 days ago\./ })).toBeVisible();
+    await expect(page.getByTestId("identify-submit")).toHaveText("What was it?"); // not "Checking the sky…"
+    expect(catalogRequests).toBe(0);
+    expect(errors).toEqual([]);
+  });
+
   test("names real candidates for a dark-sky sighting and draws their paths", async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
