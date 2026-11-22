@@ -19,6 +19,7 @@ import { useWatchlist } from "@/features/watchlist/local-store";
 import { PassCard, type PassCardData as PassEntry } from "@/features/pass-prediction/pass-cards";
 import { observerClock, observerZoneNote } from "@/features/pass-prediction/sky-words";
 import { SkyChart } from "@/features/pass-prediction/sky-chart";
+import { passesCsv } from "@/features/pass-prediction/pass-csv";
 import { Badge, EmptyState, ErrorState, Loading, Panel, PanelHeader } from "@/components/ui/primitives";
 import { downloadFile } from "@/lib/download";
 import { formatUtc } from "@/lib/units";
@@ -391,33 +392,7 @@ function exportCsv(
   results: NonNullable<PassResponse["data"]>,
   inputs: { latitude: string; longitude: string; altitudeMeters: string; windowHours: string; minElevationDeg: string },
 ): void {
-  const rows: string[][] = [
-    ["satellite_number", "name", "rise_utc", "rise_azimuth_deg", "max_utc", "max_elevation_deg", "max_azimuth_deg", "set_utc", "set_azimuth_deg", "truncated", "visible", "estimated_magnitude"],
-  ];
-  for (const sat of results.results) {
-    if (sat.failure) {
-      rows.push([sat.satelliteNumber, sat.name || `NORAD ${sat.satelliteNumber}`, "", "", "", "", "", "", "", `error: ${sat.failure.reason}`, "", ""]);
-      continue;
-    }
-    for (const pass of sat.passes) {
-      rows.push([
-        sat.satelliteNumber,
-        sat.name || `NORAD ${sat.satelliteNumber}`,
-        pass.riseTime ?? "",
-        pass.azimuthAtRiseDeg !== null ? pass.azimuthAtRiseDeg.toFixed(2) : "",
-        pass.maxTime,
-        pass.maxElevationDeg.toFixed(2),
-        pass.azimuthAtMaxDeg.toFixed(2),
-        pass.setTime ?? "",
-        pass.azimuthAtSetDeg !== null ? pass.azimuthAtSetDeg.toFixed(2) : "",
-        pass.truncated,
-        pass.visibility ? (pass.visibility.fromGround ? "yes" : "no" + (pass.visibility.reasonIfNotVisible ? `: ${pass.visibility.reasonIfNotVisible}` : "")) : "",
-        pass.visibility?.bestEstimatedMagnitude !== null && pass.visibility?.bestEstimatedMagnitude !== undefined ? pass.visibility.bestEstimatedMagnitude.toFixed(2) : "",
-      ]);
-    }
-  }
-  const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\r\n");
-  downloadFile(csv, `passes_${results.windowStart.slice(0, 10)}_${inputs.latitude}N${inputs.longitude}E.csv`, "text/csv;charset=utf-8");
+  downloadFile(passesCsv(results.results),`passes_${results.windowStart.slice(0, 10)}_${inputs.latitude}N${inputs.longitude}E.csv`, "text/csv;charset=utf-8");
 }
 
 /**
@@ -459,9 +434,4 @@ function Field({
 /** Append a catalog id unless it's already listed. */
 function addId(list: string, id: string): string {
   return list.split(/[\s,]+/).includes(id) ? list : `${list} ${id}`.trim();
-}
-
-function csvEscape(value: string): string {
-  if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
 }
