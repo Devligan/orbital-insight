@@ -334,7 +334,8 @@ export async function computePasses(options: {
         const compiled = compileElementSet(record.elementSet);
         params.compiled.push(compiled);
         successes.push({
-          satelliteNumber,
+          // The record's own number: finder results are keyed on it, not on how it was asked for.
+          satelliteNumber: record.catalog.satelliteNumber,
           name: record.catalog.name,
           passes: [],
           lineage,

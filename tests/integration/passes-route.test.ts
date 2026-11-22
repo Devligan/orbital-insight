@@ -70,7 +70,7 @@ describe("POST /api/passes", () => {
     });
     expect(status).toBe(400);
     const message = body.error?.message ?? "";
-    for (const said of ["Catalog IDs are 1 to 5 digits.", "Latitude must be", "Longitude must be", "Altitude must be", "Prediction window must be"]) {
+    for (const said of ["Catalog IDs are numbers from 1 to 99999.", "Latitude must be", "Longitude must be", "Altitude must be", "Prediction window must be"]) {
       expect(message).toContain(said);
     }
     expect(computePasses).not.toHaveBeenCalled();
@@ -81,6 +81,12 @@ describe("POST /api/passes", () => {
     const { status, body } = await post({ ...valid(), observer: { ...valid().observer, latitudeDeg } });
     expect(status).toBe(400);
     expect(body.error?.message).toContain("Latitude must be between -90° and 90°.");
+  });
+
+  it("spells catalog numbers the way element sets do before computing", async () => {
+    const { status } = await post({ ...valid(), satelliteNumbers: ["5", "00025544"] });
+    expect(status).toBe(200);
+    expect(computePasses).toHaveBeenCalledWith(expect.objectContaining({ satelliteNumbers: ["00005", "25544"] }));
   });
 
   it("enforces the satellite-count limit", async () => {

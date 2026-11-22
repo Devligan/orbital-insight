@@ -36,6 +36,7 @@ import {
 } from "@/features/orbit-visualization/view-clock";
 import { ErrorState, Loading } from "@/components/ui/primitives";
 import { formatUtc } from "@/lib/units";
+import { canonicalCatalogNumber } from "@/contracts/catalog-number";
 
 // The globe ships ~2 MB of WebGL runtime; keep it out of the initial bundle.
 const SkyField = dynamic(
@@ -110,8 +111,9 @@ export function ExplorerView({
     return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
   }, [initialTime]);
   const initial = useMemo(() => {
-    if (rawCat && /^[0-9]{1,5}$/.test(rawCat)) {
-      return { satelliteNumber: rawCat, name: CURATED.find((c) => c.satelliteNumber === rawCat)?.name ?? `NORAD ${rawCat}` };
+    const cat = rawCat ? canonicalCatalogNumber(rawCat) : null;
+    if (cat) {
+      return { satelliteNumber: cat, name: CURATED.find((c) => c.satelliteNumber === cat)?.name ?? `NORAD ${cat}` };
     }
     return initialSatellite ?? DEFAULT_SATELLITE;
     // Read once on mount; afterwards the URL is written by this component.

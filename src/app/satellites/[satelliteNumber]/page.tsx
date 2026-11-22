@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { canonicalCatalogNumber } from "@/contracts/catalog-number";
 import { GroundTrackPlot } from "@/features/orbit-visualization/ground-track-plot";
 import { WatchSaveButton } from "@/features/watchlist/watch-save-button";
 import { Badge, DataField } from "@/components/ui/primitives";
@@ -11,8 +12,11 @@ import { formatUtc } from "@/lib/units";
 export const dynamic = "force-dynamic";
 
 export default async function SatelliteDetailPage({ params }: { params: Promise<{ satelliteNumber: string }> }) {
-  const { satelliteNumber } = await params;
-  if (!/^[0-9]{1,5}$/.test(satelliteNumber)) notFound();
+  const { satelliteNumber: requested } = await params;
+  const satelliteNumber = canonicalCatalogNumber(requested);
+  if (satelliteNumber === null) notFound();
+  // "/satellites/5" and "/satellites/00025544" are real objects spelled another way: one URL each.
+  if (satelliteNumber !== requested) permanentRedirect(`/satellites/${satelliteNumber}`);
 
   let data: SatelliteDetailData | undefined;
   let loadError: string | null = null;
