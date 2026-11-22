@@ -3,7 +3,14 @@
  * UI thread. One request in, progress messages, one result out.
  */
 
-import { identifySighting, launchOf, type SightingBody, type SightingQuery, type SightingResult } from "@/domain/sighting/identify";
+import {
+  elementsUsableAt,
+  identifySighting,
+  launchOf,
+  type SightingBody,
+  type SightingQuery,
+  type SightingResult,
+} from "@/domain/sighting/identify";
 import { sightingFrames } from "@/domain/sighting/frames";
 import { standardMagnitudeFor } from "@/domain/light/standard-magnitudes";
 import { compileTleLines, epochMillis, temeStateInto } from "@/integrations/sgp4/bulk";
@@ -26,7 +33,16 @@ export interface IdentifyRequest {
 
 export type IdentifyWorkerMessage =
   | { type: "progress"; done: number; total: number }
-  | { type: "result"; result: SightingResult; elapsedMs: number; unusable: number; propagations: number }
+  | {
+      type: "result";
+      result: SightingResult;
+      elapsedMs: number;
+      /** Element sets SGP4 couldn't initialize from. */
+      unusable: number;
+      /** Element sets too far (in time) from the report to trust; skipped. */
+      outOfDate: number;
+      propagations: number;
+    }
   | { type: "error"; message: string };
 
 const post = (message: IdentifyWorkerMessage) => (self as unknown as Worker).postMessage(message);
@@ -38,6 +54,7 @@ self.onmessage = (event: MessageEvent<IdentifyRequest>) => {
     const started = performance.now();
     const bodies: SightingBody[] = [];
     let unusable = 0;
+    let outOfDate = 0;
     for (const row of request.catalog) {
       const satrec = compileTleLines(row.l1, row.l2);
       if (!satrec) {
@@ -45,6 +62,10 @@ self.onmessage = (event: MessageEvent<IdentifyRequest>) => {
         continue;
       }
       const epochMs = epochMillis(satrec);
+      if (!elementsUsableAt(epochMs, request.reportMs)) {
+        outOfDate += 1;
+        continue;
+      }
       bodies.push({
         id: row.i,
         name: row.n,
@@ -63,6 +84,7 @@ self.onmessage = (event: MessageEvent<IdentifyRequest>) => {
       result,
       elapsedMs: performance.now() - started,
       unusable,
+      outOfDate,
       propagations: bodies.length * frames.length,
     });
   } catch (error) {
