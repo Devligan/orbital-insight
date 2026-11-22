@@ -7,7 +7,7 @@
  */
 
 import { z } from "zod";
-import { jsonFail, jsonOk } from "@/lib/http";
+import { catalogNumber, jsonFail, jsonOk } from "@/lib/http";
 import { AppError } from "@/lib/errors";
 import { computePositions } from "@/server/analysis";
 
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request, context: { params: Promise<{ satelliteNumber: string }> }): Promise<Response> {
   try {
     const { satelliteNumber } = await context.params;
-    const id = z.string().regex(/^[0-9]{1,5}$/).parse(satelliteNumber);
+    const id = catalogNumber().parse(satelliteNumber);
 
     const url = new URL(request.url);
     const input = z

@@ -7,7 +7,23 @@
  */
 
 import { AppError, isAppError, withCorrelationId } from "./errors";
-import type { ZodSchema } from "zod";
+import { z, type ZodSchema } from "zod";
+import { canonicalCatalogNumber } from "@/contracts/catalog-number";
+
+/**
+ * A NORAD catalog number in any spelling ("5", "00005", "00025544"), parsed
+ * to the padded form element sets carry. Every route takes ids through this.
+ */
+export function catalogNumber(message = "Catalog numbers are numbers from 1 to 99999.") {
+  return z.string().transform((value, ctx) => {
+    const canonical = canonicalCatalogNumber(value);
+    if (canonical === null) {
+      ctx.addIssue({ code: "custom", message });
+      return z.NEVER;
+    }
+    return canonical;
+  });
+}
 
 export interface ApiSuccess<T> {
   ok: true;

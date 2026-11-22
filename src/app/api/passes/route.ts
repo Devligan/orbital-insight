@@ -11,8 +11,8 @@ import { z } from "zod";
 import { jsonFail, jsonOk } from "@/lib/http";
 import { AppError } from "@/lib/errors";
 import { computePasses } from "@/server/analysis";
+import { catalogNumber } from "@/lib/http";
 import {
-  CATALOG_ID_PATTERN,
   MAX_PASS_SATELLITES,
   PASS_LIMITS,
   rangeMessage,
@@ -31,9 +31,11 @@ function bounded(field: PassNumberField) {
 
 const passRequestSchema = z.object({
   satelliteNumbers: z
-    .array(z.string().regex(CATALOG_ID_PATTERN, "Catalog IDs are 1 to 5 digits."), { error: SATELLITE_LIST_MESSAGES.empty })
+    .array(catalogNumber("Catalog IDs are numbers from 1 to 99999."), { error: SATELLITE_LIST_MESSAGES.empty })
     .min(1, SATELLITE_LIST_MESSAGES.empty)
-    .max(MAX_PASS_SATELLITES, SATELLITE_LIST_MESSAGES.tooMany),
+    .max(MAX_PASS_SATELLITES, SATELLITE_LIST_MESSAGES.tooMany)
+    .transform((ids) => [...new Set(ids)]), // "5" and "00005" arrive as one object
+
   observer: z.object({
     latitudeDeg: bounded("latitudeDeg"),
     longitudeDeg: bounded("longitudeDeg"),

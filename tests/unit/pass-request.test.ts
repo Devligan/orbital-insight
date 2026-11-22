@@ -92,12 +92,12 @@ describe("checkPassForm", () => {
 
   it("names a catalog token it can't use instead of silently dropping it", () => {
     const result = checkPassForm({ ...VALID, satellites: "25544 abc NaN" });
-    expect(!result.ok && result.errors.satellites).toBe('"abc" isn\'t a catalog ID (1 to 5 digits).');
+    expect(!result.ok && result.errors.satellites).toBe('"abc" isn\'t a catalog ID (a number from 1 to 99999).');
   });
 
   it("shortens a long bad token in the message", () => {
     const result = checkPassForm({ ...VALID, satellites: "<script>alert(1)</script>" });
-    expect(!result.ok && result.errors.satellites).toBe('"<script>aler…" isn\'t a catalog ID (1 to 5 digits).');
+    expect(!result.ok && result.errors.satellites).toBe('"<script>aler…" isn\'t a catalog ID (a number from 1 to 99999).');
   });
 
   it("requires at least one ID and at most the budgeted count", () => {
@@ -106,6 +106,11 @@ describe("checkPassForm", () => {
     const many = Array.from({ length: MAX_PASS_SATELLITES + 1 }, (_, i) => String(10000 + i)).join(" ");
     const tooMany = checkPassForm({ ...VALID, satellites: many });
     expect(!tooMany.ok && tooMany.errors.satellites).toBe(`Enter at most ${MAX_PASS_SATELLITES} catalog IDs.`);
+  });
+
+  it("accepts any spelling of a catalog number and sends the padded one, once", () => {
+    const result = checkPassForm({ ...VALID, satellites: "5 00005 00025544" });
+    expect(result.ok && result.request.satelliteNumbers).toEqual(["00005", "25544"]);
   });
 
   it("counts duplicates once against the limit", () => {

@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useSyncExternalStore } from "react";
+import { canonicalCatalogNumber } from "@/contracts/catalog-number";
 
 export interface WatchlistItem {
   satelliteNumber: string;
@@ -47,8 +48,9 @@ export function parseWatchlist(raw: string | null): WatchlistItem[] {
   const seen = new Set<string>();
   for (const entry of parsed.slice(0, MAX_ITEMS)) {
     if (typeof entry !== "object" || entry === null) continue;
-    const { satelliteNumber, name, addedAt } = entry as Record<string, unknown>;
-    if (typeof satelliteNumber !== "string" || !/^[0-9]{1,5}$/.test(satelliteNumber)) continue;
+    const { satelliteNumber: stored, name, addedAt } = entry as Record<string, unknown>;
+    const satelliteNumber = typeof stored === "string" ? canonicalCatalogNumber(stored) : null;
+    if (satelliteNumber === null) continue;
     if (seen.has(satelliteNumber)) continue;
     seen.add(satelliteNumber);
     const shownName = typeof name === "string" ? name.trim().slice(0, MAX_NAME_LENGTH) : "";

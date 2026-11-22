@@ -7,7 +7,7 @@
  */
 
 import { z } from "zod";
-import { jsonFail, jsonOk } from "@/lib/http";
+import { catalogNumber, jsonFail, jsonOk } from "@/lib/http";
 import { AppError } from "@/lib/errors";
 import { satelliteService, type DataLineage } from "@/server/satellites";
 import { compileElementSet } from "@/domain/orbit/propagation";
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 export async function GET(_request: Request, context: { params: Promise<{ satelliteNumber: string }> }): Promise<Response> {
   try {
     const { satelliteNumber } = await context.params;
-    const parsedId = z.string().regex(/^[0-9]{1,5}$/).parse(satelliteNumber);
+    const parsedId = catalogNumber().parse(satelliteNumber);
 
     const { record, lineage } = await satelliteService.get(parsedId);
     const compiled = compileElementSet(record.elementSet);

@@ -127,6 +127,19 @@ test.describe("detail + search journey", () => {
     await expect(page.getByText(/Element epoch/i)).toBeVisible();
   });
 
+  test("a catalog number spelled with or without padding lands on one canonical page", async ({ page }) => {
+    // The redirect happens before any provider work, so this holds offline too.
+    for (const [typed, canonical] of [
+      ["00025544", "25544"],
+      ["5", "00005"],
+    ]) {
+      const response = await page.request.get(`/satellites/${typed}`, { maxRedirects: 0 });
+      expect(response.status()).toBe(308);
+      expect(response.headers()["location"]).toBe(`/satellites/${canonical}`);
+    }
+    expect((await page.request.get("/satellites/100000", { maxRedirects: 0 })).status()).toBe(404);
+  });
+
   test("search answers instantly from the shipped catalog snapshot", async ({ page }) => {
     // The curated catalog ships with the deployment, so options appear without
     // waiting on any provider call - verified even minutes after a cold boot.
@@ -267,7 +280,7 @@ test.describe("pass prediction journey", () => {
     await expect(latitude).toBeFocused();
     await expect(latitude).toHaveAttribute("aria-invalid", "true");
     await expect(latitude).toHaveAccessibleDescription("Latitude is required.");
-    await expect(page.getByTestId("error-satellites")).toHaveText('"abc" isn\'t a catalog ID (1 to 5 digits).');
+    await expect(page.getByTestId("error-satellites")).toHaveText('"abc" isn\'t a catalog ID (a number from 1 to 99999).');
     await expect(page.getByTestId("error-minElevationDeg")).toHaveText("Minimum elevation must be between 0° and 85°.");
     expect(sent).toBe(0);
 

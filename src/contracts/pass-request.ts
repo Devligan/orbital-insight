@@ -8,6 +8,8 @@
  * costs ~27 kB gzip of the home-page budget.
  */
 
+import { canonicalCatalogNumber } from "./catalog-number";
+
 export const MAX_PASS_SATELLITES = 25;
 
 interface Range {
@@ -33,12 +35,11 @@ export function rangeMessage(field: PassNumberField): string {
   return `${label} must be between ${min.toLocaleString("en-US")}${unit} and ${max.toLocaleString("en-US")}${unit}.`;
 }
 
-export const CATALOG_ID_PATTERN = /^[0-9]{1,5}$/;
-
 export const SATELLITE_LIST_MESSAGES = {
   empty: "Enter at least one catalog ID.",
   tooMany: `Enter at most ${MAX_PASS_SATELLITES} catalog IDs.`,
-  notAnId: (token: string) => `"${token.length > 12 ? `${token.slice(0, 12)}…` : token}" isn't a catalog ID (1 to 5 digits).`,
+  notAnId: (token: string) =>
+    `"${token.length > 12 ? `${token.slice(0, 12)}…` : token}" isn't a catalog ID (a number from 1 to 99999).`,
 } as const;
 
 export type PassFormField = PassNumberField | "satellites";
@@ -83,9 +84,11 @@ export function splitCatalogIds(text: string): string[] {
 export function checkPassForm(values: PassFormValues): PassFormCheck {
   const errors: Partial<Record<PassFormField, string>> = {};
 
-  const ids = splitCatalogIds(values.satellites);
-  const bad = ids.find((id) => !CATALOG_ID_PATTERN.test(id));
-  if (ids.length === 0) errors.satellites = SATELLITE_LIST_MESSAGES.empty;
+  const tokens = splitCatalogIds(values.satellites);
+  const bad = tokens.find((token) => canonicalCatalogNumber(token) === null);
+  // "5" and "00005" are one object, so duplicates are dropped after spelling them one way.
+  const ids = [...new Set(tokens.map((token) => canonicalCatalogNumber(token)).filter((id) => id !== null))];
+  if (tokens.length === 0) errors.satellites = SATELLITE_LIST_MESSAGES.empty;
   else if (bad !== undefined) errors.satellites = SATELLITE_LIST_MESSAGES.notAnId(bad);
   else if (ids.length > MAX_PASS_SATELLITES) errors.satellites = SATELLITE_LIST_MESSAGES.tooMany;
 

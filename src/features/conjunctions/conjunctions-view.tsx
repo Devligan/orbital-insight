@@ -8,6 +8,7 @@ import { separationProfile, type CloseApproach, type ScreeningResult } from "@/d
 import { ErrorState, Loading } from "@/components/ui/primitives";
 import type { CatalogRow, ScreenRequest, ScreenWorkerMessage } from "./screening-worker";
 import { sgp4Body } from "./sgp4-body";
+import { canonicalCatalogNumber } from "@/contracts/catalog-number";
 
 /**
  * Close approaches: screen one object against the whole active catalog, in
@@ -68,7 +69,8 @@ function utcLabel(ms: number): string {
 /** `initialId` comes from the page's ?id= on the server, so the first render is real HTML. */
 export function ConjunctionsView({ initialId }: { initialId?: string | null }) {
   const pathname = usePathname();
-  const [targetId, setTargetId] = useState(() => initialId?.replace(/\D/g, "") || DEFAULT_ID);
+  // The catalog is keyed on padded numbers, so ?id=900 must become "00900" to be found.
+  const [targetId, setTargetId] = useState(() => canonicalCatalogNumber(initialId ?? "") ?? DEFAULT_ID);
   const [hours, setHours] = useState<number>(24);
   const [thresholdKm, setThresholdKm] = useState<number>(25);
   const [catalog, setCatalog] = useState<CatalogState>({ state: "loading" });

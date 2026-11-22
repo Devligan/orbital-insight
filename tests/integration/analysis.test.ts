@@ -20,7 +20,8 @@ function fakeService(elements: { id: string; tle: { line1: string; line2: string
   const client = {
     fetchGpTle: vi.fn(async (query: { kind: string; value: string }) => {
       count++;
-      const tle = byId.get(query.value) ?? byId.get("vanguard");
+      // CelesTrak reads CATNR as a number: "5" and "00005" are the same query.
+      const tle = byId.get(query.value.padStart(5, "0")) ?? byId.get("vanguard");
       if (!tle) return [];
       const elementSet = parseTle(tle.line1, tle.line2);
       return [{ name: "TEST " + elementSet.satelliteNumber, elementSet } satisfies NamedElementSet];

@@ -47,6 +47,16 @@ describe("SatelliteService", () => {
     expect(second.record.elementSet.satelliteNumber).toBe("00005");
   });
 
+  it("finds an object however its number is spelled, with one fetch", async () => {
+    // Before: "5" was fetched, then discarded because the element set says "00005".
+    const typed = await service.get("5");
+    const padded = await service.get("000005");
+    expect(typed.record.elementSet.satelliteNumber).toBe("00005");
+    expect(padded.record.elementSet.satelliteNumber).toBe("00005");
+    expect(calls()).toBe(1);
+    expect(vi.mocked(client.fetchGpTle)).toHaveBeenCalledWith({ kind: "catnr", value: "5" });
+  });
+
   it("serves labelled stale data when the provider fails after a successful fetch", async () => {
     await service.get("00005");
     expect(calls()).toBe(1);

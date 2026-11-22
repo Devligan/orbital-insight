@@ -14,7 +14,16 @@ describe("parseWatchlist", () => {
   });
 
   // The number becomes a link and a /passes request; only a catalog number may.
-  it.each(["../../api/passes", "25544?x=1", "javascript:alert(1)", "123456", "", " 25544", "-1"])(
+  it("spells every catalog number one way, so 5 and 00005 are one entry", () => {
+    const items = parseWatchlist(raw([
+      { satelliteNumber: "5", name: "VANGUARD 1" },
+      { satelliteNumber: "00005", name: "duplicate" },
+      { satelliteNumber: " 25544", name: "ISS" },
+    ]));
+    expect(items.map((i) => i.satelliteNumber)).toEqual(["00005", "25544"]);
+  });
+
+  it.each(["../../api/passes", "25544?x=1", "javascript:alert(1)", "123456", "", "0", "-1"])(
     "drops an entry whose number is %j",
     (satelliteNumber) => {
       expect(parseWatchlist(raw([{ satelliteNumber, name: "x" }]))).toEqual([]);

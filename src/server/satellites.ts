@@ -18,6 +18,7 @@
  */
 
 import { AppError, isProviderFailure } from "@/lib/errors";
+import { canonicalCatalogNumber, catalogQueryValue } from "@/contracts/catalog-number";
 import type { SatelliteRecord } from "@/domain/orbit/types";
 import {
   celestrakClient,
@@ -151,7 +152,9 @@ export class SatelliteService {
    * A fresh cache entry is served without a provider call regardless of
    * strategy; "fresh-first" refetches only when the entry passed its TTL.
    */
-  async get(satelliteNumber: string, strategy: "fresh-first" | "cache-first" = "fresh-first"): Promise<SatelliteRecordResult> {
+  async get(requested: string, strategy: "fresh-first" | "cache-first" = "fresh-first"): Promise<SatelliteRecordResult> {
+    // "5", "00005" and "000005" are one object; caches and element sets key on the padded form.
+    const satelliteNumber = canonicalCatalogNumber(requested) ?? requested;
     const cached = this.cache.get(satelliteNumber);
     if (cached) {
       const age = Date.now() - cached.retrievedAt.getTime();
@@ -190,7 +193,7 @@ export class SatelliteService {
 
   /** One provider lookup by catalog number; caches the answer. */
   private async fetchOne(satelliteNumber: string): Promise<NamedElementSet> {
-    const entries = await this.client.fetchGpTle({ kind: "catnr", value: satelliteNumber });
+    const entries = await this.client.fetchGpTle({ kind: "catnr", value: catalogQueryValue(satelliteNumber) });
     const entry = entries.find((e) => e.elementSet.satelliteNumber === satelliteNumber);
     if (!entry) {
       throw new AppError("not-found", `No orbital data available for catalog identifier ${satelliteNumber}`);
