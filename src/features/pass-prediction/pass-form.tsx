@@ -79,8 +79,9 @@ export function PassPredictionsForm() {
   const [busy, setBusy] = useState(false);
   // Drops a slower, superseded answer (e.g. the opening run vs. a quick re-run).
   const requestRef = useRef(0);
-  // A field's problem shows once it has been left, or after a submit.
-  const [touched, setTouched] = useState<ReadonlySet<PassFormField>>(new Set());
+  // A field's problem shows after a submit, then follows the typing. Not on
+  // blur: the message appearing pushed the button down between mousedown and
+  // mouseup, so "Predict passes" clicked straight after a bad value missed.
   const [attempted, setAttempted] = useState(false);
   const formElRef = useRef<HTMLFormElement>(null);
 
@@ -92,8 +93,7 @@ export function PassPredictionsForm() {
   const form: FormValues = { satellites: satelliteInput, latitude, longitude, altitudeMeters, windowHours, minElevationDeg };
   const check = checkPassForm(form);
   const fieldErrors = check.ok ? {} : check.errors;
-  const shownError = (field: PassFormField) => (attempted || touched.has(field) ? fieldErrors[field] : undefined);
-  const leave = (field: PassFormField) => () => setTouched((prev) => (prev.has(field) ? prev : new Set(prev).add(field)));
+  const shownError = (field: PassFormField) => (attempted ? fieldErrors[field] : undefined);
 
   // Uses only setters and refs, so it's stable and effects can depend on it.
   const run = useCallback(async (values: FormValues) => {
@@ -187,7 +187,6 @@ export function PassPredictionsForm() {
               label="Latitude (±90°)"
               field="latitudeDeg"
               error={shownError("latitudeDeg")}
-              onBlur={leave("latitudeDeg")}
               value={latitude}
               onChange={(e) => editSpot("latitude", e.target.value)}
               name="latitude"
@@ -197,7 +196,6 @@ export function PassPredictionsForm() {
               label="Longitude (±180°)"
               field="longitudeDeg"
               error={shownError("longitudeDeg")}
-              onBlur={leave("longitudeDeg")}
               value={longitude}
               onChange={(e) => editSpot("longitude", e.target.value)}
               name="longitude"
@@ -208,7 +206,6 @@ export function PassPredictionsForm() {
             label="Altitude above sea level (m, ≤ 10,000)"
             field="altitudeMeters"
             error={shownError("altitudeMeters")}
-            onBlur={leave("altitudeMeters")}
             value={altitudeMeters}
             onChange={(e) => editSpot("altitudeMeters", e.target.value)}
             name="altitude"
@@ -218,7 +215,6 @@ export function PassPredictionsForm() {
             label="Catalog IDs (up to 25, space-separated)"
             field="satellites"
             error={shownError("satellites")}
-            onBlur={leave("satellites")}
             value={satelliteInput}
             onChange={(e) => setSatelliteInput(e.target.value)}
             name="satellites"
@@ -240,7 +236,6 @@ export function PassPredictionsForm() {
             label="Prediction window (hours, ≤ 720)"
             field="windowHours"
             error={shownError("windowHours")}
-            onBlur={leave("windowHours")}
             value={windowHours}
             onChange={(e) => setWindowHours(e.target.value)}
             name="window"
@@ -250,7 +245,6 @@ export function PassPredictionsForm() {
             label="Minimum elevation (°, 0–85)"
             field="minElevationDeg"
             error={shownError("minElevationDeg")}
-            onBlur={leave("minElevationDeg")}
             value={minElevationDeg}
             onChange={(e) => setMinElevationDeg(e.target.value)}
             name="minElevation"

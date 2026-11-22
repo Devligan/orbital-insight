@@ -582,6 +582,22 @@ test.describe("location-first + shareable moments", () => {
     await expect(page.getByText("Fix the fields named in the form, then predict again.")).toBeVisible();
   });
 
+  test("Predict passes clicked straight after a bad value still submits", async ({ page }) => {
+    // At this size the button sits at the bottom of the first screen. A message
+    // shown on blur pushed it 42 px down between mousedown and mouseup, so the
+    // click landed beside it: no submit, and the old passes stayed up.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await mockVisibleIssPass(page);
+    await page.goto("/passes");
+    const exportButton = page.getByRole("button", { name: "Export CSV" });
+    await expect(exportButton).toBeVisible();
+
+    await page.getByLabel(/^Latitude/).fill("9999");
+    await page.getByRole("button", { name: /Predict passes/i }).click();
+    await expect(page.getByLabel(/^Latitude/)).toBeFocused(); // the submit's doing, not a blur
+    await expect(exportButton).toHaveCount(0);
+  });
+
   /** An hourly cloud forecast from an hour ago for a day, every hour at `pct`. */
   function cloudForecastJson(pct: number) {
     const hour = 3_600_000;
