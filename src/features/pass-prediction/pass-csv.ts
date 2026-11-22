@@ -44,6 +44,11 @@ export function csvCell(value: string): string {
 
 const fixed = (value: number | null | undefined) => (value === null || value === undefined ? "" : value.toFixed(2));
 
+/** "passes_2026-11-13_28.5N-80.6E.csv": the run's own date and spot. */
+export function passesCsvFileName(windowStartIso: string, observer: { latitudeDeg: number; longitudeDeg: number }): string {
+  return `passes_${windowStartIso.slice(0, 10)}_${observer.latitudeDeg}N${observer.longitudeDeg}E.csv`;
+}
+
 export function passesCsv(satellites: CsvSatellite[]): string {
   const rows: string[][] = [HEADER];
   for (const sat of satellites) {

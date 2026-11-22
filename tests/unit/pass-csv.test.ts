@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { csvCell, passesCsv, type CsvSatellite } from "@/features/pass-prediction/pass-csv";
+import { csvCell, passesCsv, passesCsvFileName, type CsvSatellite } from "@/features/pass-prediction/pass-csv";
 import type { PassCardData } from "@/features/pass-prediction/sky-words";
 
 const pass: PassCardData = {
@@ -82,6 +82,12 @@ describe("csvCell", () => {
 
   it("quotes commas, quotes and line breaks", () => {
     expect(csvCell('A, "B"\nC')).toBe('"A, ""B""\nC"');
+  });
+});
+
+describe("passesCsvFileName", () => {
+  it("names the file for the run's own date and spot", () => {
+    expect(passesCsvFileName("2026-11-13T01:00:00.000Z", { latitudeDeg: 28.5, longitudeDeg: -80.6 })).toBe("passes_2026-11-13_28.5N-80.6E.csv");
   });
 });
 
