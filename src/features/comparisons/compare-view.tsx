@@ -5,7 +5,10 @@
  * chart (Recharts), and explicit interpretation notes.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { canonicalCatalogNumber, COMPARE_MESSAGES } from "@/contracts/catalog-number";
+
+type Side = "left" | "right";
 import Link from "next/link";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Badge, DataField, ErrorState, Loading, Panel, PanelHeader } from "@/components/ui/primitives";
@@ -48,8 +51,16 @@ export function CompareView({ initialLeft, initialRight }: { initialLeft: string
   const [comparison, setComparison] = useState<ComparisonResponse["data"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A field's problem shows after a submit, then follows the typing.
+  const [attempted, setAttempted] = useState(false);
+  const inputRefs = useRef<Record<Side, HTMLInputElement | null>>({ left: null, right: null });
   const watchlist = useWatchlist();
-  const saved = watchlist.has(left);
+  // Only an object that actually loaded can be saved, never the raw text in the box.
+  const shownLeft = comparison?.left ?? null;
+  const saved = shownLeft ? watchlist.has(shownLeft.satelliteNumber) : false;
+
+  const ids: Record<Side, string | null> = { left: canonicalCatalogNumber(left), right: canonicalCatalogNumber(right) };
+  const fieldError = (side: Side) => (attempted && ids[side] === null ? COMPARE_MESSAGES[side] : undefined);
 
   const run = useCallback(async (a: string, b: string) => {
     setBusy(true);
@@ -58,16 +69,29 @@ export function CompareView({ initialLeft, initialRight }: { initialLeft: string
       const res = await fetch(`/api/compare?left=${encodeURIComponent(a)}&right=${encodeURIComponent(b)}&hours=24&samples=24`);
       const body = (await res.json()) as ComparisonResponse;
       if (!body.ok || !body.data) {
+        // The last result no longer matches what was asked for: don't leave it under the error.
+        setComparison(null);
         setError(body.error?.message ?? "The comparison service reported an error");
         return;
       }
       setComparison(body.data);
     } catch {
+      setComparison(null);
       setError("Could not reach the comparison service (network error)");
     } finally {
       setBusy(false);
     }
   }, []);
+
+  function submit() {
+    setAttempted(true);
+    const first = (["left", "right"] as const).find((side) => ids[side] === null);
+    if (first) {
+      inputRefs.current[first]?.focus();
+      return; // nothing is sent while a side is wrong
+    }
+    void run(ids.left!, ids.right!);
+  }
 
   useEffect(() => {
     // Defer via a timer: setState happens in a callback, not synchronously
@@ -86,38 +110,70 @@ export function CompareView({ initialLeft, initialRight }: { initialLeft: string
           }
         />
         <form
-          className="flex flex-wrap items-end gap-3"
+          className="flex flex-wrap items-start gap-3"
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
-            void run(left, right);
+            submit();
           }}
         >
-          <label className="flex min-w-40 flex-col gap-1">
-            <span className="label">Left catalog ID</span>
-            <input className="input font-mono" value={left} onChange={(e) => setLeft(e.target.value)} />
-          </label>
-          <label className="flex min-w-40 flex-col gap-1">
-            <span className="label">Right catalog ID</span>
-            <input className="input font-mono" value={right} onChange={(e) => setRight(e.target.value)} />
-          </label>
-          <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? "Comparing…" : "Compare"}
-          </button>
-          <button
-            type="button"
-            className={saved ? "btn btn-secondary" : "btn btn-secondary"}
-            onClick={() => (saved ? watchlist.remove(left) : watchlist.add(left, comparison?.left.name ?? left))}
-          >
-            {saved ? "★ Left object in watchlist" : "☆ Save left object"}
-          </button>
+          {(["left", "right"] as const).map((side) => {
+            const problem = fieldError(side);
+            return (
+              <div key={side} className="flex w-full flex-col gap-1 sm:w-56">
+                <label className="flex flex-col gap-1">
+                  <span className="label">{side === "left" ? "Left" : "Right"} catalog ID</span>
+                  <input
+                    ref={(el) => {
+                      inputRefs.current[side] = el;
+                    }}
+                    className="input font-mono"
+                    value={side === "left" ? left : right}
+                    onChange={(e) => (side === "left" ? setLeft : setRight)(e.target.value)}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    aria-invalid={problem ? true : undefined}
+                    aria-describedby={problem ? `compare-${side}-error` : undefined}
+                  />
+                </label>
+                {problem ? (
+                  <p id={`compare-${side}-error`} className="text-[12px] text-[var(--color-status-bad)]" data-testid={`compare-${side}-error`}>
+                    {problem}
+                  </p>
+                ) : null}
+              </div>
+            );
+          })}
+          {/* Buttons sit on the inputs' line (label height + gap), not under a wrapped error. */}
+          <div className="flex flex-wrap gap-3 sm:mt-[22px]">
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              {busy ? "Comparing…" : "Compare"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={!shownLeft || busy}
+              onClick={() => {
+                if (!shownLeft) return;
+                if (saved) watchlist.remove(shownLeft.satelliteNumber);
+                else watchlist.add(shownLeft.satelliteNumber, shownLeft.name);
+              }}
+            >
+              {saved ? "★ Left object in watchlist" : "☆ Save left object"}
+            </button>
+          </div>
         </form>
       </Panel>
 
       {busy ? <Loading label="Propagating both element sets…" /> : null}
-      {error ? <ErrorState title="Comparison failed" message={error} retry={() => void run(left, right)} /> : null}
+      {error ? <ErrorState title="Comparison failed" message={error} retry={submit} /> : null}
 
       {comparison ? (
-        <>
+        <div
+          className={"flex flex-col gap-3 transition-opacity " + (busy ? "opacity-40" : "")}
+          aria-busy={busy}
+          data-testid="comparison-result"
+        >
           {/* minmax(0, 1fr) columns, so the unbreakable TLE lines scroll instead of widening the page. */}
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <SidePanel side={comparison.left} tag="Left" />
@@ -158,7 +214,7 @@ export function CompareView({ initialLeft, initialRight }: { initialLeft: string
               ))}
             </ul>
           </Panel>
-        </>
+        </div>
       ) : null}
     </div>
   );
