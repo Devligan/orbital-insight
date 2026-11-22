@@ -345,7 +345,7 @@ test.describe("comparison journey", () => {
     let calls = 0;
     await page.route("**/api/compare?**", (route) => {
       calls += 1;
-      return calls === 1
+      return !route.request().url().includes("right=99998")
         ? route.fulfill({
             json: {
               ok: true,
@@ -370,16 +370,21 @@ test.describe("comparison journey", () => {
     const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("orbital-insight.watchlist") ?? "[]"));
     expect(stored.map((item: { satelliteNumber: string }) => item.satelliteNumber)).toEqual(["25544"]);
 
-    // A bad side is named next to itself, and nothing is sent.
+    // A bad side is named next to itself, nothing is sent, and the last result
+    // goes: it answered a different question.
     await left.fill("25544");
     const right = page.getByLabel("Right catalog ID");
     await right.fill("999999999");
     await page.getByRole("button", { name: "Compare", exact: true }).click();
     await expect(right).toBeFocused();
     await expect(right).toHaveAccessibleDescription("Right catalog ID must be a number from 1 to 99999.");
+    await expect(result).toHaveCount(0);
     expect(calls).toBe(1);
 
-    // A failure clears the last result: it showed objects no longer asked for.
+    // A failure clears the last result too.
+    await right.fill("48274");
+    await page.getByRole("button", { name: "Compare", exact: true }).click();
+    await expect(result).toContainText("Left: ISS (ZARYA)");
     await right.fill("99998");
     await page.getByRole("button", { name: "Compare", exact: true }).click();
     await expect(page.getByText("Comparison failed")).toBeVisible();
@@ -547,6 +552,51 @@ test.describe("location-first + shareable moments", () => {
       }),
     );
   }
+
+  test("a rejected submit clears the last passes, and the CSV is named for the run it came from", async ({ page }) => {
+    await mockVisibleIssPass(page);
+    await page.goto("/passes");
+    const exportButton = page.getByRole("button", { name: "Export CSV" });
+    await expect(exportButton).toBeVisible();
+
+    const latitude = page.getByLabel(/^Latitude/);
+    await latitude.fill("28.5");
+    await page.getByLabel(/^Longitude/).fill("-80.6");
+    const ran = page.waitForResponse("**/api/passes");
+    await page.getByRole("button", { name: /Predict passes/i }).click();
+    await ran;
+    await expect(exportButton).toBeVisible();
+
+    // Edited but not re-run: the file is still named for the passes on screen.
+    await latitude.fill("10");
+    const download = page.waitForEvent("download");
+    await exportButton.click();
+    expect((await download).suggestedFilename()).toMatch(/^passes_\d{4}-\d{2}-\d{2}_28\.5N-80\.6E\.csv$/);
+
+    // A rejected submit clears them: they no longer answer what's in the form.
+    await latitude.fill("9999");
+    await page.getByRole("button", { name: /Predict passes/i }).click();
+    await expect(page.getByTestId("error-latitudeDeg")).toHaveText("Latitude must be between -90° and 90°.");
+    await expect(exportButton).toHaveCount(0);
+    await expect(page.getByRole("table")).toHaveCount(0);
+    await expect(page.getByText("Fix the fields named in the form, then predict again.")).toBeVisible();
+  });
+
+  test("Predict passes clicked straight after a bad value still submits", async ({ page }) => {
+    // At this size the button sits at the bottom of the first screen. A message
+    // shown on blur pushed it 42 px down between mousedown and mouseup, so the
+    // click landed beside it: no submit, and the old passes stayed up.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await mockVisibleIssPass(page);
+    await page.goto("/passes");
+    const exportButton = page.getByRole("button", { name: "Export CSV" });
+    await expect(exportButton).toBeVisible();
+
+    await page.getByLabel(/^Latitude/).fill("9999");
+    await page.getByRole("button", { name: /Predict passes/i }).click();
+    await expect(page.getByLabel(/^Latitude/)).toBeFocused(); // the submit's doing, not a blur
+    await expect(exportButton).toHaveCount(0);
+  });
 
   /** An hourly cloud forecast from an hour ago for a day, every hour at `pct`. */
   function cloudForecastJson(pct: number) {

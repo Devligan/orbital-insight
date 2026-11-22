@@ -87,8 +87,12 @@ export function CompareView({ initialLeft, initialRight }: { initialLeft: string
     setAttempted(true);
     const first = (["left", "right"] as const).find((side) => ids[side] === null);
     if (first) {
+      // Nothing is sent while a side is wrong, and the last result goes: it
+      // answered a different question.
+      setComparison(null);
+      setError(null);
       inputRefs.current[first]?.focus();
-      return; // nothing is sent while a side is wrong
+      return;
     }
     void run(ids.left!, ids.right!);
   }

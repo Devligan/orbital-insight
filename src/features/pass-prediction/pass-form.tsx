@@ -11,7 +11,12 @@
  */
 
 import { useCallback, useEffect, useId, useRef, useState, type InputHTMLAttributes } from "react";
-import { checkPassForm, type PassFormField, type PassFormValues as FormValues } from "@/contracts/pass-request";
+import {
+  checkPassForm,
+  type PassFormField,
+  type PassFormValues as FormValues,
+  type PassRequestFields,
+} from "@/contracts/pass-request";
 import Link from "next/link";
 import { PlaceSearch, type ChosenSpot } from "@/features/observer/place-search";
 import { rememberSpot, useRememberedSpot } from "@/features/observer/spot-store";
@@ -19,7 +24,7 @@ import { useWatchlist } from "@/features/watchlist/local-store";
 import { PassCard, type PassCardData as PassEntry } from "@/features/pass-prediction/pass-cards";
 import { observerClock, observerZoneNote } from "@/features/pass-prediction/sky-words";
 import { SkyChart } from "@/features/pass-prediction/sky-chart";
-import { passesCsv } from "@/features/pass-prediction/pass-csv";
+import { passesCsv, passesCsvFileName } from "@/features/pass-prediction/pass-csv";
 import { Badge, EmptyState, ErrorState, Loading, Panel, PanelHeader } from "@/components/ui/primitives";
 import { downloadFile } from "@/lib/download";
 import { formatUtc } from "@/lib/units";
@@ -66,13 +71,17 @@ export function PassPredictionsForm() {
   const [satelliteInput, setSatelliteInput] = useState("25544");
   const [windowHours, setWindowHours] = useState("24");
   const [minElevationDeg, setMinElevationDeg] = useState("10");
-  const [results, setResults] = useState<PassResponse["data"] | null>(null);
+  // The last answer and the request that produced it. The CSV is named for
+  // that request, not for whatever is in the boxes now.
+  const [answer, setAnswer] = useState<{ data: NonNullable<PassResponse["data"]>; request: PassRequestFields } | null>(null);
+  const results = answer?.data ?? null;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Drops a slower, superseded answer (e.g. the opening run vs. a quick re-run).
   const requestRef = useRef(0);
-  // A field's problem shows once it has been left, or after a submit.
-  const [touched, setTouched] = useState<ReadonlySet<PassFormField>>(new Set());
+  // A field's problem shows after a submit, then follows the typing. Not on
+  // blur: the message appearing pushed the button down between mousedown and
+  // mouseup, so "Predict passes" clicked straight after a bad value missed.
   const [attempted, setAttempted] = useState(false);
   const formElRef = useRef<HTMLFormElement>(null);
 
@@ -84,14 +93,19 @@ export function PassPredictionsForm() {
   const form: FormValues = { satellites: satelliteInput, latitude, longitude, altitudeMeters, windowHours, minElevationDeg };
   const check = checkPassForm(form);
   const fieldErrors = check.ok ? {} : check.errors;
-  const shownError = (field: PassFormField) => (attempted || touched.has(field) ? fieldErrors[field] : undefined);
-  const leave = (field: PassFormField) => () => setTouched((prev) => (prev.has(field) ? prev : new Set(prev).add(field)));
+  const shownError = (field: PassFormField) => (attempted ? fieldErrors[field] : undefined);
 
   // Uses only setters and refs, so it's stable and effects can depend on it.
   const run = useCallback(async (values: FormValues) => {
     const checked = checkPassForm(values);
     if (!checked.ok) {
       // Nothing is sent: say which fields are wrong, and start at the first.
+      // Nothing from before stays up as if it answered these inputs either:
+      // the last results go, and a run still in flight is retired.
+      requestRef.current += 1;
+      setBusy(false);
+      setError(null);
+      setAnswer(null);
       setAttempted(true);
       const first = FIELD_ORDER.find((field) => checked.errors[field]);
       formElRef.current?.querySelector<HTMLInputElement>(`[data-field="${first}"]`)?.focus();
@@ -100,7 +114,7 @@ export function PassPredictionsForm() {
     const request = ++requestRef.current;
     setBusy(true);
     setError(null);
-    setResults(null);
+    setAnswer(null);
     try {
       const response = await fetch("/api/passes", {
         method: "POST",
@@ -113,7 +127,7 @@ export function PassPredictionsForm() {
         setError(body.error?.message ?? "The pass-prediction service reported an error");
         return;
       }
-      setResults(body.data);
+      setAnswer({ data: body.data, request: checked.request });
     } catch {
       if (request === requestRef.current) setError("Could not reach the pass-prediction service (network error)");
     } finally {
@@ -173,7 +187,6 @@ export function PassPredictionsForm() {
               label="Latitude (±90°)"
               field="latitudeDeg"
               error={shownError("latitudeDeg")}
-              onBlur={leave("latitudeDeg")}
               value={latitude}
               onChange={(e) => editSpot("latitude", e.target.value)}
               name="latitude"
@@ -183,7 +196,6 @@ export function PassPredictionsForm() {
               label="Longitude (±180°)"
               field="longitudeDeg"
               error={shownError("longitudeDeg")}
-              onBlur={leave("longitudeDeg")}
               value={longitude}
               onChange={(e) => editSpot("longitude", e.target.value)}
               name="longitude"
@@ -194,7 +206,6 @@ export function PassPredictionsForm() {
             label="Altitude above sea level (m, ≤ 10,000)"
             field="altitudeMeters"
             error={shownError("altitudeMeters")}
-            onBlur={leave("altitudeMeters")}
             value={altitudeMeters}
             onChange={(e) => editSpot("altitudeMeters", e.target.value)}
             name="altitude"
@@ -204,7 +215,6 @@ export function PassPredictionsForm() {
             label="Catalog IDs (up to 25, space-separated)"
             field="satellites"
             error={shownError("satellites")}
-            onBlur={leave("satellites")}
             value={satelliteInput}
             onChange={(e) => setSatelliteInput(e.target.value)}
             name="satellites"
@@ -226,7 +236,6 @@ export function PassPredictionsForm() {
             label="Prediction window (hours, ≤ 720)"
             field="windowHours"
             error={shownError("windowHours")}
-            onBlur={leave("windowHours")}
             value={windowHours}
             onChange={(e) => setWindowHours(e.target.value)}
             name="window"
@@ -236,7 +245,6 @@ export function PassPredictionsForm() {
             label="Minimum elevation (°, 0–85)"
             field="minElevationDeg"
             error={shownError("minElevationDeg")}
-            onBlur={leave("minElevationDeg")}
             value={minElevationDeg}
             onChange={(e) => setMinElevationDeg(e.target.value)}
             name="minElevation"
@@ -279,8 +287,8 @@ export function PassPredictionsForm() {
         <PanelHeader
           title="Predicted passes"
           right={
-            results ? (
-              <button className="btn btn-secondary" onClick={() => exportCsv(results, { latitude, longitude, altitudeMeters, windowHours, minElevationDeg })}>
+            answer ? (
+              <button className="btn btn-secondary" onClick={() => exportCsv(answer)}>
                 Export CSV
               </button>
             ) : undefined
@@ -290,7 +298,14 @@ export function PassPredictionsForm() {
         {busy ? <Loading label="Propagating passes…" /> : null}
         {error ? <ErrorState title="Pass prediction failed" message={error} retry={submit} /> : null}
         {!busy && !error && !results ? (
-          <EmptyState title="No predictions yet" hint="Configure the observation parameters and run a prediction." />
+          <EmptyState
+            title="No predictions yet"
+            hint={
+              attempted && !check.ok
+                ? "Fix the fields named in the form, then predict again."
+                : "Configure the observation parameters and run a prediction."
+            }
+          />
         ) : null}
 
         {results ? (
@@ -388,11 +403,8 @@ export function PassPredictionsForm() {
   );
 }
 
-function exportCsv(
-  results: NonNullable<PassResponse["data"]>,
-  inputs: { latitude: string; longitude: string; altitudeMeters: string; windowHours: string; minElevationDeg: string },
-): void {
-  downloadFile(passesCsv(results.results),`passes_${results.windowStart.slice(0, 10)}_${inputs.latitude}N${inputs.longitude}E.csv`, "text/csv;charset=utf-8");
+function exportCsv({ data, request }: { data: NonNullable<PassResponse["data"]>; request: PassRequestFields }): void {
+  downloadFile(passesCsv(data.results), passesCsvFileName(data.windowStart, request.observer), "text/csv;charset=utf-8");
 }
 
 /**
