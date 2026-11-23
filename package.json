@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@photostructure/tz-lookup": "11.8.0",
-    "@supabase/supabase-js": "^2.117.3",
+    "@supabase/supabase-js": "^2.119.2",
     "cesium": "^1.146.0",
     "next": "15.5.29",
     "react": "^19.3.1",
